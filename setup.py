@@ -42,8 +42,8 @@ setuptools.setup(
         'gunicorn',
         'arghandler',
     ],
-    test_suite='nose.collector',
-    tests_require=['nose'],
+    test_suite='pytest',
+    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'wxb = wxbtool.wxb:main',

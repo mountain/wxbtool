@@ -70,7 +70,7 @@ class WxDataset(Dataset):
         levels_selector = []
         for l in self.levels:
             levels_selector.append(all_levels.index(l))
-        selector = np.array(levels_selector, dtype=np.int)
+        selector = np.array(levels_selector, dtype=np.int64)
 
         size, lastvar, input, target = 0, None, None, None
         for var, yr in product(self.vars, self.years):
