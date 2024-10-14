@@ -13,7 +13,7 @@ data = local()
 
 
 def imgdata():
-    if 'img' in dir(data):
+    if "img" in dir(data):
         return data.img
     data.img = np.zeros([32, 64, 4], dtype=np.uint8)
     return data.img

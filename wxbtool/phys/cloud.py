@@ -6,13 +6,13 @@ from wxbtool.phys.constants import WaterDensity, IceDensity
 
 
 def water_mass_by_density(d):
-    l = d / 1000
-    return np.pi * l * l * l / 6 * WaterDensity
+    diameter = d / 1000
+    return np.pi * diameter * diameter * diameter / 6 * WaterDensity
 
 
 def ice_mass_by_density(d):
-    l = d / 1000
-    return np.pi * l * l * l / 6 * IceDensity
+    diameter = d / 1000
+    return np.pi * diameter * diameter * diameter / 6 * IceDensity
 
 
 def water_reflectivity_by_density(d):

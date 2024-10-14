@@ -17,9 +17,12 @@ class TestTest(unittest.TestCase):
     def tearDown(self):
         pass
 
-    @mock.patch.dict(os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())})
+    @mock.patch.dict(
+        os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
+    )
     def test_test(self):
         import wxbtool.wxb as wxb
-        testargs = ['wxb', 'test', '-m', 'models.tgt_mdl']
-        with patch.object(sys, 'argv', testargs):
+
+        testargs = ["wxb", "test", "-m", "models.tgt_mdl", "-b", "1"]
+        with patch.object(sys, "argv", testargs):
             wxb.main()

@@ -13,14 +13,14 @@ cv = 718.0
 cp = 1005.0
 Rs = 287
 miu = 1.72e-1
-M = 0.02896968 # molar mass of dry air, 0.0289644 kg/mol
+M = 0.02896968  # molar mass of dry air, 0.0289644 kg/mol
 
 T0 = 298.16
-R0 = 8.314462618 # Universal gas constant
+R0 = 8.314462618  # Universal gas constant
 rao0 = 1.2252256827617731
 
-niu = 1.85e-5 # kinematic viscosity of air in 25 degree C
-kappa = 1.9e-5 # thermal diffusivity of air in 300K
+niu = 1.85e-5  # kinematic viscosity of air in 25 degree C
+kappa = 1.9e-5  # thermal diffusivity of air in 300K
 
 SunConst = 1366
 

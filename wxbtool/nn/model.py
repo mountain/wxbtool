@@ -6,7 +6,14 @@ import numpy as np
 import torch as th
 import torch.nn as nn
 
-from wxbtool.data.constants import load_area_weight, load_lsm, load_slt, load_orography, load_lat2d, load_lon2d
+from wxbtool.data.constants import (
+    load_area_weight,
+    load_lsm,
+    load_slt,
+    load_orography,
+    load_lat2d,
+    load_lon2d,
+)
 from wxbtool.util.evaluation import Evaluator
 from wxbtool.data.dataset import WxDataset, WxDatasetClient
 
@@ -77,42 +84,90 @@ class Model2d(nn.Module):
         self.clipping_threshold = 3.0
 
     def load_dataset(self, phase, mode, **kwargs):
-        if phase == 'train':
-            if mode == 'server':
+        if phase == "train":
+            if mode == "server":
                 self.dataset_train, self.dataset_eval = (
-                        WxDataset(self.setting.root, self.setting.resolution,
-                                  self.setting.years_train, self.setting.vars, self.setting.levels,
-                                  input_span=self.setting.input_span, pred_shift=self.setting.pred_shift, pred_span=self.setting.pred_span, step=self.setting.step),
-                        WxDataset(self.setting.root, self.setting.resolution,
-                                  self.setting.years_eval, self.setting.vars, self.setting.levels,
-                                  input_span=self.setting.input_span, pred_shift=self.setting.pred_shift, pred_span=self.setting.pred_span, step=self.setting.step)
+                    WxDataset(
+                        self.setting.root,
+                        self.setting.resolution,
+                        self.setting.years_train,
+                        self.setting.vars,
+                        self.setting.levels,
+                        input_span=self.setting.input_span,
+                        pred_shift=self.setting.pred_shift,
+                        pred_span=self.setting.pred_span,
+                        step=self.setting.step,
+                    ),
+                    WxDataset(
+                        self.setting.root,
+                        self.setting.resolution,
+                        self.setting.years_eval,
+                        self.setting.vars,
+                        self.setting.levels,
+                        input_span=self.setting.input_span,
+                        pred_shift=self.setting.pred_shift,
+                        pred_span=self.setting.pred_span,
+                        step=self.setting.step,
+                    ),
                 )
             else:
-                ds_url = kwargs['url']
+                ds_url = kwargs["url"]
                 self.dataset_train, self.dataset_eval = (
-                    WxDatasetClient(ds_url, 'train', self.setting.resolution,
-                              self.setting.years_train, self.setting.vars, self.setting.levels,
-                              input_span=self.setting.input_span, pred_shift=self.setting.pred_shift,
-                              pred_span=self.setting.pred_span, step=self.setting.step),
-                    WxDatasetClient(ds_url, 'eval', self.setting.resolution,
-                              self.setting.years_eval, self.setting.vars, self.setting.levels,
-                              input_span=self.setting.input_span, pred_shift=self.setting.pred_shift,
-                              pred_span=self.setting.pred_span, step=self.setting.step)
+                    WxDatasetClient(
+                        ds_url,
+                        "train",
+                        self.setting.resolution,
+                        self.setting.years_train,
+                        self.setting.vars,
+                        self.setting.levels,
+                        input_span=self.setting.input_span,
+                        pred_shift=self.setting.pred_shift,
+                        pred_span=self.setting.pred_span,
+                        step=self.setting.step,
+                    ),
+                    WxDatasetClient(
+                        ds_url,
+                        "eval",
+                        self.setting.resolution,
+                        self.setting.years_eval,
+                        self.setting.vars,
+                        self.setting.levels,
+                        input_span=self.setting.input_span,
+                        pred_shift=self.setting.pred_shift,
+                        pred_span=self.setting.pred_span,
+                        step=self.setting.step,
+                    ),
                 )
 
             self.train_size = len(self.dataset_train)
             self.eval_size = len(self.dataset_eval)
         else:
-            if mode == 'server':
-                self.dataset_test = WxDataset(self.setting.root, self.setting.resolution,
-                                              self.setting.years_test, self.setting.vars, self.setting.levels,
-                                              input_span=self.setting.input_span, pred_shift=self.setting.pred_shift, pred_span=self.setting.pred_span, step=self.setting.step)
+            if mode == "server":
+                self.dataset_test = WxDataset(
+                    self.setting.root,
+                    self.setting.resolution,
+                    self.setting.years_test,
+                    self.setting.vars,
+                    self.setting.levels,
+                    input_span=self.setting.input_span,
+                    pred_shift=self.setting.pred_shift,
+                    pred_span=self.setting.pred_span,
+                    step=self.setting.step,
+                )
             else:
-                ds_url = kwargs['url']
-                self.dataset_test = WxDatasetClient(ds_url, 'test', self.setting.resolution,
-                                              self.setting.years_test, self.setting.vars, self.setting.levels,
-                                              input_span=self.setting.input_span, pred_shift=self.setting.pred_shift,
-                                              pred_span=self.setting.pred_span, step=self.setting.step)
+                ds_url = kwargs["url"]
+                self.dataset_test = WxDatasetClient(
+                    ds_url,
+                    "test",
+                    self.setting.resolution,
+                    self.setting.years_test,
+                    self.setting.vars,
+                    self.setting.levels,
+                    input_span=self.setting.input_span,
+                    pred_shift=self.setting.pred_shift,
+                    pred_span=self.setting.pred_span,
+                    step=self.setting.step,
+                )
 
             self.test_size = len(self.dataset_test)
 
@@ -175,7 +230,7 @@ class Base2d(Model2d):
             augmented = []
             b, c, w, h = data.size()
             for _ in range(b):
-                slice = data[_:_+1]
+                slice = data[_ : _ + 1]
                 shift = self.lng_shift[_]
                 flip = self.flip_status[_]
                 slice = slice.roll(shift, dims=(3,))
@@ -186,7 +241,9 @@ class Base2d(Model2d):
         return data
 
     def get_augmented_constant(self, input):
-        constant = self.get_constant(input, input.device).repeat(input.size()[0], 1, 1, 1)
+        constant = self.get_constant(input, input.device).repeat(
+            input.size()[0], 1, 1, 1
+        )
         constant = self.augment_data(constant)
         phi = self.get_phi(input.device).repeat(input.size()[0], 1, 1, 1)
         theta = self.get_theta(input.device).repeat(input.size()[0], 1, 1, 1)
@@ -223,7 +280,7 @@ class Base3d(Base2d):
             augmented = []
             b, c, t, w, h = data.size()
             for _ in range(b):
-                slice = data[_:_+1]
+                slice = data[_ : _ + 1]
                 shift = self.lng_shift[_]
                 flip = self.flip_status[_]
                 slice = slice.roll(shift, dims=(4,))

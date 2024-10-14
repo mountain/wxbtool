@@ -9,7 +9,7 @@ class Evaluator:
         self.root = root
         self.resolution = resolution
 
-        if resolution == '5.625deg':
+        if resolution == "5.625deg":
             self.levels = 11
             self.width = 32
             self.length = 64

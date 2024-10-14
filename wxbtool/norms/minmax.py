@@ -74,26 +74,26 @@ def denorm_tcc(tcc):
 
 
 normalizors = {
-    'geopotential': norm_gpt,
-    'temperature': norm_tmp,
-    'specific_humidity': norm_shm,
-    'relative_humidity': norm_rhm,
-    'u_component_of_wind': norm_u,
-    'v_component_of_wind': norm_v,
-    'toa_incident_solar_radiation': norm_tisr,
-    'total_cloud_cover': norm_tcc,
-    '2m_temperature': norm_tmp,
+    "geopotential": norm_gpt,
+    "temperature": norm_tmp,
+    "specific_humidity": norm_shm,
+    "relative_humidity": norm_rhm,
+    "u_component_of_wind": norm_u,
+    "v_component_of_wind": norm_v,
+    "toa_incident_solar_radiation": norm_tisr,
+    "total_cloud_cover": norm_tcc,
+    "2m_temperature": norm_tmp,
 }
 
 
 denormalizors = {
-    'geopotential': denorm_gpt,
-    'temperature': denorm_tmp,
-    'specific_humidity': denorm_shm,
-    'relative_humidity': denorm_rhm,
-    'u_component_of_wind': denorm_u,
-    'v_component_of_wind': denorm_v,
-    'toa_incident_solar_radiation': denorm_tisr,
-    'total_cloud_cover': denorm_tcc,
-    '2m_temperature': denorm_tmp,
+    "geopotential": denorm_gpt,
+    "temperature": denorm_tmp,
+    "specific_humidity": denorm_shm,
+    "relative_humidity": denorm_rhm,
+    "u_component_of_wind": denorm_u,
+    "v_component_of_wind": denorm_v,
+    "toa_incident_solar_radiation": denorm_tisr,
+    "total_cloud_cover": denorm_tcc,
+    "2m_temperature": denorm_tmp,
 }

@@ -10,12 +10,13 @@ import flask
 
 import msgpack
 import msgpack_numpy as m
+
 m.patch()
 
-import numpy as np
+import numpy as np  # noqa: E402
 
-from pathlib import Path
-from flask import Flask
+from pathlib import Path  # noqa: E402
+from flask import Flask  # noqa: E402
 
 
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -28,11 +29,11 @@ datasets = {}
 
 
 def init(opt):
-    time_str = arrow.now().format('YYYYMMDD_HHmmss')
-    model_path = Path(f'./dsserver/{time_str}')
+    time_str = arrow.now().format("YYYYMMDD_HHmmss")
+    model_path = Path(f"./dsserver/{time_str}")
     model_path.mkdir(exist_ok=True, parents=True)
-    log_file = model_path / Path('dsserver.log')
-    logging.basicConfig(level=logging.INFO, filename=log_file, filemode='w')
+    log_file = model_path / Path("dsserver.log")
+    logging.basicConfig(level=logging.INFO, filename=log_file, filemode="w")
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
     logger.info(str(opt))
@@ -41,28 +42,31 @@ def init(opt):
         sys.path.insert(0, os.getcwd())
         mdm = importlib.import_module(opt.module, package=None)
         setting = getattr(mdm, opt.setting)()
-        spec = getattr(mdm, 'Spec')(setting)
-    except ImportError as e:
+        spec = getattr(mdm, "Spec")(setting)
+    except ImportError:
         exc_info = sys.exc_info()
-        print('failure when loading model')
+        print("failure when loading model")
         import traceback
+
         traceback.print_exception(*exc_info)
         del exc_info
         sys.exit(1)
 
-    spec.load_dataset('train', 'server')
-    spec.load_dataset('test', 'server')
+    spec.load_dataset("train", "server")
+    spec.load_dataset("test", "server")
     dtrain = spec.dataset_train
     deval = spec.dataset_eval
     dtest = spec.dataset_test
-    datasets['train'] = dtrain
-    datasets['eval'] = deval
-    datasets['test'] = dtest
+    datasets["train"] = dtrain
+    datasets["eval"] = deval
+    datasets["test"] = dtest
 
     handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+    )
     logger.addHandler(handler)
-    gunicorn_logger = logging.getLogger('gunicorn.info')
+    gunicorn_logger = logging.getLogger("gunicorn.info")
     app.logger.handlers.extend(gunicorn_logger.handlers)
     logger.handlers.extend(app.logger.handlers)
 
@@ -77,30 +81,42 @@ route = app.route
 def length(hash, mode):
     ds = datasets[mode]
     if ds.hashcode != hash:
-        return flask.current_app.response_class('not found', status=404, mimetype="application/msgpack")
+        return flask.current_app.response_class(
+            "not found", status=404, mimetype="application/msgpack"
+        )
 
-    app.logger.info('query length[%s] %d', mode, len(ds))
-    msg = msgpack.dumps({
-        'size': len(ds),
-    })
+    app.logger.info("query length[%s] %d", mode, len(ds))
+    msg = msgpack.dumps(
+        {
+            "size": len(ds),
+        }
+    )
 
-    return flask.current_app.response_class(msg, status=200, mimetype="application/msgpack")
+    return flask.current_app.response_class(
+        msg, status=200, mimetype="application/msgpack"
+    )
 
 
 @route("/<string:hash>/<string:mode>/<int:idx>")
 def seek(hash, mode, idx):
     ds = datasets[mode]
     if ds.hashcode != hash:
-        return flask.current_app.response_class('not found', status=404, mimetype="application/msgpack")
+        return flask.current_app.response_class(
+            "not found", status=404, mimetype="application/msgpack"
+        )
 
-    app.logger.info('query data[%s] at %d', mode, idx)
+    app.logger.info("query data[%s] at %d", mode, idx)
     inputs, targets = ds[idx]
-    msg = msgpack.dumps({
-        'inputs': inputs,
-        'targets': targets,
-    })
+    msg = msgpack.dumps(
+        {
+            "inputs": inputs,
+            "targets": targets,
+        }
+    )
 
-    return flask.current_app.response_class(msg, status=200, mimetype="application/msgpack")
+    return flask.current_app.response_class(
+        msg, status=200, mimetype="application/msgpack"
+    )
 
 
 def main(context, opt):
@@ -115,8 +131,11 @@ def main(context, opt):
             super().__init__()
 
         def load_config(self):
-            config = {key: value for key, value in self.options.items()
-                      if key in self.cfg.settings and value is not None}
+            config = {
+                key: value
+                for key, value in self.options.items()
+                if key in self.cfg.settings and value is not None
+            }
             for key, value in config.items():
                 self.cfg.set(key.lower(), value)
 
@@ -129,9 +148,9 @@ def main(context, opt):
     print("port: %s" % opt.port)
     print("workers: %s" % opt.workers)
 
-    if opt.test == 'false':
+    if opt.test == "false":
         options = {
-            'bind': '%s:%s' % (opt.ip, opt.port),
-            'workers': opt.workers,
+            "bind": "%s:%s" % (opt.ip, opt.port),
+            "workers": opt.workers,
         }
         StandaloneApplication(app, options).run()
