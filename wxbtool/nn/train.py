@@ -10,7 +10,7 @@ import numpy as np
 import torch as th
 
 from pathlib import Path
-from torch.nn.utils import clip_grad_norm
+from torch.nn.utils import clip_grad_norm_
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
@@ -84,7 +84,7 @@ def train_model(
             loss = mdl.lossfun(inputs, results, targets)
 
             loss.backward()
-            clip_grad_norm(mdl.parameters(), mdl.clipping_threshold)
+            clip_grad_norm_(mdl.parameters(), mdl.clipping_threshold)
             optimizer.step()
 
             logger.info(
@@ -152,13 +152,13 @@ def train_model(
 
                 _, tgt = mdl.get_targets(**targets)
                 _, rst = mdl.get_results(**results)
-                tgt = tgt.detach().cpu().numpy().reshape(-1, 1, 32, 64)
-                rst = rst.detach().cpu().numpy().reshape(-1, 1, 32, 64)
+                tgt = tgt.detach().cpu().numpy().reshape(-1, mdl.setting.pred_span, 32, 64)
+                rst = rst.detach().cpu().numpy().reshape(-1, mdl.setting.pred_span, 32, 64)
                 rmse = np.sqrt(
                     np.mean(mdl.weight.cpu().numpy() * (rst - tgt) * (rst - tgt))
                 )
                 logger.info(
-                    f"Epoch: {epoch + 1:03d} | Step: {step + 1:03d} | Loss: {loss.item()} | Temperature RMSE: {rmse}"
+                    f"Epoch: {epoch + 1:03d} | Step: {step + 1:03d} | Loss: {loss.item()} | RMSE: {rmse}"
                 )
                 rmse_per_epoch_t += np.nan_to_num(
                     rmse * list(results.values())[0].size()[0]
@@ -179,10 +179,11 @@ def train_model(
         vars_fc, _ = mdl.get_results(**results)
         vars_tg, _ = mdl.get_targets(**targets)
         for bas, var in enumerate(mdl.setting.vars_out):
-            fcst = vars_fc[var][0].detach().cpu().numpy().reshape(32, 64)
-            tgrt = vars_tg[var][0].detach().cpu().numpy().reshape(32, 64)
-            plot(var, open("%s_fcs.png" % var, mode="wb"), fcst)
-            plot(var, open("%s_tgt.png" % var, mode="wb"), tgrt)
+            for ix in range(mdl.setting.pred_span):
+                fcst = vars_fc[var][0, ix].detach().cpu().numpy().reshape(32, 64)
+                tgrt = vars_tg[var][0, ix].detach().cpu().numpy().reshape(32, 64)
+                plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst)
+                plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt)
 
         th.save(
             mdl.state_dict(),

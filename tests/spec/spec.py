@@ -1,15 +1,5 @@
-# -*- coding: utf-8 -*-
-
 """
- A modeling spec for t850
-
- This spec follows basic settings and discussions in
-
-   Data-driven medium-range weather prediction with a Resnet pretrained on climate simulations:
-   A new model for WeatherBench
-   by Stephan Rasp, Nils Thuerey
-   https://arxiv.org/pdf/2008.08626.pdf
-
+ A modeling spec for t2m
 """
 
 import torch as th
@@ -50,22 +40,31 @@ class SettingSimple(Setting):
         self.years_test = [1980]
 
 
-class Setting30d(SettingSimple):
+class Setting3d(SettingSimple):
     def __init__(self):
         super().__init__()
-        self.step = 1  # How many hours of a hourly step which all features in organized temporally
-        self.input_span = 7  # How many hourly steps for an input
-        self.pred_span = 1  # How many hourly steps for a prediction
-        self.pred_shift = 30  # How many hours between the end of the input span and the beginning of prediction span
+        self.step = 1  # How many days of a daily step which all features in organized temporally
+        self.input_span = 2  # How many daily steps for an input
+        self.pred_span = 1  # How many daily steps for a prediction
+        self.pred_shift = 3  # How many days between the end of the input span and the beginning of prediction span
 
 
-class Setting90d(SettingSimple):
+class Setting6d(SettingSimple):
     def __init__(self):
         super().__init__()
-        self.step = 1  # How many hours of a hourly step which all features in organized temporally
-        self.input_span = 7  # How many hourly steps for an input
-        self.pred_span = 1  # How many hourly steps for a prediction
-        self.pred_shift = 90  # How many hours between the end of the input span and the beginning of prediction span
+        self.step = 1  # How many days of a daily step which all features in organized temporally
+        self.input_span = 2  # How many daily steps for an input
+        self.pred_span = 2  # How many daily steps for a prediction
+        self.pred_shift = 6  # How many days between the end of the input span and the beginning of prediction span
+
+
+class Setting10d(SettingSimple):
+    def __init__(self):
+        super().__init__()
+        self.step = 2  # How many days of a daily step which all features in organized temporally
+        self.input_span = 2  # How many daily steps for an input
+        self.pred_span = 2  # How many daily steps for a prediction
+        self.pred_shift = 10  # How many days between the end of the input span and the beginning of prediction span
 
 
 class Spec(Base2d):
@@ -91,7 +90,7 @@ class Spec(Base2d):
         return vdic, th.cat(vlst, dim=1)
 
     def get_targets(self, **kwargs):
-        t2m = kwargs["2m_temperature"].view(-1, 1, 32, 64)
+        t2m = kwargs["2m_temperature"].view(-1, self.setting.pred_span, 32, 64)
         t2m = self.augment_data(t2m)
         return {"t2m": t2m}, t2m
 
@@ -105,8 +104,8 @@ class Spec(Base2d):
     def lossfun(self, inputs, result, target):
         _, rst = self.get_results(**result)
         _, tgt = self.get_targets(**target)
-        rst = self.weight * rst.view(-1, 1, 32, 64)
-        tgt = self.weight * tgt.view(-1, 1, 32, 64)
+        rst = self.weight * rst.view(-1, self.setting.pred_span, 32, 64)
+        tgt = self.weight * tgt.view(-1, self.setting.pred_span, 32, 64)
 
         losst = mse(rst[:, 0], tgt[:, 0])
 

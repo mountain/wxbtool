@@ -32,15 +32,15 @@ class TestTest(unittest.TestCase):
             "wxb",
             "dserve",
             "-m",
-            "models.modeltest",
+            "models.model",
             "-s",
-            "Setting30d",
+            "Setting3d",
             "-t",
             "true",
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
-        testargs = ["wxb", "test", "-m", "models.modeltest", "-b", "1"]
+        testargs = ["wxb", "test", "-m", "models.model", "-b", "1"]
         with patch.object(sys, "argv", testargs):
             wxb.main()

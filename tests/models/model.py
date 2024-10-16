@@ -3,13 +3,13 @@
 import torch as th
 
 from leibniz.nn.net.simple import SimpleCNN2d
-from tests.spec.spectest import Spec, Setting30d
+from tests.spec.spec import Spec, Setting3d
 
 
-class ModelTest(Spec):
+class Model(Spec):
     def __init__(self, setting):
         super().__init__(setting)
-        self.name = "model_test"
+        self.name = "model"
         self.mlp = SimpleCNN2d(
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size
@@ -30,5 +30,5 @@ class ModelTest(Spec):
         return {"t2m": output.view(batch_size, 1, 32, 64)}
 
 
-setting = Setting30d()
-model = ModelTest(setting)
+setting = Setting3d()
+model = Model(setting)

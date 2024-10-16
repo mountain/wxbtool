@@ -1,28 +1,22 @@
-# -*- coding: utf-8 -*-
-
 """
-    Demo model in wxbtool package
-
-    This model predict t850 3-days in the future
-    The performance is relative weak, but it can be easily fitted into one normal gpu
-    the weighted rmse is 2.41 K
+    Test model in wxbtool package
 """
-
 import numpy as np
 import torch as th
 
+from leibniz.nn.net import SimpleCNN2d
 from torch.utils.data import Dataset
-from leibniz.nn.net.simple import SimpleCNN2d
+
+from tests.spec.spec import Setting10d, Spec
 from wxbtool.data.variables import vars3d
-from wxbtool.specs.res5_625.t850rasp import Spec, Setting3d
 
 
-setting = Setting3d()
+setting = Setting10d()
 
 
 class TestDataset(Dataset):
     def __len__(self):
-        return 2
+        return 60
 
     def __getitem__(self, item):
         inputs, targets = {}, {}
@@ -31,22 +25,22 @@ class TestDataset(Dataset):
                 inputs.update(
                     {var: np.ones((1, setting.input_span, setting.height, 32, 64))}
                 )
-                targets.update({var: np.ones((1, 1, setting.height, 32, 64))})
+                targets.update({var: np.ones((1, setting.pred_span,  setting.height, 32, 64))})
             else:
                 inputs.update({var: np.ones((1, setting.input_span, 32, 64))})
-                targets.update({var: np.ones((1, 1, 32, 64))})
+                targets.update({var: np.ones((1, setting.pred_span, 32, 64))})
         return inputs, targets
 
 
-class TgtMdl(Spec):
+class Mdl(Spec):
     def __init__(self, setting):
         super().__init__(setting)
-        self.name = "tgt_mdl"
+        self.name = "fast"
         self.mlp = SimpleCNN2d(
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size
             + 2,
-            1,
+            self.setting.pred_span * len(self.setting.vars_out),
         )
 
     def load_dataset(self, phase, mode, **kwargs):
@@ -62,7 +56,7 @@ class TgtMdl(Spec):
         self.test_size = len(self.dataset_test)
 
     def forward(self, **kwargs):
-        batch_size = kwargs["temperature"].size()[0]
+        batch_size = kwargs["2m_temperature"].size()[0]
         self.update_da_status(batch_size)
 
         _, input = self.get_inputs(**kwargs)
@@ -71,7 +65,7 @@ class TgtMdl(Spec):
 
         output = self.mlp(input)
 
-        return {"t850": output.view(batch_size, 1, 32, 64)}
+        return {"t2m": output.view(batch_size, self.setting.pred_span, 32, 64)}
 
 
-model = TgtMdl(setting)
+model = Mdl(setting)

@@ -81,7 +81,7 @@ def test_model(opt, mdl, logger=None):
                 mdl.eva.weight = mdl.eva.weight * (mdl.eva.weight > 0)
                 rmse = mdl.eva.weighted_rmse(rst, tgt)
                 logger.info(
-                    f"Step: {step + 1:03d} | Loss: {loss.item()} | Temperature RMSE: {rmse}"
+                    f"Step: {step + 1:03d} | Loss: {loss.item()} | RMSE: {rmse}"
                 )
                 rmse_per_epoch_t += np.nan_to_num(
                     rmse * list(results.values())[0].size()[0]
@@ -100,10 +100,11 @@ def test_model(opt, mdl, logger=None):
         vars_fc, _ = mdl.get_results(**results)
         vars_tg, _ = mdl.get_targets(**targets)
         for bas, var in enumerate(mdl.setting.vars_out):
-            fcst = vars_fc[var][0].detach().cpu().numpy().reshape(32, 64)
-            tgrt = vars_tg[var][0].detach().cpu().numpy().reshape(32, 64)
-            plot(var, open("%s_fcs.png" % var, mode="wb"), fcst)
-            plot(var, open("%s_tgt.png" % var, mode="wb"), tgrt)
+            for ix in range(mdl.setting.pred_span):
+                fcst = vars_fc[var][0, ix].detach().cpu().numpy().reshape(32, 64)
+                tgrt = vars_tg[var][0, ix].detach().cpu().numpy().reshape(32, 64)
+                plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst)
+                plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt)
 
     try:
         test(mdl)
