@@ -146,11 +146,36 @@ class WxDataset(Dataset):
             )
             self.dump_var(dumpdir, lastvar)
 
+        if not self.accumulated:
+            logger.error("No data accumulated. Please check the data loading process.")
+            raise ValueError("No data accumulated. Ensure that data is correctly loaded and accumulated.")
+
+        lengths = {var: acc.shape[0] for var, acc in self.accumulated.items()}
+        unique_lengths = set(lengths.values())
+
+        if len(unique_lengths) != 1:
+            max_length = max(unique_lengths)
+
+            inconsistent_vars = {var: length for var, length in lengths.items() if length != max_length}
+
+            if inconsistent_vars:
+                for var, length in inconsistent_vars.items():
+                    logger.error(f"Variable {var} has inconsistent length {length}. Expected length: {max_length}.")
+
+                # 根据需要，选择是否抛出异常
+                raise ValueError(
+                    "Inconsistent data lengths across variables detected. Please check the data loading process.")
+        else:
+            logger.info("All variables have consistent data lengths.")
+
         with open("%s/shapes.json" % dumpdir, mode="w") as fp:
             json.dump(self.shapes, fp)
 
         self.size = size // len(self.vars)
         logger.info("total %s items loaded!", self.size)
+
+        for var in list(self.accumulated.keys()):
+            del self.accumulated[var]
 
     def load_2ddata(self, year, var, accumulated):
         data_path = "%s/%s/%s_%d_%s.nc" % (self.root, var, var, year, self.resolution)
@@ -193,7 +218,6 @@ class WxDataset(Dataset):
         file_dump = "%s/%s.npy" % (dumpdir, var)
         self.shapes["data"][var] = self.accumulated[var].shape
         np.save(file_dump, self.accumulated[var])
-        del self.accumulated[var]
 
     def memmap(self, dumpdir):
         with open("%s/shapes.json" % dumpdir) as fp:
@@ -221,18 +245,27 @@ class WxDataset(Dataset):
                 )
 
     def __len__(self):
-        return (
-            self.accumulated[self.vars[0]].shape[0]
-            - self.input_span * self.step
-            - self.pred_shift
+        length = (
+                self.accumulated[self.vars[0]].shape[0]
+                - self.input_span * self.step
+                - self.pred_shift
         )
+        logger.info(f"Dataset length: {length}")
+        return length
 
     def __getitem__(self, item):
         inputs, targets = {}, {}
         for var in self.vars:
             if var in vars2d or var in vars3d:
-                inputs[var] = self.inputs[var][item : item + self.input_span]
-                targets[var] = self.targets[var][item : item + self.pred_span]
+                input_slice = self.inputs[var][item : item + self.input_span]
+                target_slice = self.targets[var][item : item + self.pred_span]
+                inputs[var] = input_slice
+                targets[var] = target_slice
+                if input_slice.shape[0] != self.input_span:
+                    logger.warning(f"Input slice for var {var} at index {item} has shape {input_slice.shape}")
+                if target_slice.shape[0] != self.pred_span:
+                    logger.warning(f"Target slice for var {var} at index {item} has shape {target_slice.shape}")
+
         return inputs, targets
 
 
