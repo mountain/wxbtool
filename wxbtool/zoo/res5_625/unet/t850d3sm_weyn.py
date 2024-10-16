@@ -12,7 +12,7 @@ import torch as th
 
 from leibniz.nn.net import resunet
 from leibniz.nn.activation import CappingRelu
-from leibniz.unet.senet import SEBottleneck
+from leibniz.nn.layer.senet import SEBottleneck
 
 from wxbtool.specs.res5_625.t850weyn import Spec, Setting3d
 
