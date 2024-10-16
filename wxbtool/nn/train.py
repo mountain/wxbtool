@@ -30,9 +30,9 @@ best = np.inf
 eval_by_epoch = np.inf
 count = 0
 
-
 embbed = False
 scheduler = None
+logger = None
 
 
 def train_model(

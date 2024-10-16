@@ -3,7 +3,7 @@
 import torch as th
 
 from leibniz.nn.net.simple import SimpleCNN2d
-from tests.spec.spec import Spec, Setting3d
+from tests.spec.spec import Spec, Setting10d
 
 
 class Model(Spec):
@@ -27,8 +27,8 @@ class Model(Spec):
 
         output = self.mlp(input)
 
-        return {"t2m": output.view(batch_size, 1, 32, 64)}
+        return {"t2m": output.view(batch_size, self.setting.pred_span, 32, 64)}
 
 
-setting = Setting3d()
+setting = Setting10d()
 model = Model(setting)

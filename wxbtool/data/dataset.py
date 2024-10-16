@@ -226,6 +226,7 @@ class WxDataset(Dataset):
         for var in self.vars:
             file_dump = "%s/%s.npy" % (dumpdir, var)
 
+            # load data from memmap, and skip the first shift elements of mmap data header
             shape = shapes["data"][var]
             total_size = np.prod(shape)
             data = np.memmap(file_dump, dtype=np.float32, mode="r")
@@ -233,21 +234,14 @@ class WxDataset(Dataset):
             self.accumulated[var] = np.reshape(data[shift:], shape)
 
             if var in vars2d or var in vars3d:
-                self.inputs[var] = WindowArray(
-                    self.accumulated[var],
-                    shift=self.input_span * self.step,
-                    step=self.step,
-                )
-                self.targets[var] = WindowArray(
-                    self.accumulated[var],
-                    shift=self.pred_span * self.step + self.pred_shift,
-                    step=self.step,
-                )
+                self.inputs[var] = self.accumulated[var]
+                self.targets[var] = self.accumulated[var]
 
     def __len__(self):
         length = (
                 self.accumulated[self.vars[0]].shape[0]
-                - self.input_span * self.step
+                - (self.input_span - 1) * self.step
+                - (self.pred_span - 1) * self.step
                 - self.pred_shift
         )
         logger.info(f"Dataset length: {length}")
@@ -257,8 +251,8 @@ class WxDataset(Dataset):
         inputs, targets = {}, {}
         for var in self.vars:
             if var in vars2d or var in vars3d:
-                input_slice = self.inputs[var][item : item + self.input_span]
-                target_slice = self.targets[var][item : item + self.pred_span]
+                input_slice = self.inputs[var][item : : self.step][: self.input_span]
+                target_slice = self.targets[var][item + self.step * (self.input_span - 1) + self.pred_shift: : self.step][: self.pred_span]
                 inputs[var] = input_slice
                 targets[var] = target_slice
                 if input_slice.shape[0] != self.input_span:

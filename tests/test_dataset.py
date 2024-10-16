@@ -34,7 +34,7 @@ class TestTest(unittest.TestCase):
             "-m",
             "models.model",
             "-s",
-            "Setting3d",
+            "Setting10d",
             "-t",
             "true",
         ]
