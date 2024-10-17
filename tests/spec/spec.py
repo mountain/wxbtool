@@ -67,6 +67,15 @@ class Setting10d(SettingSimple):
         self.pred_shift = 10  # How many days between the end of the input span and the beginning of prediction span
 
 
+class Setting30d(SettingSimple):
+    def __init__(self):
+        super().__init__()
+        self.step = 30  # How many days of a daily step which all features in organized temporally
+        self.input_span = 2  # How many daily steps for an input
+        self.pred_span = 2  # How many daily steps for a prediction
+        self.pred_shift = 30  # How many days between the end of the input span and the beginning of prediction span
+
+
 class Spec(Base2d):
     def __init__(self, setting):
         super().__init__(setting)
