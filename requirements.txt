@@ -1,4 +1,6 @@
-nose
+pytest
+flake8
+black
 
 python-decouple
 arrow
