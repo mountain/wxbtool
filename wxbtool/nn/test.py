@@ -27,13 +27,12 @@ def main(context, opt):
         trainer = pl.Trainer(
             accelerator=accelerator,
             precision=32,
-            max_epochs=opt.n_epochs,
+            max_epochs=1 if opt.test else opt.n_epochs,
             callbacks=[EarlyStopping(monitor="val_loss", mode="min", patience=30)],
         )
 
         if opt.load is None or opt.load == "":
             trainer.fit(model, model.train_dataloader(), model.val_dataloader())
-            trainer.test()
         else:
             trainer.test(ckpt_path=opt.load, model=model)
 

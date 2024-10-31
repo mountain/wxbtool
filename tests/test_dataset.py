@@ -12,12 +12,7 @@ from unittest.mock import patch
 class TestTest(unittest.TestCase):
 
     def setUp(self):
-        for g in (pathlib.Path(__file__).parent.absolute() / ".cache").glob("*/*"):
-            g.unlink()
-        for g in (pathlib.Path(__file__).parent.absolute() / ".cache").glob("*"):
-            g.rmdir()
-        if (pathlib.Path(__file__).parent.absolute() / ".cache").exists():
-            (pathlib.Path(__file__).parent.absolute() / ".cache").rmdir()
+        pass
 
     def tearDown(self):
         pass
@@ -41,6 +36,6 @@ class TestTest(unittest.TestCase):
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
-        testargs = ["wxb", "test", "-m", "models.model", "-b", "1"]
+        testargs = ["wxb", "test", "-m", "models.model", "-b", "10", "-t", "true"]
         with patch.object(sys, "argv", testargs):
             wxb.main()

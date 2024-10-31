@@ -90,6 +90,9 @@ def train(parser, context, args):
     parser.add_argument(
         "-d", "--data", type=str, default="", help="url of the dataset server"
     )
+    parser.add_argument(
+        "-t", "--test", type=str, default="false", help="setting for test"
+    )
     opt = parser.parse_args(args)
 
     tnmain(context, opt)
@@ -127,6 +130,9 @@ def test(parser, context, args):
     )
     parser.add_argument(
         "-d", "--data", type=str, default="", help="url of the dataset server"
+    )
+    parser.add_argument(
+        "-t", "--test", type=str, default="false", help="setting for test"
     )
     opt = parser.parse_args(args)
 

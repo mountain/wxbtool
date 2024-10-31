@@ -23,7 +23,7 @@ class TestTest(unittest.TestCase):
     def test_teste3d(self):
         import wxbtool.wxb as wxb
 
-        testargs = ["wxb", "test", "-m", "models.fast_3d", "-b", "1"]
+        testargs = ["wxb", "test", "-m", "models.fast_3d", "-b", "10", "-t", "true"]
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
@@ -33,7 +33,7 @@ class TestTest(unittest.TestCase):
     def test_teste6d(self):
         import wxbtool.wxb as wxb
 
-        testargs = ["wxb", "test", "-m", "models.fast_6d", "-b", "1"]
+        testargs = ["wxb", "test", "-m", "models.fast_6d", "-b", "10", "-t", "true"]
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
@@ -43,6 +43,6 @@ class TestTest(unittest.TestCase):
     def test_teste10d(self):
         import wxbtool.wxb as wxb
 
-        testargs = ["wxb", "test", "-m", "models.fast_10d", "-b", "1"]
+        testargs = ["wxb", "test", "-m", "models.fast_10d", "-b", "10", "-t", "true"]
         with patch.object(sys, "argv", testargs):
             wxb.main()

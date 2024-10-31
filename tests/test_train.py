@@ -17,7 +17,7 @@ class TestTrain(unittest.TestCase):
     def test_train3d(self):
         import wxbtool.wxb as wxb
 
-        testargs = ["wxb", "train", "-m", "models.fast_3d", "-b", "1", "-n", "1"]
+        testargs = ["wxb", "train", "-m", "models.fast_3d", "-b", "10", "-n", "1", "-t", "true"]
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
@@ -27,7 +27,7 @@ class TestTrain(unittest.TestCase):
     def test_train6d(self):
         import wxbtool.wxb as wxb
 
-        testargs = ["wxb", "train", "-m", "models.fast_6d", "-b", "1", "-n", "1"]
+        testargs = ["wxb", "train", "-m", "models.fast_6d", "-b", "10", "-n", "1", "-t", "true"]
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
@@ -37,6 +37,6 @@ class TestTrain(unittest.TestCase):
     def test_train10d(self):
         import wxbtool.wxb as wxb
 
-        testargs = ["wxb", "train", "-m", "models.fast_10d", "-b", "1", "-n", "1"]
+        testargs = ["wxb", "train", "-m", "models.fast_10d", "-b", "10", "-n", "1", "-t", "true"]
         with patch.object(sys, "argv", testargs):
             wxb.main()

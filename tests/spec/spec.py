@@ -43,7 +43,7 @@ class SettingSimple(Setting):
 class Setting3d(SettingSimple):
     def __init__(self):
         super().__init__()
-        self.step = 1  # How many days of a daily step which all features in organized temporally
+        self.step = 5  # How many days of a daily step which all features in organized temporally
         self.input_span = 2  # How many daily steps for an input
         self.pred_span = 1  # How many daily steps for a prediction
         self.pred_shift = 3  # How many days between the end of the input span and the beginning of prediction span
@@ -52,7 +52,7 @@ class Setting3d(SettingSimple):
 class Setting6d(SettingSimple):
     def __init__(self):
         super().__init__()
-        self.step = 1  # How many days of a daily step which all features in organized temporally
+        self.step = 5  # How many days of a daily step which all features in organized temporally
         self.input_span = 2  # How many daily steps for an input
         self.pred_span = 2  # How many daily steps for a prediction
         self.pred_shift = 6  # How many days between the end of the input span and the beginning of prediction span

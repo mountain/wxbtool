@@ -28,7 +28,7 @@ def main(context, opt):
         trainer = pl.Trainer(
             accelerator=accelerator,
             precision=32,
-            max_epochs=opt.n_epochs,
+            max_epochs=1 if opt.test else opt.n_epochs,
             callbacks=[EarlyStopping(monitor="val_loss", mode="min", patience=30)],
         )
 
