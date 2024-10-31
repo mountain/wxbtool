@@ -11,6 +11,7 @@ arghandler
 
 numpy
 torch
+lightning
 
 netcdf4
 toolz

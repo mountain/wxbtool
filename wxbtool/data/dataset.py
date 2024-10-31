@@ -148,7 +148,9 @@ class WxDataset(Dataset):
 
         if not self.accumulated:
             logger.error("No data accumulated. Please check the data loading process.")
-            raise ValueError("No data accumulated. Ensure that data is correctly loaded and accumulated.")
+            raise ValueError(
+                "No data accumulated. Ensure that data is correctly loaded and accumulated."
+            )
 
         lengths = {var: acc.shape[0] for var, acc in self.accumulated.items()}
         unique_lengths = set(lengths.values())
@@ -156,15 +158,20 @@ class WxDataset(Dataset):
         if len(unique_lengths) != 1:
             max_length = max(unique_lengths)
 
-            inconsistent_vars = {var: length for var, length in lengths.items() if length != max_length}
+            inconsistent_vars = {
+                var: length for var, length in lengths.items() if length != max_length
+            }
 
             if inconsistent_vars:
                 for var, length in inconsistent_vars.items():
-                    logger.error(f"Variable {var} has inconsistent length {length}. Expected length: {max_length}.")
+                    logger.error(
+                        f"Variable {var} has inconsistent length {length}. Expected length: {max_length}."
+                    )
 
                 # 根据需要，选择是否抛出异常
                 raise ValueError(
-                    "Inconsistent data lengths across variables detected. Please check the data loading process.")
+                    "Inconsistent data lengths across variables detected. Please check the data loading process."
+                )
         else:
             logger.info("All variables have consistent data lengths.")
 
@@ -239,10 +246,10 @@ class WxDataset(Dataset):
 
     def __len__(self):
         length = (
-                self.accumulated[self.vars[0]].shape[0]
-                - (self.input_span - 1) * self.step
-                - (self.pred_span - 1) * self.step
-                - self.pred_shift
+            self.accumulated[self.vars[0]].shape[0]
+            - (self.input_span - 1) * self.step
+            - (self.pred_span - 1) * self.step
+            - self.pred_shift
         )
         logger.info(f"Dataset length: {length}")
         return length
@@ -251,14 +258,22 @@ class WxDataset(Dataset):
         inputs, targets = {}, {}
         for var in self.vars:
             if var in vars2d or var in vars3d:
-                input_slice = self.inputs[var][item : : self.step][: self.input_span]
-                target_slice = self.targets[var][item + self.step * (self.input_span - 1) + self.pred_shift: : self.step][: self.pred_span]
+                input_slice = self.inputs[var][item :: self.step][: self.input_span]
+                target_slice = self.targets[var][
+                    item
+                    + self.step * (self.input_span - 1)
+                    + self.pred_shift :: self.step
+                ][: self.pred_span]
                 inputs[var] = input_slice
                 targets[var] = target_slice
                 if input_slice.shape[0] != self.input_span:
-                    logger.warning(f"Input slice for var {var} at index {item} has shape {input_slice.shape}")
+                    logger.warning(
+                        f"Input slice for var {var} at index {item} has shape {input_slice.shape}"
+                    )
                 if target_slice.shape[0] != self.pred_span:
-                    logger.warning(f"Target slice for var {var} at index {item} has shape {target_slice.shape}")
+                    logger.warning(
+                        f"Target slice for var {var} at index {item} has shape {target_slice.shape}"
+                    )
 
         return inputs, targets
 
@@ -311,6 +326,6 @@ class WxDatasetClient(Dataset):
         data = msgpack.loads(r.content)
         for key, val in data.items():
             for var, blk in val.items():
-                val[var] = np.copy(blk)
+                val[var] = np.array(np.copy(blk), dtype=np.float32)
 
         return data["inputs"], data["targets"]

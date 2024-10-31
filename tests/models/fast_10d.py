@@ -1,6 +1,7 @@
 """
     Test model in wxbtool package
 """
+
 import numpy as np
 import torch as th
 
@@ -25,7 +26,9 @@ class TestDataset(Dataset):
                 inputs.update(
                     {var: np.ones((1, setting.input_span, setting.height, 32, 64))}
                 )
-                targets.update({var: np.ones((1, setting.pred_span,  setting.height, 32, 64))})
+                targets.update(
+                    {var: np.ones((1, setting.pred_span, setting.height, 32, 64))}
+                )
             else:
                 inputs.update({var: np.ones((1, setting.input_span, 32, 64))})
                 targets.update({var: np.ones((1, setting.pred_span, 32, 64))})
