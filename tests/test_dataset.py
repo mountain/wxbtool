@@ -5,7 +5,6 @@ import os
 import sys
 import pathlib
 import unittest.mock as mock
-import requests_unixsocket
 
 from unittest.mock import patch
 

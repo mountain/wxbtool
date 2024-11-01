@@ -119,7 +119,6 @@ class Model2d(nn.Module):
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
                 ),
-
             )
         else:
             ds_url = kwargs["url"]
@@ -159,7 +158,7 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
-                )
+                ),
             )
 
         self.train_size = len(self.dataset_train)

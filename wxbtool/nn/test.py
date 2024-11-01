@@ -36,7 +36,9 @@ def main(context, opt):
             trainer.fit(model, model.train_dataloader(), model.val_dataloader())
             trainer.test(model=model, dataloaders=model.test_dataloader())
         else:
-            trainer.test(ckpt_path=opt.load, model=model, dataloaders=model.test_dataloader())
+            trainer.test(
+                ckpt_path=opt.load, model=model, dataloaders=model.test_dataloader()
+            )
 
     except ImportError as e:
         exc_info = sys.exc_info()

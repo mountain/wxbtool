@@ -311,7 +311,7 @@ class WxDatasetClient(Dataset):
         if self.url.startswith("unix:"):
             self.url = self.url.replace("/", "%2F")
             self.url = self.url.replace("unix:", "http+unix://")
- 
+
     def __len__(self):
         url = "%s/%s/%s" % (self.url, self.hashcode, self.phase)
         if self.url.startswith("http+unix://"):

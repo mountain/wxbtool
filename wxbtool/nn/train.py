@@ -25,7 +25,7 @@ def main(context, opt):
         mdm = importlib.import_module(opt.module, package=None)
 
         model = LightningModel(mdm.model, opt=opt)
-        n_epochs = 1 if opt.test == 'true' else opt.n_epochs
+        n_epochs = 1 if opt.test == "true" else opt.n_epochs
         trainer = pl.Trainer(
             accelerator=accelerator,
             precision=32,
