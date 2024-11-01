@@ -8,7 +8,7 @@ Install
 --------
 
 ```bash
-pip install wxbtool
+uv pip install
 ```
 
 Cheat sheet
