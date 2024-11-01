@@ -31,12 +31,12 @@ wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn
 
 Start a data set server with unix socket binding
 ```bash
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d --bind unix:/tmp/test.sock
+wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b unix:/tmp/test.sock
 ```
 
 Start a training process with unix socket binding
 ```bash
-wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn --bind unix:/tmp/test.sock
+wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -d unix:/tmp/test.sock
 ```
 
 How to use
