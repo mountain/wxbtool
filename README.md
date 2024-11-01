@@ -8,7 +8,7 @@ Install
 --------
 
 ```bash
-uv install
+uv pip install
 ```
 
 Cheat sheet
