@@ -72,7 +72,7 @@ class TestTest(unittest.TestCase):
             "-t",
             "true",
             "--data",
-            "http+unix://%2Ftmp%2Ftest.sock",
+            "unix:/tmp/test.sock",
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()

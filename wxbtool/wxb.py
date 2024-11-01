@@ -13,6 +13,9 @@ def help(parser, context, args):
 @subcmd("dserve", help="start the dataset server")
 def dserve(parser, context, args):
     parser.add_argument(
+        "-b", "--bind", type=str, default=None, help="binding address (ip:port or unix:/path/to/your.sock)"
+    )
+    parser.add_argument(
         "-i", "--ip", type=str, default="127.0.0.1", help="the ip of the dataset serevr"
     )
     parser.add_argument(
@@ -37,9 +40,6 @@ def dserve(parser, context, args):
     )
     parser.add_argument(
         "-t", "--test", type=str, default="false", help="setting for test"
-    )
-    parser.add_argument(
-        "-b", "--bind", type=str, default=None, help="binding address (ip:port or unix:/path/to/your.sock)"
     )
     opt = parser.parse_args(args)
 
@@ -91,7 +91,7 @@ def train(parser, context, args):
         "-w", "--weightdecay", type=float, default=0.0, help="weight decay"
     )
     parser.add_argument(
-        "-d", "--data", type=str, default="", help="url of the dataset server"
+        "-d", "--data", type=str, default="", help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)"
     )
     parser.add_argument(
         "-t", "--test", type=str, default="false", help="setting for test"
@@ -129,7 +129,7 @@ def test(parser, context, args):
         help="dump file of the metrological model to load",
     )
     parser.add_argument(
-        "-d", "--data", type=str, default="", help="url of the dataset server"
+        "-d", "--data", type=str, default="", help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)"
     )
     parser.add_argument(
         "-t", "--test", type=str, default="false", help="setting for test"
