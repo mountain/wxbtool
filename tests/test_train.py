@@ -40,3 +40,13 @@ class TestTrain(unittest.TestCase):
         testargs = ["wxb", "train", "-m", "models.fast_10d", "-b", "10", "-n", "1", "-t", "true"]
         with patch.object(sys, "argv", testargs):
             wxb.main()
+
+    @mock.patch.dict(
+        os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
+    )
+    def test_train10d_epoch2(self):
+        import wxbtool.wxb as wxb
+
+        testargs = ["wxb", "train", "-m", "models.fast_10d", "-b", "10", "-n", "2"]
+        with patch.object(sys, "argv", testargs):
+            wxb.main()

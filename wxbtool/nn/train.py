@@ -25,10 +25,11 @@ def main(context, opt):
         mdm = importlib.import_module(opt.module, package=None)
 
         model = LightningModel(mdm.model, opt=opt)
+        n_epochs = 1 if opt.test == 'true' else opt.n_epochs
         trainer = pl.Trainer(
             accelerator=accelerator,
             precision=32,
-            max_epochs=1 if opt.test else opt.n_epochs,
+            max_epochs=n_epochs,
             callbacks=[EarlyStopping(monitor="val_loss", mode="min", patience=30)],
         )
 

@@ -112,9 +112,6 @@ def test(parser, context, args):
         "-b", "--batch_size", type=int, default=64, help="size of the batches"
     )
     parser.add_argument(
-        "-n", "--n_epochs", type=int, default=200, help="number of epochs of training"
-    )
-    parser.add_argument(
         "-m",
         "--module",
         type=str,
