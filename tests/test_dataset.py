@@ -5,6 +5,7 @@ import os
 import sys
 import pathlib
 import unittest.mock as mock
+import requests_unixsocket
 
 from unittest.mock import patch
 
@@ -37,5 +38,41 @@ class TestTest(unittest.TestCase):
             wxb.main()
 
         testargs = ["wxb", "test", "-m", "models.model", "-b", "10", "-t", "true"]
+        with patch.object(sys, "argv", testargs):
+            wxb.main()
+
+    @mock.patch.dict(
+        os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
+    )
+    def test_unix_socket(self):
+        import wxbtool.wxb as wxb
+
+        testargs = [
+            "wxb",
+            "dserve",
+            "-m",
+            "models.model",
+            "-s",
+            "Setting3d",
+            "-t",
+            "true",
+            "--bind",
+            "unix:/tmp/test.sock",
+        ]
+        with patch.object(sys, "argv", testargs):
+            wxb.main()
+
+        testargs = [
+            "wxb",
+            "test",
+            "-m",
+            "models.model",
+            "-b",
+            "10",
+            "-t",
+            "true",
+            "--data",
+            "http+unix://%2Ftmp%2Ftest.sock",
+        ]
         with patch.object(sys, "argv", testargs):
             wxb.main()

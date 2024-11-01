@@ -6,6 +6,7 @@ import hashlib
 import requests
 import logging
 import json
+import requests_unixsocket
 
 import xarray as xr
 import numpy as np
@@ -309,7 +310,11 @@ class WxDatasetClient(Dataset):
 
     def __len__(self):
         url = "%s/%s/%s" % (self.url, self.hashcode, self.phase)
-        r = requests.get(url)
+        if self.url.startswith("http+unix://"):
+            session = requests_unixsocket.Session()
+            r = session.get(url)
+        else:
+            r = requests.get(url)
         if r.status_code != 200:
             raise Exception("http error %s: %s" % (r.status_code, r.text))
 
@@ -319,7 +324,11 @@ class WxDatasetClient(Dataset):
 
     def __getitem__(self, item):
         url = "%s/%s/%s/%d" % (self.url, self.hashcode, self.phase, item)
-        r = requests.get(url)
+        if self.url.startswith("http+unix://"):
+            session = requests_unixsocket.Session()
+            r = session.get(url)
+        else:
+            r = requests.get(url)
         if r.status_code != 200:
             raise Exception("http error %s: %s" % (r.status_code, r.text))
 
