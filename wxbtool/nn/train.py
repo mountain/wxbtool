@@ -33,8 +33,7 @@ def main(context, opt):
         )
 
         trainer.fit(model)
-
-        trainer.test(ckpt_path="best")
+        trainer.test(model=model, dataloaders=model.test_dataloader())
     except ImportError as e:
         exc_info = sys.exc_info()
         print(e)

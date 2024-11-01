@@ -84,66 +84,31 @@ class Model2d(nn.Module):
         self.clipping_threshold = 3.0
 
     def load_dataset(self, phase, mode, **kwargs):
-        if phase == "train":
-            if mode == "server":
-                self.dataset_train, self.dataset_eval = (
-                    WxDataset(
-                        self.setting.root,
-                        self.setting.resolution,
-                        self.setting.years_train,
-                        self.setting.vars,
-                        self.setting.levels,
-                        input_span=self.setting.input_span,
-                        pred_shift=self.setting.pred_shift,
-                        pred_span=self.setting.pred_span,
-                        step=self.setting.step,
-                    ),
-                    WxDataset(
-                        self.setting.root,
-                        self.setting.resolution,
-                        self.setting.years_eval,
-                        self.setting.vars,
-                        self.setting.levels,
-                        input_span=self.setting.input_span,
-                        pred_shift=self.setting.pred_shift,
-                        pred_span=self.setting.pred_span,
-                        step=self.setting.step,
-                    ),
-                )
-            else:
-                ds_url = kwargs["url"]
-                self.dataset_train, self.dataset_eval = (
-                    WxDatasetClient(
-                        ds_url,
-                        "train",
-                        self.setting.resolution,
-                        self.setting.years_train,
-                        self.setting.vars,
-                        self.setting.levels,
-                        input_span=self.setting.input_span,
-                        pred_shift=self.setting.pred_shift,
-                        pred_span=self.setting.pred_span,
-                        step=self.setting.step,
-                    ),
-                    WxDatasetClient(
-                        ds_url,
-                        "eval",
-                        self.setting.resolution,
-                        self.setting.years_eval,
-                        self.setting.vars,
-                        self.setting.levels,
-                        input_span=self.setting.input_span,
-                        pred_shift=self.setting.pred_shift,
-                        pred_span=self.setting.pred_span,
-                        step=self.setting.step,
-                    ),
-                )
-
-            self.train_size = len(self.dataset_train)
-            self.eval_size = len(self.dataset_eval)
-        else:
-            if mode == "server":
-                self.dataset_test = WxDataset(
+        if mode == "server":
+            self.dataset_train, self.dataset_eval, self.dataset_test = (
+                WxDataset(
+                    self.setting.root,
+                    self.setting.resolution,
+                    self.setting.years_train,
+                    self.setting.vars,
+                    self.setting.levels,
+                    input_span=self.setting.input_span,
+                    pred_shift=self.setting.pred_shift,
+                    pred_span=self.setting.pred_span,
+                    step=self.setting.step,
+                ),
+                WxDataset(
+                    self.setting.root,
+                    self.setting.resolution,
+                    self.setting.years_eval,
+                    self.setting.vars,
+                    self.setting.levels,
+                    input_span=self.setting.input_span,
+                    pred_shift=self.setting.pred_shift,
+                    pred_span=self.setting.pred_span,
+                    step=self.setting.step,
+                ),
+                WxDataset(
                     self.setting.root,
                     self.setting.resolution,
                     self.setting.years_test,
@@ -153,10 +118,37 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
-                )
-            else:
-                ds_url = kwargs["url"]
-                self.dataset_test = WxDatasetClient(
+                ),
+
+            )
+        else:
+            ds_url = kwargs["url"]
+            self.dataset_train, self.dataset_eval, self.dataset_test = (
+                WxDatasetClient(
+                    ds_url,
+                    "train",
+                    self.setting.resolution,
+                    self.setting.years_train,
+                    self.setting.vars,
+                    self.setting.levels,
+                    input_span=self.setting.input_span,
+                    pred_shift=self.setting.pred_shift,
+                    pred_span=self.setting.pred_span,
+                    step=self.setting.step,
+                ),
+                WxDatasetClient(
+                    ds_url,
+                    "eval",
+                    self.setting.resolution,
+                    self.setting.years_eval,
+                    self.setting.vars,
+                    self.setting.levels,
+                    input_span=self.setting.input_span,
+                    pred_shift=self.setting.pred_shift,
+                    pred_span=self.setting.pred_span,
+                    step=self.setting.step,
+                ),
+                WxDatasetClient(
                     ds_url,
                     "test",
                     self.setting.resolution,
@@ -168,8 +160,11 @@ class Model2d(nn.Module):
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
                 )
+            )
 
-            self.test_size = len(self.dataset_test)
+        self.train_size = len(self.dataset_train)
+        self.eval_size = len(self.dataset_eval)
+        self.test_size = len(self.dataset_test)
 
     def get_constant(self, input, device):
         if device not in self.constant_cache:
