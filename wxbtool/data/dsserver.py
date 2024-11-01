@@ -144,13 +144,12 @@ def main(context, opt):
 
     print("PID %s" % str(os.getpid()))
     print("serving... %s" % opt.module)
-    print("ip: %s" % opt.ip)
-    print("port: %s" % opt.port)
+    print("bind: %s" % opt.bind)
     print("workers: %s" % opt.workers)
 
     if opt.test == "false":
         options = {
-            "bind": "%s:%s" % (opt.ip, opt.port),
+            "bind": opt.bind,
             "workers": opt.workers,
         }
         StandaloneApplication(app, options).run()

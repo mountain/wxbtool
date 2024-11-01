@@ -42,6 +42,7 @@ setuptools.setup(
         "gunicorn",
         "arghandler",
         "lightning",
+        "requests-unixsocket",
     ],
     test_suite="pytest",
     tests_require=["pytest"],
