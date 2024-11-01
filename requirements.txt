@@ -8,6 +8,7 @@ flask
 msgpack
 msgpack-numpy
 requests
+requests-unixsocket
 gunicorn
 arghandler
 
