@@ -96,9 +96,6 @@ def train(parser, context, args):
     parser.add_argument(
         "-t", "--test", type=str, default="false", help="setting for test"
     )
-    parser.add_argument(
-        "-b", "--bind", type=str, default=None, help="binding address (ip:port or unix:/path/to/your.sock)"
-    )
     opt = parser.parse_args(args)
 
     tnmain(context, opt)
