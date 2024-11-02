@@ -6,7 +6,8 @@ import hashlib
 import requests
 import logging
 import json
-import requests_unixsocket
+import http.client
+import socket
 
 import xarray as xr
 import numpy as np
@@ -315,28 +316,40 @@ class WxDatasetClient(Dataset):
     def __len__(self):
         url = "%s/%s/%s" % (self.url, self.hashcode, self.phase)
         if self.url.startswith("http+unix://"):
-            session = requests_unixsocket.Session()
-            r = session.get(url)
+            parsed_url = url.replace("http+unix://", "")
+            sock_path, endpoint = parsed_url.split("%2F", 1)
+            sock_path = "/" + sock_path
+            conn = http.client.HTTPConnection("localhost")
+            conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            conn.sock.connect(sock_path)
+            conn.request("GET", "/" + endpoint)
+            r = conn.getresponse()
         else:
             r = requests.get(url)
         if r.status_code != 200:
             raise Exception("http error %s: %s" % (r.status_code, r.text))
 
-        data = msgpack.loads(r.content)
+        data = msgpack.loads(r.read())
 
         return data["size"]
 
     def __getitem__(self, item):
         url = "%s/%s/%s/%d" % (self.url, self.hashcode, self.phase, item)
         if self.url.startswith("http+unix://"):
-            session = requests_unixsocket.Session()
-            r = session.get(url)
+            parsed_url = url.replace("http+unix://", "")
+            sock_path, endpoint = parsed_url.split("%2F", 1)
+            sock_path = "/" + sock_path
+            conn = http.client.HTTPConnection("localhost")
+            conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            conn.sock.connect(sock_path)
+            conn.request("GET", "/" + endpoint)
+            r = conn.getresponse()
         else:
             r = requests.get(url)
         if r.status_code != 200:
             raise Exception("http error %s: %s" % (r.status_code, r.text))
 
-        data = msgpack.loads(r.content)
+        data = msgpack.loads(r.read())
         for key, val in data.items():
             for var, blk in val.items():
                 val[var] = np.array(np.copy(blk), dtype=np.float32)
