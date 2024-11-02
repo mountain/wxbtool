@@ -326,12 +326,12 @@ class WxDatasetClient(Dataset):
             r = conn.getresponse()
             if r.status != 200:
                 raise Exception("http error %s: %s" % (r.status, r.reason))
+            data = msgpack.loads(r.read())
         else:
             r = requests.get(url)
             if r.status_code != 200:
                 raise Exception("http error %s: %s" % (r.status_code, r.text))
-
-        data = msgpack.loads(r.read())
+            data = msgpack.loads(r.content)
 
         return data["size"]
 
@@ -348,12 +348,13 @@ class WxDatasetClient(Dataset):
             r = conn.getresponse()
             if r.status != 200:
                 raise Exception("http error %s: %s" % (r.status, r.reason))
+            data = msgpack.loads(r.read())
         else:
             r = requests.get(url)
             if r.status_code != 200:
                 raise Exception("http error %s: %s" % (r.status_code, r.text))
+            data = msgpack.loads(r.content)
 
-        data = msgpack.loads(r.read())
         for key, val in data.items():
             for var, blk in val.items():
                 val[var] = np.array(np.copy(blk), dtype=np.float32)

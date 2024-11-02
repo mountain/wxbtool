@@ -106,17 +106,20 @@ class LightningModel(ltn.LightningModule):
         rmse = self.labeled_rmse / self.counter
         loss = self.labeled_loss / self.counter
         record = "%2.5f-%03d-%1.5f.ckpt" % (rmse, checkpoint["epoch"], loss)
-        fname = "trains/best-%s" % record
-        os.mkdir("trains") if not os.path.exists("trains") else None
+        mname = self.model.name
+        fname = f"trains/{mname}/best-{record}"
+        os.makedirs(
+            f"trains/{mname}", exist_ok=True
+        )
         with open(fname, "bw") as f:
             th.save(checkpoint, f)
-        for ix, ckpt in enumerate(sorted(glob.glob("trains/best-*.ckpt"), reverse=True)):
+        for ix, ckpt in enumerate(sorted(glob.glob(f"trains/{mname}/best-*.ckpt"), reverse=False)):
             if ix > 5:
                 os.unlink(ckpt)
 
         self.counter = 0
         self.labeled_loss = 0
-        self.labeled_correct = 0
+        self.labeled_rmse = 0
 
         print()
 
