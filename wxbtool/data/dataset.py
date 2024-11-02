@@ -316,18 +316,20 @@ class WxDatasetClient(Dataset):
     def __len__(self):
         url = "%s/%s/%s" % (self.url, self.hashcode, self.phase)
         if self.url.startswith("http+unix://"):
-            parsed_url = url.replace("http+unix://", "")
-            sock_path, endpoint = parsed_url.split("%2F", 1)
+            sock_path = self.url.replace("http+unix://", "").replace("%2F", "/")
+            endpoint = f"{self.hashcode}/{self.phase}"
             sock_path = "/" + sock_path
             conn = http.client.HTTPConnection("localhost")
             conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             conn.sock.connect(sock_path)
             conn.request("GET", "/" + endpoint, headers={"Host": "localhost", "Connection": "close"})
             r = conn.getresponse()
+            if r.status != 200:
+                raise Exception("http error %s: %s" % (r.status, r.reason))
         else:
             r = requests.get(url)
-        if r.status_code != 200:
-            raise Exception("http error %s: %s" % (r.status_code, r.text))
+            if r.status_code != 200:
+                raise Exception("http error %s: %s" % (r.status_code, r.text))
 
         data = msgpack.loads(r.read())
 
@@ -336,18 +338,20 @@ class WxDatasetClient(Dataset):
     def __getitem__(self, item):
         url = "%s/%s/%s/%d" % (self.url, self.hashcode, self.phase, item)
         if self.url.startswith("http+unix://"):
-            parsed_url = url.replace("http+unix://", "")
-            sock_path, endpoint = parsed_url.split("%2F", 1)
+            sock_path = self.url.replace("http+unix://", "").replace("%2F", "/")
+            endpoint = f"{self.hashcode}/{self.phase}/{item}"
             sock_path = "/" + sock_path
             conn = http.client.HTTPConnection("localhost")
             conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             conn.sock.connect(sock_path)
             conn.request("GET", "/" + endpoint, headers={"Host": "localhost", "Connection": "close"})
             r = conn.getresponse()
+            if r.status != 200:
+                raise Exception("http error %s: %s" % (r.status, r.reason))
         else:
             r = requests.get(url)
-        if r.status_code != 200:
-            raise Exception("http error %s: %s" % (r.status_code, r.text))
+            if r.status_code != 200:
+                raise Exception("http error %s: %s" % (r.status_code, r.text))
 
         data = msgpack.loads(r.read())
         for key, val in data.items():
