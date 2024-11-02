@@ -322,7 +322,7 @@ class WxDatasetClient(Dataset):
             conn = http.client.HTTPConnection("localhost")
             conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             conn.sock.connect(sock_path)
-            conn.request("GET", "/" + endpoint)
+            conn.request("GET", "/" + endpoint, headers={"Host": "localhost", "Connection": "close"})
             r = conn.getresponse()
         else:
             r = requests.get(url)
@@ -342,7 +342,7 @@ class WxDatasetClient(Dataset):
             conn = http.client.HTTPConnection("localhost")
             conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             conn.sock.connect(sock_path)
-            conn.request("GET", "/" + endpoint)
+            conn.request("GET", "/" + endpoint, headers={"Host": "localhost", "Connection": "close"})
             r = conn.getresponse()
         else:
             r = requests.get(url)
