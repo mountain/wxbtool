@@ -2,8 +2,8 @@
 name = "wxbtool"
 version = "0.1.7"
 description = "A toolkit for WeatherBench based on PyTorch"
-authors = ["Mingli Yuan <mingli.yuan@gmail.com>"]
-license = "LICENSE"
+authors = [{email="mingli.yuan@gmail.com", name="Mingli Yuan"}]
+license = {file = "LICENSE"}
 readme = "README.md"
 
 requires-python = ">=3.10"
