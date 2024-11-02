@@ -19,7 +19,7 @@ class LightningModel(ltn.LightningModule):
         self.opt = opt
 
     def configure_optimizers(self):
-        optimizer = th.optim.AdamW(self.parameters(), lr=self.learning_rate)
+        optimizer = th.optim.Adam(self.parameters(), lr=self.learning_rate)
         scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 53)
         return [optimizer], [scheduler]
 
@@ -106,10 +106,11 @@ class LightningModel(ltn.LightningModule):
         rmse = self.labeled_rmse / self.counter
         loss = self.labeled_loss / self.counter
         record = "%2.5f-%03d-%1.5f.ckpt" % (rmse, checkpoint["epoch"], loss)
-        fname = "best-%s" % record
+        fname = "trains/best-%s" % record
+        os.mkdir("trains") if not os.path.exists("trains") else None
         with open(fname, "bw") as f:
             th.save(checkpoint, f)
-        for ix, ckpt in enumerate(sorted(glob.glob("best-*.ckpt"), reverse=True)):
+        for ix, ckpt in enumerate(sorted(glob.glob("trains/best-*.ckpt"), reverse=True)):
             if ix > 5:
                 os.unlink(ckpt)
 
