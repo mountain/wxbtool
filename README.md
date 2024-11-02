@@ -8,7 +8,7 @@ Install
 --------
 
 ```bash
-uv pip install
+pip install wxbtool
 ```
 
 Cheat sheet
@@ -52,8 +52,8 @@ How to release
 ---------------
 
 ```bash
-python3 setup.py sdist bdist_wheel
-python3 -m twine upload dist/*
+uv build
+uv publish
 
 git tag va.b.c master
 git push origin va.b.c
