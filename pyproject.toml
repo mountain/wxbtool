@@ -1,6 +1,6 @@
 [project]
 name = "wxbtool"
-version = "0.1.6"
+version = "0.1.7"
 description = "A toolkit for WeatherBench based on PyTorch"
 authors = ["Mingli Yuan <mingli.yuan@gmail.com>"]
 license = "MIT"
