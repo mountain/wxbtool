@@ -165,17 +165,11 @@ class LightningModel(ltn.LightningModule):
 
 class GANModel(LightningModel):
     def __init__(self, generator, discriminator, opt=None):
-        super(GANModel, self).__init__()
+        super(GANModel, self).__init__(generator, opt=opt)
         self.generator = generator
         self.discriminator = discriminator
         self.learning_rate = 1e-4  # Adjusted for GANs
         self.automatic_optimization = False
-
-        self.counter = 0
-        self.labeled_loss = 0
-        self.labeled_rmse = 0
-
-        self.opt = opt
 
     def configure_optimizers(self):
         # Separate optimizers for generator and discriminator
