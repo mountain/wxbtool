@@ -161,3 +161,93 @@ class LightningModel(ltn.LightningModule):
             num_workers=self.opt.n_cpu,
             shuffle=False,
         )
+
+
+class GANModel(LightningModel):
+    def __init__(self, generator, discriminator, opt=None):
+        super(GANModel, self).__init__(generator, opt=opt)
+        self.generator = generator
+        self.discriminator = discriminator
+        self.learning_rate = 1e-4  # Adjusted for GANs
+        self.automatic_optimization = False
+
+    def configure_optimizers(self):
+        # Separate optimizers for generator and discriminator
+        g_optimizer = th.optim.Adam(self.generator.parameters(), lr=2 * self.learning_rate)
+        d_optimizer = th.optim.Adam(self.discriminator.parameters(), lr=self.learning_rate)
+        return [g_optimizer, d_optimizer]
+
+    def generator_loss(self, fake_judgement):
+        # Loss for generator (we want the discriminator to predict all generated images as real)
+        return th.nn.functional.binary_cross_entropy_with_logits(fake_judgement, th.ones_like(fake_judgement))
+
+    def discriminator_loss(self, real_judgement, fake_judgement):
+        # Loss for discriminator (real images should be classified as real, fake images as fake)
+        real_loss = th.nn.functional.binary_cross_entropy_with_logits(real_judgement, th.ones_like(real_judgement))
+        fake_loss = th.nn.functional.binary_cross_entropy_with_logits(fake_judgement, th.zeros_like(fake_judgement))
+        return (real_loss + fake_loss) / 2
+
+    def training_step(self, batch, batch_idx):
+        inputs, targets = batch
+        inputs = self.get_inputs(**inputs)
+        targets = self.get_targets(**targets)
+        inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :])
+
+        g_optimizer, d_optimizer = self.optimizers()
+
+        self.toggle_optimizer(g_optimizer)
+        forecast = self.generator(**inputs)
+        judgement = self.discriminator(**inputs, target=forecast)
+        forecast_loss = self.loss_fn(inputs, forecast, targets)
+        generate_loss = self.generator_loss(judgement)
+        total_loss = forecast_loss + generate_loss
+        self.log("total", total_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("forecast", forecast_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.manual_backward(total_loss)
+        g_optimizer.step()
+        g_optimizer.zero_grad()
+        self.untoggle_optimizer(g_optimizer)
+
+        self.toggle_optimizer(d_optimizer)
+        forecast = self.generator(**inputs).detach()  # Detach to avoid generator gradient updates
+        real_judgement = self.discriminator(**inputs, target=targets['data'])
+        fake_judgement = self.discriminator(**inputs, target=forecast)
+        judgement_loss = self.discriminator_loss(real_judgement, fake_judgement)
+        self.log("judgement", judgement_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.manual_backward(judgement_loss)
+        d_optimizer.step()
+        d_optimizer.zero_grad()
+        self.untoggle_optimizer(d_optimizer)
+
+    def validation_step(self, batch, batch_idx):
+        inputs, targets = batch
+        inputs = {v: inputs[v].float() for v in self.model.setting.vars}
+        targets = {v: targets[v].float() for v in self.model.setting.vars}
+        inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :])
+        forecast = self.generator(**inputs)
+        judgement = self.discriminator(inputs, forecast)
+        forecast_loss = self.loss_fn(inputs, forecast, targets)
+        realness = judgement.mean().item()
+        self.log("realness", realness, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("forecast", forecast_loss, on_step=False, on_epoch=True, prog_bar=True)
+
+        rmse = self.compute_rmse(targets, forecast)
+        batch_len = inputs[self.model.setting.vars[0]].shape[0]
+        self.labeled_loss += forecast_loss.item() * batch_len
+        self.labeled_rmse += rmse * batch_len
+        self.counter += batch_len
+
+        self.plot(inputs, forecast, targets)
+
+    def test_step(self, batch, batch_idx):
+        inputs, targets = batch
+        inputs = {v: inputs[v].float() for v in self.model.setting.vars}
+        targets = {v: targets[v].float() for v in self.model.setting.vars}
+        inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :])
+        forecast = self.generator(**inputs)
+        judgement = self.discriminator(inputs, forecast)
+        forecast_loss = self.loss_fn(inputs, forecast, targets)
+        realness = judgement.mean().item()
+        self.log("realness", realness, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("forecast", forecast_loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.plot(inputs, forecast, targets)

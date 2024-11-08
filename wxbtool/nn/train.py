@@ -6,7 +6,7 @@ import torch as th
 import lightning.pytorch as pl
 
 from lightning.pytorch.callbacks import EarlyStopping
-from wxbtool.nn.lightning import LightningModel
+from wxbtool.nn.lightning import LightningModel, GANModel
 
 
 if th.cuda.is_available():
@@ -24,7 +24,11 @@ def main(context, opt):
         sys.path.insert(0, os.getcwd())
         mdm = importlib.import_module(opt.module, package=None)
 
-        model = LightningModel(mdm.model, opt=opt)
+        if opt.gan == "true":
+            model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
+        else:
+            model = LightningModel(mdm.model, opt=opt)
+
         n_epochs = 1 if opt.test == "true" else opt.n_epochs
         trainer = pl.Trainer(
             accelerator=accelerator,
