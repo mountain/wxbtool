@@ -96,16 +96,19 @@ class Spec(Base2d):
             vdic[nm] = d
             vlst.append(d)
 
-        return vdic, th.cat(vlst, dim=1)
+        data = th.cat(vlst, dim=1)
+        vdic['data'] = data
+
+        return vdic, data
 
     def get_targets(self, **kwargs):
         t2m = kwargs["2m_temperature"].view(-1, self.setting.pred_span, 32, 64)
         t2m = self.augment_data(t2m)
-        return {"t2m": t2m}, t2m
+        return {"t2m": t2m, "data": t2m}, t2m
 
     def get_results(self, **kwargs):
         t2m = denorm_t2m(kwargs["t2m"])
-        return {"t2m": t2m}, t2m
+        return {"t2m": t2m, "data": t2m}, t2m
 
     def forward(self, **kwargs):
         raise NotImplementedError("Spec is abstract and can not be initialized")

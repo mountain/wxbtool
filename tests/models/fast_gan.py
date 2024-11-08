@@ -68,9 +68,9 @@ class Mdl(Spec):
         cnst = self.get_augmented_constant(input)
         input = th.cat((input, cnst, noise), dim=1)
 
-        output = self.mlp(input)
+        output = self.mlp(input).view(batch_size, self.setting.pred_span, 32, 64)
 
-        return {"t2m": output.view(batch_size, self.setting.pred_span, 32, 64)}
+        return {"t2m": output, "data": output}
 
 
 class Dsc(Spec):
@@ -106,9 +106,9 @@ class Dsc(Spec):
         cnst = self.get_augmented_constant(input)
         input = th.cat((input, cnst, target), dim=1)
 
-        output = self.mlp(input)
+        output = self.mlp(input).view(batch_size, self.setting.pred_span, 32, 64)
 
-        return {"t2m": output.view(batch_size, self.setting.pred_span, 32, 64)}
+        return {"t2m": output, "data": output}
 
 
 generator = Mdl(setting)

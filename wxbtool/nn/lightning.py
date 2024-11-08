@@ -187,12 +187,6 @@ class GANModel(LightningModel):
         fake_loss = th.nn.functional.binary_cross_entropy_with_logits(fake_judgement, th.zeros_like(fake_judgement))
         return (real_loss + fake_loss) / 2
 
-    def loss_fn(self, input, result, target):
-        return self.model.lossfun(input, result, target)
-
-    def forward(self, **inputs):
-        return self.generator(**inputs)
-
     def training_step(self, batch, batch_idx):
         inputs, targets = batch
         inputs = {v: inputs[v].float() for v in self.model.setting.vars}
