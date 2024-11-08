@@ -189,8 +189,8 @@ class GANModel(LightningModel):
 
     def training_step(self, batch, batch_idx):
         inputs, targets = batch
-        inputs = self.get_inputs(**inputs)
-        targets = self.get_targets(**targets)
+        inputs = self.model.get_inputs(**inputs)
+        targets = self.model.get_targets(**targets)
         inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :])
 
         g_optimizer, d_optimizer = self.optimizers()
@@ -221,8 +221,8 @@ class GANModel(LightningModel):
 
     def validation_step(self, batch, batch_idx):
         inputs, targets = batch
-        inputs = self.get_inputs(**inputs)
-        targets = self.get_targets(**targets)
+        inputs = self.model.get_inputs(**inputs)
+        targets = self.model.get_targets(**targets)
         inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :])
         forecast = self.generator(**inputs)
         judgement = self.discriminator(inputs, forecast)
@@ -241,8 +241,8 @@ class GANModel(LightningModel):
 
     def test_step(self, batch, batch_idx):
         inputs, targets = batch
-        inputs = self.get_inputs(**inputs)
-        targets = self.get_targets(**targets)
+        inputs = self.model.get_inputs(**inputs)
+        targets = self.model.get_targets(**targets)
         inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :])
         forecast = self.generator(**inputs)
         judgement = self.discriminator(inputs, forecast)
