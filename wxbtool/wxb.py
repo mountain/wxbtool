@@ -104,6 +104,9 @@ def train(parser, context, args):
     parser.add_argument(
         "-t", "--test", type=str, default="false", help="setting for test"
     )
+    parser.add_argument(
+        "-mode", "--mode", type=str, default="default", help="training mode (default or gan)"
+    )
     opt = parser.parse_args(args)
 
     tnmain(context, opt)
