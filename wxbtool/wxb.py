@@ -102,11 +102,12 @@ def train(parser, context, args):
         help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
     )
     parser.add_argument(
-        "-t", "--test", type=str, default="false", help="setting for test"
+        "-G", "--gan", type=str, default="false", help="training GAN or not, default is false"
     )
     parser.add_argument(
-        "-g", "--gan", type=str, default="false", help="training GAN or not, default is false"
+        "-t", "--test", type=str, default="false", help="setting for test"
     )
+
     opt = parser.parse_args(args)
 
     tnmain(context, opt)

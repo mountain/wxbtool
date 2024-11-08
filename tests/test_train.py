@@ -90,6 +90,6 @@ class TestTrain(unittest.TestCase):
     def test_train10d_gan(self):
         import wxbtool.wxb as wxb
 
-        testargs = ["wxb", "train", "-m", "models.fast_gan", "-b", "10", "-n", "2", "-g", "true"]
+        testargs = ["wxb", "train", "-m", "models.fast_gan", "-b", "10", "-n", "2", "-G", "true"]
         with patch.object(sys, "argv", testargs):
             wxb.main()
