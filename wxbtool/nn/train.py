@@ -24,8 +24,8 @@ def main(context, opt):
         sys.path.insert(0, os.getcwd())
         mdm = importlib.import_module(opt.module, package=None)
 
-        if opt.mode == "gan":
-            model = GANModel(mdm.model, opt=opt)
+        if opt.gan == "true":
+            model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
         else:
             model = LightningModel(mdm.model, opt=opt)
 

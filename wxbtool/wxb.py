@@ -105,7 +105,7 @@ def train(parser, context, args):
         "-t", "--test", type=str, default="false", help="setting for test"
     )
     parser.add_argument(
-        "-mode", "--mode", type=str, default="default", help="training mode (default or gan)"
+        "-g", "--gan", type=str, default="false", help="training GAN or not, default is false"
     )
     opt = parser.parse_args(args)
 
