@@ -57,7 +57,7 @@ class LightningModel(ltn.LightningModule):
                 plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst)
                 plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt)
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         inputs, targets = batch
         inputs = {v: inputs[v].float() for v in self.model.setting.vars}
         targets = {v: targets[v].float() for v in self.model.setting.vars}
@@ -169,6 +169,7 @@ class GANModel(LightningModel):
         self.generator = generator
         self.discriminator = discriminator
         self.learning_rate = 1e-4  # Adjusted for GANs
+        self.automatic_optimization = False
 
         self.counter = 0
         self.labeled_loss = 0
@@ -198,29 +199,37 @@ class GANModel(LightningModel):
     def forward(self, **inputs):
         return self.generator(**inputs)
 
-    def training_step(self, batch, batch_idx, optimizer_idx):
+    def training_step(self, batch, batch_idx):
         inputs, targets = batch
         inputs = {v: inputs[v].float() for v in self.model.setting.vars}
         targets = {v: targets[v].float() for v in self.model.setting.vars}
         inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :])
 
-        if optimizer_idx == 0:
-            forecast = self.generator(**inputs)
-            judgement = self.discriminator(**inputs, target=forecast)
-            forecast_loss = self.loss_fn(inputs, forecast, targets)
-            generate_loss = self.generator_loss(judgement)
-            total_loss = forecast_loss + generate_loss
-            self.log("total", total_loss, on_step=True, on_epoch=True, prog_bar=True)
-            self.log("forecast", forecast_loss, on_step=True, on_epoch=True, prog_bar=True)
-            return total_loss
+        g_optimizer, d_optimizer = self.optimizers()
 
-        elif optimizer_idx == 1:
-            forecast = self.generator(**inputs).detach()  # Detach to avoid generator gradient updates
-            real_judgement = self.discriminator(**inputs, target=targets['data'])
-            fake_judgement = self.discriminator(**inputs, target=forecast)
-            judgement_loss = self.discriminator_loss(real_judgement, fake_judgement)
-            self.log("judgement", judgement_loss, on_step=True, on_epoch=True, prog_bar=True)
-            return judgement_loss
+        self.toggle_optimizer(g_optimizer)
+        forecast = self.generator(**inputs)
+        judgement = self.discriminator(**inputs, target=forecast)
+        forecast_loss = self.loss_fn(inputs, forecast, targets)
+        generate_loss = self.generator_loss(judgement)
+        total_loss = forecast_loss + generate_loss
+        self.log("total", total_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("forecast", forecast_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.manual_backward(total_loss)
+        g_optimizer.step()
+        g_optimizer.zero_grad()
+        self.untoggle_optimizer(g_optimizer)
+
+        self.toggle_optimizer(d_optimizer)
+        forecast = self.generator(**inputs).detach()  # Detach to avoid generator gradient updates
+        real_judgement = self.discriminator(**inputs, target=targets['data'])
+        fake_judgement = self.discriminator(**inputs, target=forecast)
+        judgement_loss = self.discriminator_loss(real_judgement, fake_judgement)
+        self.log("judgement", judgement_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.manual_backward(judgement_loss)
+        d_optimizer.step()
+        d_optimizer.zero_grad()
+        self.untoggle_optimizer(d_optimizer)
 
     def validation_step(self, batch, batch_idx):
         inputs, targets = batch
@@ -233,6 +242,13 @@ class GANModel(LightningModel):
         realness = judgement.mean().item()
         self.log("realness", realness, on_step=False, on_epoch=True, prog_bar=True)
         self.log("forecast", forecast_loss, on_step=False, on_epoch=True, prog_bar=True)
+
+        rmse = self.compute_rmse(targets, forecast)
+        batch_len = inputs[self.model.setting.vars[0]].shape[0]
+        self.labeled_loss += forecast_loss.item() * batch_len
+        self.labeled_rmse += rmse * batch_len
+        self.counter += batch_len
+
         self.plot(inputs, forecast, targets)
 
     def test_step(self, batch, batch_idx):
