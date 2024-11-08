@@ -60,7 +60,7 @@ class Mdl(Spec):
         self.test_size = len(self.dataset_test)
 
     def forward(self, **kwargs):
-        batch_size = kwargs["2m_temperature"].size()[0]
+        batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
         _, input = self.get_inputs(**kwargs)
@@ -98,7 +98,7 @@ class Dsc(Spec):
         self.test_size = len(self.dataset_test)
 
     def forward(self, **kwargs):
-        batch_size = kwargs["2m_temperature"].size()[0]
+        batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
         _, input = self.get_inputs(**kwargs)
