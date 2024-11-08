@@ -189,8 +189,8 @@ class GANModel(LightningModel):
 
     def training_step(self, batch, batch_idx):
         inputs, targets = batch
-        inputs = {v: inputs[v].float() for v in self.model.setting.vars}
-        targets = {v: targets[v].float() for v in self.model.setting.vars}
+        inputs = self.get_inputs(**inputs)
+        targets = self.get_targets(**targets)
         inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :])
 
         g_optimizer, d_optimizer = self.optimizers()

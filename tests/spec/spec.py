@@ -88,9 +88,9 @@ class Spec(Base2d):
             if v in vars3d:
                 d = kwargs[v].view(
                     -1, self.setting.input_span, self.setting.height, 32, 64
-                )[:, :, self.setting.levels.index(lvl)]
+                )[:, :, self.setting.levels.index(lvl)].float()
             else:
-                d = kwargs[v].view(-1, self.setting.input_span, 32, 64)
+                d = kwargs[v].view(-1, self.setting.input_span, 32, 64).float()
             d = normalizors[nm](d)
             d = self.augment_data(d)
             vdic[nm] = d

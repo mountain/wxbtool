@@ -38,7 +38,7 @@ class TestDataset(Dataset):
 class Mdl(Spec):
     def __init__(self, setting):
         super().__init__(setting)
-        self.name = "fast"
+        self.name = "fastg"
         self.mlp = SimpleCNN2d(
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size
@@ -76,7 +76,7 @@ class Mdl(Spec):
 class Dsc(Spec):
     def __init__(self, setting):
         super().__init__(setting)
-        self.name = "fast"
+        self.name = "fastd"
         self.mlp = SimpleCNN2d(
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size
