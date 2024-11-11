@@ -98,17 +98,19 @@ class Spec(Base2d):
 
         data = th.cat(vlst, dim=1)
         vdic['data'] = data
+        for k, v in kwargs.items():
+            vdic[k] = v.float()
 
         return vdic, data
 
     def get_targets(self, **kwargs):
-        t2m = kwargs["2m_temperature"].view(-1, self.setting.pred_span, 32, 64)
+        t2m = kwargs["2m_temperature"].view(-1, self.setting.pred_span, 32, 64).float()
         t2m = self.augment_data(t2m)
-        return {"t2m": t2m, "data": t2m}, t2m
+        return {"t2m": t2m, "data": t2m, "2m_temperature": t2m}, t2m
 
     def get_results(self, **kwargs):
         t2m = denorm_t2m(kwargs["t2m"])
-        return {"t2m": t2m, "data": t2m}, t2m
+        return {"t2m": t2m, "data": t2m, "2m_temperature": t2m}, t2m
 
     def forward(self, **kwargs):
         raise NotImplementedError("Spec is abstract and can not be initialized")
@@ -116,8 +118,8 @@ class Spec(Base2d):
     def lossfun(self, inputs, result, target):
         _, rst = self.get_results(**result)
         _, tgt = self.get_targets(**target)
-        rst = self.weight * rst.view(-1, self.setting.pred_span, 32, 64)
-        tgt = self.weight * tgt.view(-1, self.setting.pred_span, 32, 64)
+        rst = self.weight.float() * rst.view(-1, self.setting.pred_span, 32, 64)
+        tgt = self.weight.float() * tgt.view(-1, self.setting.pred_span, 32, 64)
 
         losst = mse(rst[:, 0], tgt[:, 0])
 

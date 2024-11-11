@@ -81,7 +81,7 @@ class Dsc(Spec):
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size
             + 2
-            + 1,
+            + 2,
             self.setting.pred_span * len(self.setting.vars_out),
         )
 
@@ -102,8 +102,8 @@ class Dsc(Spec):
         self.update_da_status(batch_size)
 
         _, input = self.get_inputs(**kwargs)
-        target = kwargs['target']
         cnst = self.get_augmented_constant(input)
+        target = kwargs['target']
         input = th.cat((input, cnst, target), dim=1)
 
         output = self.mlp(input).view(batch_size, self.setting.pred_span, 32, 64)
