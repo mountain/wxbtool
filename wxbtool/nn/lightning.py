@@ -1,7 +1,6 @@
 import numpy as np
 import torch as th
 import lightning as ltn
-from torch import dtype
 
 from torch.utils.data import DataLoader
 from wxbtool.util.plotter import plot
@@ -235,7 +234,7 @@ class GANModel(LightningModel):
         self.log("val_loss", forecast_loss, on_step=False, on_epoch=True, prog_bar=True)
 
         rmse = self.compute_rmse(targets, forecast)
-        batch_len = inputs[self.model.setting.vars[0]].shape[0]
+        batch_len = inputs['data'].shape[0]
         self.labeled_loss += forecast_loss.item() * batch_len
         self.labeled_rmse += rmse * batch_len
         self.counter += batch_len
