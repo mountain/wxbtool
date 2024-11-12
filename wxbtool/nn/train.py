@@ -25,8 +25,8 @@ def main(context, opt):
         mdm = importlib.import_module(opt.module, package=None)
 
         if opt.gan == "true":
-            learning_rate = opt.rate
-            ratio = opt.ratio
+            learning_rate = float(opt.rate)
+            ratio = float(opt.ratio)
             generator_lr, discriminator_lr = learning_rate, learning_rate / ratio
             model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
             model.generator.learning_rate = generator_lr
