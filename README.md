@@ -29,6 +29,16 @@ Start a testing process for a UNet model following Weyn's solution
 wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn
 ```
 
+Start an inference process for a UNet model following Weyn's solution
+```bash
+wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -o output.png
+```
+
+Start a GAN inference process for a UNet model following Weyn's solution
+```bash
+wxb inferg -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -s 10 -o output.nc
+```
+
 Start a data set server with unix socket binding
 ```bash
 wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b unix:/tmp/test.sock
