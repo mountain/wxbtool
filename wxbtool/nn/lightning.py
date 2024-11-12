@@ -18,6 +18,9 @@ class LightningModel(ltn.LightningModule):
 
         self.opt = opt
 
+        if opt and hasattr(opt, 'rate'):
+            self.learning_rate = float(opt.rate)
+
     def configure_optimizers(self):
         optimizer = th.optim.Adam(self.parameters(), lr=self.learning_rate)
         scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 53)
@@ -171,10 +174,18 @@ class GANModel(LightningModel):
         self.learning_rate = 1e-4  # Adjusted for GANs
         self.automatic_optimization = False
 
+        if opt and hasattr(opt, 'rate'):
+            learning_rates = opt.rate.split(',')
+            if len(learning_rates) == 2:
+                self.generator.learning_rate = float(learning_rates[0])
+                self.discriminator.learning_rate = float(learning_rates[1])
+            else:
+                raise ValueError("For GAN models, provide two learning rates separated by a comma.")
+
     def configure_optimizers(self):
         # Separate optimizers for generator and discriminator
-        g_optimizer = th.optim.Adam(self.generator.parameters(), lr=2 * self.learning_rate)
-        d_optimizer = th.optim.Adam(self.discriminator.parameters(), lr=self.learning_rate)
+        g_optimizer = th.optim.Adam(self.generator.parameters(), lr=self.generator.learning_rate)
+        d_optimizer = th.optim.Adam(self.discriminator.parameters(), lr=self.discriminator.learning_rate)
         return [g_optimizer, d_optimizer]
 
     def generator_loss(self, fake_judgement):

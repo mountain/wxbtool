@@ -90,7 +90,9 @@ def train(parser, context, args):
     parser.add_argument(
         "-k", "--check", type=str, default="", help="checkpoint file to load"
     )
-    parser.add_argument("-r", "--rate", type=float, default=0.001, help="learning rate")
+    parser.add_argument(
+        "-r", "--rate", type=str, default="0.001", help="learning rate"
+    )
     parser.add_argument(
         "-w", "--weightdecay", type=float, default=0.0, help="weight decay"
     )
@@ -124,7 +126,10 @@ def test(parser, context, args):
         help="number of cpu threads to use during batch generation",
     )
     parser.add_argument(
-        "-b", "--batch_size", type=int, default=64, help="size of the batches"
+        "-b", "--batch_size",
+        type=int,
+        default=64,
+        help="size of the batches"
     )
     parser.add_argument(
         "-m",

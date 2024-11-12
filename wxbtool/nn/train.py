@@ -25,9 +25,17 @@ def main(context, opt):
         mdm = importlib.import_module(opt.module, package=None)
 
         if opt.gan == "true":
+            learning_rates = opt.rate.split(',')
+            if len(learning_rates) != 2:
+                raise ValueError("For GAN models, provide two learning rates separated by a comma.")
+            generator_lr, discriminator_lr = map(float, learning_rates)
             model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
+            model.generator.learning_rate = generator_lr
+            model.discriminator.learning_rate = discriminator_lr
         else:
+            learning_rate = float(opt.rate)
             model = LightningModel(mdm.model, opt=opt)
+            model.learning_rate = learning_rate
 
         n_epochs = 1 if opt.test == "true" else opt.n_epochs
         trainer = pl.Trainer(
