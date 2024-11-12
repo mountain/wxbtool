@@ -175,12 +175,10 @@ class GANModel(LightningModel):
         self.automatic_optimization = False
 
         if opt and hasattr(opt, 'rate'):
-            learning_rates = opt.rate.split(',')
-            if len(learning_rates) == 2:
-                self.generator.learning_rate = float(learning_rates[0])
-                self.discriminator.learning_rate = float(learning_rates[1])
-            else:
-                raise ValueError("For GAN models, provide two learning rates separated by a comma.")
+            learning_rate = opt.rate
+            ratio = opt.ratio
+            self.generator.learning_rate = learning_rate
+            self.discriminator.learning_rate = learning_rate / ratio
 
     def configure_optimizers(self):
         # Separate optimizers for generator and discriminator
