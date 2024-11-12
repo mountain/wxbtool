@@ -201,8 +201,8 @@ class GANModel(LightningModel):
         forecast_loss = self.loss_fn(inputs, forecast, targets)
         generate_loss = self.generator_loss(judgement)
         total_loss = forecast_loss + generate_loss
-        self.log("total", total_loss, on_step=True, on_epoch=True, prog_bar=True)
-        self.log("forecast", forecast_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("total", total_loss, prog_bar=True)
+        self.log("forecast", forecast_loss, prog_bar=True)
         self.manual_backward(total_loss)
         g_optimizer.step()
         g_optimizer.zero_grad()
@@ -214,7 +214,7 @@ class GANModel(LightningModel):
         real_judgement = self.discriminator(**inputs, target=targets['data'])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         judgement_loss = self.discriminator_loss(real_judgement, fake_judgement)
-        self.log("judgement", judgement_loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("judgement", judgement_loss, prog_bar=True)
         self.manual_backward(judgement_loss)
         d_optimizer.step()
         d_optimizer.zero_grad()
@@ -229,9 +229,9 @@ class GANModel(LightningModel):
         judgement = self.discriminator(**inputs, target=forecast["data"])
         forecast_loss = self.loss_fn(inputs, forecast, targets)
         realness = judgement["data"].mean().item()
-        self.log("realness", realness, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("forecast", forecast_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val_loss", forecast_loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("realness", realness, prog_bar=True)
+        self.log("val_forecast", forecast_loss, prog_bar=True)
+        self.log("val_loss", forecast_loss, prog_bar=True)
 
         rmse = self.compute_rmse(targets, forecast)
         batch_len = inputs['data'].shape[0]
