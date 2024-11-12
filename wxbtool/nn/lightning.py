@@ -175,8 +175,8 @@ class GANModel(LightningModel):
         self.automatic_optimization = False
 
         if opt and hasattr(opt, 'rate'):
-            learning_rate = opt.rate
-            ratio = opt.ratio
+            learning_rate = float(opt.rate)
+            ratio = float(opt.ratio)
             self.generator.learning_rate = learning_rate
             self.discriminator.learning_rate = learning_rate / ratio
 
