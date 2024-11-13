@@ -1,3 +1,11 @@
+import os
+import shutil
+import datetime
+import logging
+import cdsapi
+import xarray as xr
+import numpy as np
+
 from arghandler import ArgumentHandler, subcmd
 
 from wxbtool.data.dsserver import main as dsmain
@@ -137,33 +145,129 @@ def test(parser, context, args):
     parser.add_argument(
         "-m",
         "--module",
-        type=str,
+        type.str,
         default="wxbtool.zoo.unet.t850d3",
         help="module of the metrological model to load",
     )
     parser.add_argument(
         "-l",
         "--load",
-        type=str,
+        type.str,
         default="",
         help="dump file of the metrological model to load",
     )
     parser.add_argument(
         "-d",
         "--data",
-        type=str,
+        type.str,
         default="",
         help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
     )
     parser.add_argument(
-        "-G", "--gan", type=str, default="false", help="training GAN or not, default is false"
+        "-G", "--gan", type.str, default="false", help="training GAN or not, default is false"
     )
     parser.add_argument(
-        "-t", "--test", type=str, default="false", help="setting for test"
+        "-t", "--test", type.str, default="false", help="setting for test"
     )
     opt = parser.parse_args(args)
 
     ttmain(context, opt)
+
+
+@subcmd("download", help="download the latest hourly ERA5 data from ECMWF")
+def download(parser, context, args):
+    parser.add_argument(
+        "--coverage",
+        type=str,
+        choices=["daily", "weekly", "monthly"],
+        help="specify the period for which data coverage is required",
+    )
+    parser.add_argument(
+        "--retention",
+        type=str,
+        choices=["daily", "weekly", "monthly"],
+        help="specify the retention period for keeping the latest data",
+    )
+    opt = parser.parse_args(args)
+
+    download_data(opt.coverage, opt.retention)
+
+
+def download_data(coverage, retention):
+    c = cdsapi.Client()
+
+    # Define the variables to download
+    variables = [
+        "2m_temperature",
+        "total_precipitation",
+    ]
+
+    # Define the time range for the data
+    now = datetime.datetime.utcnow()
+    if coverage == "daily":
+        start_date = now - datetime.timedelta(days=1)
+    elif coverage == "weekly":
+        start_date = now - datetime.timedelta(weeks=1)
+    elif coverage == "monthly":
+        start_date = now - datetime.timedelta(weeks=4)
+    else:
+        start_date = now - datetime.timedelta(days=1)
+
+    # Create the .era5 folder if it doesn't exist
+    era5_folder = ".era5"
+    if not os.path.exists(era5_folder):
+        os.makedirs(era5_folder)
+
+    # Download the data
+    for variable in variables:
+        variable_folder = os.path.join(era5_folder, variable)
+        if not os.path.exists(variable_folder):
+            os.makedirs(variable_folder)
+
+        for date in (start_date + datetime.timedelta(n) for n in range((now - start_date).days + 1)):
+            year_folder = os.path.join(variable_folder, date.strftime("%Y"))
+            if not os.path.exists(year_folder):
+                os.makedirs(year_folder)
+
+            month_folder = os.path.join(year_folder, date.strftime("%m"))
+            if not os.path.exists(month_folder):
+                os.makedirs(month_folder)
+
+            filename = os.path.join(month_folder, date.strftime("%Y%m%d_%H") + ".nc")
+            if not os.path.exists(filename):
+                c.retrieve(
+                    "reanalysis-era5-single-levels",
+                    {
+                        "product_type": "reanalysis",
+                        "variable": variable,
+                        "year": date.strftime("%Y"),
+                        "month": date.strftime("%m"),
+                        "day": date.strftime("%d"),
+                        "time": date.strftime("%H:00"),
+                        "format": "netcdf",
+                    },
+                    filename,
+                )
+
+    # Handle retention
+    if retention:
+        retention_period = {
+            "daily": datetime.timedelta(days=1),
+            "weekly": datetime.timedelta(weeks=1),
+            "monthly": datetime.timedelta(weeks=4),
+        }[retention]
+
+        for variable in variables:
+            variable_folder = os.path.join(era5_folder, variable)
+            for year_folder in os.listdir(variable_folder):
+                year_folder_path = os.path.join(variable_folder, year_folder)
+                for month_folder in os.listdir(year_folder_path):
+                    month_folder_path = os.path.join(year_folder_path, month_folder)
+                    for filename in os.listdir(month_folder_path):
+                        file_path = os.path.join(month_folder_path, filename)
+                        file_date = datetime.datetime.strptime(filename, "%Y%m%d_%H.nc")
+                        if now - file_date > retention_period:
+                            os.remove(file_path)
 
 
 def main():
