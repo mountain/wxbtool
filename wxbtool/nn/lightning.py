@@ -149,7 +149,7 @@ class LightningModel(ltn.LightningModule):
             self.model.dataset_eval,
             batch_size=self.opt.batch_size,
             num_workers=self.opt.n_cpu,
-            shuffle=False,
+            shuffle=True,
         )
 
     def test_dataloader(self):
@@ -162,7 +162,7 @@ class LightningModel(ltn.LightningModule):
             self.model.dataset_test,
             batch_size=self.opt.batch_size,
             num_workers=self.opt.n_cpu,
-            shuffle=False,
+            shuffle=True,
         )
 
 
