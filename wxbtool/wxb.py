@@ -145,29 +145,29 @@ def test(parser, context, args):
     parser.add_argument(
         "-m",
         "--module",
-        type.str,
+        type=str,
         default="wxbtool.zoo.unet.t850d3",
         help="module of the metrological model to load",
     )
     parser.add_argument(
         "-l",
         "--load",
-        type.str,
+        type=str,
         default="",
         help="dump file of the metrological model to load",
     )
     parser.add_argument(
         "-d",
         "--data",
-        type.str,
+        type=str,
         default="",
         help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
     )
     parser.add_argument(
-        "-G", "--gan", type.str, default="false", help="training GAN or not, default is false"
+        "-G", "--gan", type=str, default="false", help="training GAN or not, default is false"
     )
     parser.add_argument(
-        "-t", "--test", type.str, default="false", help="setting for test"
+        "-t", "--test", type=str, default="false", help="setting for test"
     )
     opt = parser.parse_args(args)
 
