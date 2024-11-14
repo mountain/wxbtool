@@ -1,119 +1,132 @@
-import importlib
-import sys
-
-import cdsapi
-import xarray as xr
-import numpy as np
 import os
-import shutil
+import sys
 import datetime
+import importlib
 import logging
+import cdsapi
+
+from dataclasses import dataclass, field
+from typing import List
+
 
 from wxbtool.nn.lightning import GANModel, LightningModel
 
+# Configure logging to display information and errors
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def download_latest_hourly_era5_data(variables, vars2d, vars3d, levels, start_date, end_date, output_folder):
-    c = cdsapi.Client()
-    for variable in variables:
-        variable_folder = os.path.join(output_folder, variable)
-        if not os.path.exists(variable_folder):
-            os.makedirs(variable_folder)
 
-        for date in (start_date + datetime.timedelta(n) for n in range((end_date - start_date).days + 1)):
-            year_folder = os.path.join(variable_folder, date.strftime("%Y"))
-            if not os.path.exists(year_folder):
-                os.makedirs(year_folder)
+@dataclass
+class Config:
+    output_folder: str
+    variables: List[str]
+    vars2d: List[str]
+    vars3d: List[str]
+    levels: List[str]
+    coverage: str  # 'daily', 'weekly', 'monthly'
+    reference_time_delta: datetime.timedelta = field(default_factory=lambda: datetime.timedelta(weeks=1))
+    grid: List[float] = field(default_factory=lambda: [5.625, 5.625])  # Spatial resolution
+    area: List[float] = field(default_factory=lambda: [90, -180, -90, 180])  # Global coverage
 
-            month_folder = os.path.join(year_folder, date.strftime("%m"))
-            if not os.path.exists(month_folder):
-                os.makedirs(month_folder)
 
-            filename = os.path.join(month_folder, date.strftime("%Y%m%d_%H") + ".nc")
-            if not os.path.exists(filename):
-                if variable in vars2d:
-                    # Retrieve single-level data
-                    c.retrieve(
-                        "reanalysis-era5-single-levels",
-                        {
-                            "product_type": "reanalysis",
-                            "variable": variable,
-                            "year": date.strftime("%Y"),
-                            "month": date.strftime("%m"),
-                            "day": date.strftime("%d"),
-                            "time": date.strftime("%H:00"),
-                            "format": "netcdf",
-                        },
-                        filename,
-                    )
-                elif variable in vars3d:
-                    # Retrieve pressure-level data
-                    c.retrieve(
-                        "reanalysis-era5-pressure-levels",
-                        {
-                            "product_type": "reanalysis",
-                            "variable": variable,
-                            "pressure_level": levels,  # Add specified pressure levels
-                            "year": date.strftime("%Y"),
-                            "month": date.strftime("%m"),
-                            "day": date.strftime("%d"),
-                            "time": date.strftime("%H:00"),
-                            "format": "netcdf",
-                        },
-                        filename,
-                    )
+class ERA5Downloader:
+    def __init__(self, config: Config):
+        self.c = cdsapi.Client()
+        self.config = config
+        self.ensure_output_dirs()
+
+    def ensure_output_dirs(self):
+        """Create the base directories for each variable."""
+        for variable in self.config.variables:
+            var_path = os.path.join(self.config.output_folder, variable)
+            os.makedirs(var_path, exist_ok=True)
+        logging.info("Base output directories are set up.")
+
+    def get_time_span(self):
+        """Determine the start and end dates based on the coverage type."""
+        end_date = datetime.datetime.utcnow() - self.config.reference_time_delta
+        if self.config.coverage == "daily":
+            start_date = end_date - datetime.timedelta(days=1)
+        elif self.config.coverage == "weekly":
+            start_date = end_date - datetime.timedelta(weeks=1)
+        elif self.config.coverage == "monthly":
+            start_date = end_date - datetime.timedelta(days=30)  # Approximate month as 30 days
+        else:
+            raise ValueError("Unsupported coverage type. Use 'daily', 'weekly', or 'monthly'.")
+        return start_date, end_date
+
+    def generate_datetime_list(self, start_date: datetime.datetime, end_date: datetime.datetime):
+        """Generate a list of (date, hour) tuples for each hour within the time span."""
+        current_datetime = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_datetime = end_date.replace(hour=23, minute=0, second=0, microsecond=0)
+        while current_datetime <= end_datetime:
+            yield current_datetime, f"{current_datetime.hour:02}:00"
+            current_datetime += datetime.timedelta(hours=1)
+
+    def build_filename(self, variable: str, date: datetime.datetime, time_str: str) -> str:
+        """Construct the filename for the NetCDF file."""
+        year = date.strftime("%Y")
+        month = date.strftime("%m")
+        day = date.strftime("%d")
+        hour = time_str.split(":")[0]
+        filename = f"{date.strftime('%Y%m%d')}_{hour}.nc"
+        return os.path.join(
+            self.config.output_folder,
+            variable,
+            year,
+            month,
+            filename
+        )
+
+    def ensure_variable_dirs(self, variable: str, date: datetime.datetime):
+        """Ensure that the directory for a specific variable, year, and month exists."""
+        year = date.strftime("%Y")
+        month = date.strftime("%m")
+        var_year_path = os.path.join(self.config.output_folder, variable, year)
+        var_month_path = os.path.join(var_year_path, month)
+        os.makedirs(var_month_path, exist_ok=True)
+
+    def retrieve_data(self, variable: str, date: datetime.datetime, time_str: str, filename: str):
+        """Retrieve data for a specific variable, date, and time."""
+        request_params = {
+            "product_type": "reanalysis",
+            "variable": variable,
+            "year": date.strftime("%Y"),
+            "month": date.strftime("%m"),
+            "day": date.strftime("%d"),
+            "time": time_str,
+            "format": "netcdf",
+            "grid": self.config.grid,  # Spatial resolution
+            "area": self.config.area,  # Global coverage
+        }
+
+        if variable in self.config.vars3d:
+            request_params["pressure_level"] = self.config.levels
+            dataset = "reanalysis-era5-pressure-levels"
+        elif variable in self.config.vars2d:
+            dataset = "reanalysis-era5-single-levels"
+        else:
+            logging.warning(f"Variable '{variable}' is not recognized as single or pressure level.")
+            return
+
+        try:
+            self.c.retrieve(dataset, request_params, filename)
+            logging.info(f"Downloaded: {filename}")
+        except Exception as e:
+            logging.error(f"Failed to download {filename}: {e}")
+
+    def download(self):
+        """Execute the download process based on the configuration."""
+        start_date, end_date = self.get_time_span()
+        logging.info(f"Downloading data from {start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}.")
+
+        for variable in self.config.variables:
+            for date, time_str in self.generate_datetime_list(start_date, end_date):
+                self.ensure_variable_dirs(variable, date)
+                filename = self.build_filename(variable, date, time_str)
+                if not os.path.exists(filename):
+                    self.retrieve_data(variable, date, time_str, filename)
                 else:
-                    print(f"Warning: Variable '{variable}' not recognized as single or pressure level.")
-
-def organize_downloaded_data(output_folder):
-    for variable in os.listdir(output_folder):
-        variable_folder = os.path.join(output_folder, variable)
-        for year in os.listdir(variable_folder):
-            year_folder = os.path.join(variable_folder, year)
-            for month in os.listdir(year_folder):
-                month_folder = os.path.join(year_folder, month)
-                for filename in os.listdir(month_folder):
-                    file_path = os.path.join(month_folder, filename)
-                    file_date = datetime.datetime.strptime(filename, "%Y%m%d_%H.nc")
-                    new_filename = file_date.strftime("%Y%m%d_%H") + ".nc"
-                    new_file_path = os.path.join(month_folder, new_filename)
-                    if file_path != new_file_path:
-                        os.rename(file_path, new_file_path)
-
-
-def handle_coverage_option(coverage, output_folder, variables, vars2d, vars3d, levels):
-    oneweekago = datetime.datetime.utcnow() - datetime.timedelta(weeks=1)
-    if coverage == "daily":
-        start_date = oneweekago - datetime.timedelta(days=1)
-    elif coverage == "weekly":
-        start_date = oneweekago - datetime.timedelta(weeks=1)
-    elif coverage == "monthly":
-        start_date = oneweekago - datetime.timedelta(weeks=4)
-    else:
-        start_date = oneweekago - datetime.timedelta(days=1)
-
-    download_latest_hourly_era5_data(variables, vars2d, vars3d, levels, start_date, oneweekago, output_folder)
-    organize_downloaded_data(output_folder)
-
-
-def handle_retention_option(retention, output_folder, variables):
-    oneweekago = datetime.datetime.utcnow() - datetime.timedelta(weeks=1)
-    retention_period = {
-        "daily": datetime.timedelta(days=1),
-        "weekly": datetime.timedelta(weeks=1),
-        "monthly": datetime.timedelta(weeks=4),
-    }[retention]
-
-    for variable in variables:
-        variable_folder = os.path.join(output_folder, variable)
-        for year_folder in os.listdir(variable_folder):
-            year_folder_path = os.path.join(variable_folder, year_folder)
-            for month_folder in os.listdir(year_folder_path):
-                month_folder_path = os.path.join(year_folder_path, month_folder)
-                for filename in os.listdir(month_folder_path):
-                    file_path = os.path.join(month_folder_path, filename)
-                    file_date = datetime.datetime.strptime(filename, "%Y%m%d_%H.nc")
-                    if oneweekago - file_date > retention_period:
-                        os.remove(file_path)
+                    logging.info(f"File already exists: {filename}")
 
 
 def main(context, opt):
@@ -126,6 +139,7 @@ def main(context, opt):
         else:
             model = LightningModel(mdm.model, opt=opt)
         setting = model.model.setting
+        resolution = float(setting.resolution.replace("deg", ""))
         variables = setting.vars
         vars2d = setting.vars2d
         vars3d = setting.vars3d
@@ -138,17 +152,20 @@ def main(context, opt):
                 f.write("url: https://cds.climate.copernicus.eu/api/v2\n")
                 f.write(f"key: {key}\n")
 
-        handle_coverage_option(opt.coverage, output_folder, variables, vars2d, vars3d, levels)
-        handle_retention_option(opt.retention, output_folder, variables)
-    except ImportError as e:
-        exc_info = sys.exc_info()
-        print(e)
-        print("failure when downloading data")
-        import traceback
+        config = Config(
+            output_folder="era5",  # Replace with your desired output path
+            variables=variables,
+            vars2d=vars2d,
+            vars3d=vars3d,
+            levels=levels,
+            coverage=opt.coverage,  # Options: "daily", "weekly", "monthly"
+            grid=[resolution, resolution],  # Spatial resolution
+            area=[90, -180, -90, 180]  # Global coverage
+        )
 
-        traceback.print_exception(*exc_info)
-        del exc_info
-        sys.exit(-1)
+        # Initialize and run the downloader
+        downloader = ERA5Downloader(config)
+        downloader.download()
     except Exception as e:
         exc_info = sys.exc_info()
         print(e)
