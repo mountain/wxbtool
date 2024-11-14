@@ -177,6 +177,9 @@ def download(parser, context, args):
         help="module of the metrological model to load",
     )
     parser.add_argument(
+        "-G", "--gan", type=str, default="false", help="model is GAN or not, default is false"
+    )
+    parser.add_argument(
         "--coverage",
         type=str,
         choices=["daily", "weekly", "monthly"],
