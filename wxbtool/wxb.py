@@ -1,5 +1,6 @@
 from arghandler import ArgumentHandler, subcmd
 
+from wxbtool.data.download import main as dnmain
 from wxbtool.data.dsserver import main as dsmain
 from wxbtool.nn.train import main as tnmain
 from wxbtool.nn.test import main as ttmain
@@ -164,6 +165,34 @@ def test(parser, context, args):
     opt = parser.parse_args(args)
 
     ttmain(context, opt)
+
+
+@subcmd("download", help="download the latest hourly ERA5 data from ECMWF")
+def download(parser, context, args):
+    parser.add_argument(
+        "-m",
+        "--module",
+        type=str,
+        default="wxbtool.zoo.unet.t850d3",
+        help="module of the metrological model to load",
+    )
+    parser.add_argument(
+        "--coverage",
+        type=str,
+        choices=["daily", "weekly", "monthly"],
+        default="weekly",
+        help="specify the period for which data coverage is required",
+    )
+    parser.add_argument(
+        "--retention",
+        type=str,
+        choices=["daily", "weekly", "monthly"],
+        default="weekly",
+        help="specify the retention period for keeping the latest data",
+    )
+    opt = parser.parse_args(args)
+
+    dnmain(context, opt)
 
 
 def main():
