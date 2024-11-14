@@ -1,3 +1,6 @@
+import importlib
+import sys
+
 import cdsapi
 import xarray as xr
 import numpy as np
@@ -5,6 +8,9 @@ import os
 import shutil
 import datetime
 import logging
+
+from wxbtool.nn.lightning import GANModel, LightningModel
+
 
 def download_latest_hourly_era5_data(variables, start_date, end_date, output_folder):
     c = cdsapi.Client()
@@ -38,6 +44,7 @@ def download_latest_hourly_era5_data(variables, start_date, end_date, output_fol
                     filename,
                 )
 
+
 def organize_downloaded_data(output_folder):
     for variable in os.listdir(output_folder):
         variable_folder = os.path.join(output_folder, variable)
@@ -53,6 +60,7 @@ def organize_downloaded_data(output_folder):
                     if file_path != new_file_path:
                         os.rename(file_path, new_file_path)
 
+
 def handle_coverage_option(coverage, output_folder, variables):
     now = datetime.datetime.utcnow()
     if coverage == "daily":
@@ -66,6 +74,7 @@ def handle_coverage_option(coverage, output_folder, variables):
 
     download_latest_hourly_era5_data(variables, start_date, now, output_folder)
     organize_downloaded_data(output_folder)
+
 
 def handle_retention_option(retention, output_folder, variables):
     now = datetime.datetime.utcnow()
@@ -86,3 +95,44 @@ def handle_retention_option(retention, output_folder, variables):
                     file_date = datetime.datetime.strptime(filename, "%Y%m%d_%H.nc")
                     if now - file_date > retention_period:
                         os.remove(file_path)
+
+
+def main(context, opt):
+    output_folder = "era5"
+    try:
+        sys.path.insert(0, os.getcwd())
+        mdm = importlib.import_module(opt.module, package=None)
+        if opt.gan == "true":
+            model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
+        else:
+            model = LightningModel(mdm.model, opt=opt)
+        setting = model.setting
+        variables = setting["vars"]
+
+        # check .cdsapirc file in the home directory, if not exist, create one by prompting user to input the key
+        if not os.path.exists(os.path.expanduser("~/.cdsapirc")):
+            key = input("Please enter your ECMWF API key: ")
+            with open(os.path.expanduser("~/.cdsapirc"), "w") as f:
+                f.write("url: https://cds.climate.copernicus.eu/api/v2\n")
+                f.write(f"key: {key}\n")
+
+        handle_coverage_option(opt.coverage, output_folder, variables)
+        handle_retention_option(opt.retention, output_folder, variables)
+    except ImportError as e:
+        exc_info = sys.exc_info()
+        print(e)
+        print("failure when downloading data")
+        import traceback
+
+        traceback.print_exception(*exc_info)
+        del exc_info
+        sys.exit(-1)
+    except Exception as e:
+        exc_info = sys.exc_info()
+        print(e)
+        print("failure when downloading data")
+        import traceback
+
+        traceback.print_exception(*exc_info)
+        del exc_info
+        sys.exit(-1)
