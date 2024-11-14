@@ -62,22 +62,22 @@ def organize_downloaded_data(output_folder):
 
 
 def handle_coverage_option(coverage, output_folder, variables):
-    now = datetime.datetime.utcnow()
+    oneweekago = datetime.datetime.utcnow() - datetime.timedelta(weeks=1)
     if coverage == "daily":
-        start_date = now - datetime.timedelta(days=1)
+        start_date = oneweekago - datetime.timedelta(days=1)
     elif coverage == "weekly":
-        start_date = now - datetime.timedelta(weeks=1)
+        start_date = oneweekago - datetime.timedelta(weeks=1)
     elif coverage == "monthly":
-        start_date = now - datetime.timedelta(weeks=4)
+        start_date = oneweekago - datetime.timedelta(weeks=4)
     else:
-        start_date = now - datetime.timedelta(days=1)
+        start_date = oneweekago - datetime.timedelta(days=1)
 
-    download_latest_hourly_era5_data(variables, start_date, now, output_folder)
+    download_latest_hourly_era5_data(variables, start_date, oneweekago, output_folder)
     organize_downloaded_data(output_folder)
 
 
 def handle_retention_option(retention, output_folder, variables):
-    now = datetime.datetime.utcnow()
+    oneweekago = datetime.datetime.utcnow() - datetime.timedelta(weeks=1)
     retention_period = {
         "daily": datetime.timedelta(days=1),
         "weekly": datetime.timedelta(weeks=1),
@@ -93,7 +93,7 @@ def handle_retention_option(retention, output_folder, variables):
                 for filename in os.listdir(month_folder_path):
                     file_path = os.path.join(month_folder_path, filename)
                     file_date = datetime.datetime.strptime(filename, "%Y%m%d_%H.nc")
-                    if now - file_date > retention_period:
+                    if oneweekago - file_date > retention_period:
                         os.remove(file_path)
 
 
@@ -106,8 +106,8 @@ def main(context, opt):
             model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
         else:
             model = LightningModel(mdm.model, opt=opt)
-        setting = model.setting
-        variables = setting["vars"]
+        setting = model.model.setting
+        variables = setting.vars
 
         # check .cdsapirc file in the home directory, if not exist, create one by prompting user to input the key
         if not os.path.exists(os.path.expanduser("~/.cdsapirc")):
