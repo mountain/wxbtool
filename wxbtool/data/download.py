@@ -12,7 +12,7 @@ import logging
 from wxbtool.nn.lightning import GANModel, LightningModel
 
 
-def download_latest_hourly_era5_data(variables, start_date, end_date, output_folder):
+def download_latest_hourly_era5_data(variables, vars2d, vars3d, levels, start_date, end_date, output_folder):
     c = cdsapi.Client()
     for variable in variables:
         variable_folder = os.path.join(output_folder, variable)
@@ -30,20 +30,39 @@ def download_latest_hourly_era5_data(variables, start_date, end_date, output_fol
 
             filename = os.path.join(month_folder, date.strftime("%Y%m%d_%H") + ".nc")
             if not os.path.exists(filename):
-                c.retrieve(
-                    "reanalysis-era5-single-levels",
-                    {
-                        "product_type": "reanalysis",
-                        "variable": variable,
-                        "year": date.strftime("%Y"),
-                        "month": date.strftime("%m"),
-                        "day": date.strftime("%d"),
-                        "time": date.strftime("%H:00"),
-                        "format": "netcdf",
-                    },
-                    filename,
-                )
-
+                if variable in vars2d:
+                    # Retrieve single-level data
+                    c.retrieve(
+                        "reanalysis-era5-single-levels",
+                        {
+                            "product_type": "reanalysis",
+                            "variable": variable,
+                            "year": date.strftime("%Y"),
+                            "month": date.strftime("%m"),
+                            "day": date.strftime("%d"),
+                            "time": date.strftime("%H:00"),
+                            "format": "netcdf",
+                        },
+                        filename,
+                    )
+                elif variable in vars3d:
+                    # Retrieve pressure-level data
+                    c.retrieve(
+                        "reanalysis-era5-pressure-levels",
+                        {
+                            "product_type": "reanalysis",
+                            "variable": variable,
+                            "pressure_level": levels,  # Add specified pressure levels
+                            "year": date.strftime("%Y"),
+                            "month": date.strftime("%m"),
+                            "day": date.strftime("%d"),
+                            "time": date.strftime("%H:00"),
+                            "format": "netcdf",
+                        },
+                        filename,
+                    )
+                else:
+                    print(f"Warning: Variable '{variable}' not recognized as single or pressure level.")
 
 def organize_downloaded_data(output_folder):
     for variable in os.listdir(output_folder):
@@ -61,7 +80,7 @@ def organize_downloaded_data(output_folder):
                         os.rename(file_path, new_file_path)
 
 
-def handle_coverage_option(coverage, output_folder, variables):
+def handle_coverage_option(coverage, output_folder, variables, vars2d, vars3d, levels):
     oneweekago = datetime.datetime.utcnow() - datetime.timedelta(weeks=1)
     if coverage == "daily":
         start_date = oneweekago - datetime.timedelta(days=1)
@@ -72,7 +91,7 @@ def handle_coverage_option(coverage, output_folder, variables):
     else:
         start_date = oneweekago - datetime.timedelta(days=1)
 
-    download_latest_hourly_era5_data(variables, start_date, oneweekago, output_folder)
+    download_latest_hourly_era5_data(variables, vars2d, vars3d, levels, start_date, oneweekago, output_folder)
     organize_downloaded_data(output_folder)
 
 
@@ -108,6 +127,9 @@ def main(context, opt):
             model = LightningModel(mdm.model, opt=opt)
         setting = model.model.setting
         variables = setting.vars
+        vars2d = setting.vars2d
+        vars3d = setting.vars3d
+        levels = setting.levels
 
         # check .cdsapirc file in the home directory, if not exist, create one by prompting user to input the key
         if not os.path.exists(os.path.expanduser("~/.cdsapirc")):
@@ -116,7 +138,7 @@ def main(context, opt):
                 f.write("url: https://cds.climate.copernicus.eu/api/v2\n")
                 f.write(f"key: {key}\n")
 
-        handle_coverage_option(opt.coverage, output_folder, variables)
+        handle_coverage_option(opt.coverage, output_folder, variables, vars2d, vars3d, levels)
         handle_retention_option(opt.retention, output_folder, variables)
     except ImportError as e:
         exc_info = sys.exc_info()
