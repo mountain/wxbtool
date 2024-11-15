@@ -59,6 +59,9 @@ class Mdl(Spec):
         self.eval_size = len(self.dataset_eval)
         self.test_size = len(self.dataset_test)
 
+    def forecast_error(self, rmse):
+        return rmse
+
     def forward(self, **kwargs):
         batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)

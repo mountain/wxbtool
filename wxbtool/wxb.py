@@ -95,10 +95,16 @@ def train(parser, context, args):
         "-r", "--rate", type=str, default="0.001", help="learning rate"
     )
     parser.add_argument(
-        "-R", "--ratio", type=str, default="10", help="the ratio of the two learning rates between generator and discriminator"
+        "-w", "--weightdecay", type=float, default=0.0, help="weight decay"
     )
     parser.add_argument(
-        "-w", "--weightdecay", type=float, default=0.0, help="weight decay"
+        "-R", "--ratio", type=str, default="10", help="the ratio of the two learning rates between generator and discriminator in GAN"
+    )
+    parser.add_argument(
+        "-B", "--balance", type=float, default=0.9, help="exit balance for GAN training"
+    )
+    parser.add_argument(
+        "-T", "--tolerance", type=float, default=0.05, help="exit balance tolerance for GAN training"
     )
     parser.add_argument(
         "-d",

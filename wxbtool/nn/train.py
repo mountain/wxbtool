@@ -31,18 +31,24 @@ def main(context, opt):
             model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
             model.generator.learning_rate = generator_lr
             model.discriminator.learning_rate = discriminator_lr
+            callbacks = []
         else:
             learning_rate = float(opt.rate)
             model = LightningModel(mdm.model, opt=opt)
             model.learning_rate = learning_rate
+            callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=30)]
 
         n_epochs = 1 if opt.test == "true" else opt.n_epochs
+
         trainer = pl.Trainer(
             accelerator=accelerator,
             precision=32,
             max_epochs=n_epochs,
-            callbacks=[EarlyStopping(monitor="val_loss", mode="min", patience=30)],
+            callbacks=callbacks,
         )
+
+        if opt.load:
+            model.load_from_checkpoint(opt.load)
 
         trainer.fit(model)
         trainer.test(model=model, dataloaders=model.test_dataloader())

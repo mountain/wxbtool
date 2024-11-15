@@ -14,7 +14,7 @@ class LightningModel(ltn.LightningModule):
 
         self.counter = 0
         self.labeled_loss = 0
-        self.labeled_rmse = 0
+        self.labeled_mse = 0
 
         self.opt = opt
 
@@ -29,7 +29,7 @@ class LightningModel(ltn.LightningModule):
     def loss_fn(self, input, result, target):
         return self.model.lossfun(input, result, target)
 
-    def compute_rmse(self, targets, results):
+    def compute_mse(self, targets, results):
         _, tgt = self.model.get_targets(**targets)
         _, rst = self.model.get_results(**results)
         tgt = (
@@ -38,7 +38,10 @@ class LightningModel(ltn.LightningModule):
         rst = (
             rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
-        rmse = np.sqrt(np.mean(self.model.weight.cpu().numpy() * (rst - tgt) ** 2))
+        mse = np.mean(self.model.weight.cpu().numpy() * (rst - tgt) ** 2)
+        return mse
+
+    def forecast_error(self, rmse):
         return rmse
 
     def forward(self, **inputs):
@@ -68,37 +71,46 @@ class LightningModel(ltn.LightningModule):
 
         loss = self.loss_fn(inputs, results, targets)
 
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         inputs, targets = batch
+        batch_len = inputs[self.model.setting.vars[0]].shape[0]
+
         inputs = {v: inputs[v].float() for v in self.model.setting.vars}
         targets = {v: targets[v].float() for v in self.model.setting.vars}
         results = self.forward(**inputs)
         loss = self.loss_fn(inputs, results, targets)
-        rmse = self.compute_rmse(targets, results)
+        mse = self.compute_mse(targets, results)
 
-        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val_rmse", rmse, on_step=False, on_epoch=True, prog_bar=True)
-
-        batch_len = inputs[self.model.setting.vars[0]].shape[0]
         self.labeled_loss += loss.item() * batch_len
-        self.labeled_rmse += rmse * batch_len
+        self.labeled_mse += mse * batch_len
         self.counter += batch_len
+
+        rmse = np.sqrt(self.labeled_mse / self.counter)
+        self.log("val_rmse", rmse, prog_bar=True)
+        self.log("val_loss", loss, prog_bar=True)
 
         self.plot(inputs, results, targets)
 
     def test_step(self, batch, batch_idx):
         inputs, targets = batch
+        batch_len = inputs[self.model.setting.vars[0]].shape[0]
+
         inputs = {v: inputs[v].float() for v in self.model.setting.vars}
         targets = {v: targets[v].float() for v in self.model.setting.vars}
         results = self.forward(**inputs)
         loss = self.loss_fn(inputs, results, targets)
-        rmse = self.compute_rmse(targets, results)
+        mse = self.compute_mse(targets, results)
 
-        self.log("test_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("test_rmse", rmse, on_step=False, on_epoch=True, prog_bar=True)
+        self.labeled_loss += loss.item() * batch_len
+        self.labeled_mse += mse * batch_len
+        self.counter += batch_len
+
+        rmse = np.sqrt(self.labeled_mse / self.counter)
+        self.log("test_loss", loss, prog_bar=True)
+        self.log("test_rmse", rmse, prog_bar=True)
 
         self.plot(inputs, results, targets)
 
@@ -106,9 +118,10 @@ class LightningModel(ltn.LightningModule):
         import glob
         import os
 
-        rmse = self.labeled_rmse / self.counter
+        rmse = np.sqrt(self.labeled_mse / self.counter)
+        error = self.forecast_error(rmse)
         loss = self.labeled_loss / self.counter
-        record = "%2.5f-%03d-%1.5f.ckpt" % (rmse, checkpoint["epoch"], loss)
+        record = "%2.5f-%03d-%1.5f.ckpt" % (error, checkpoint["epoch"], loss)
         mname = self.model.name
         fname = f"trains/{mname}/best-{record}"
         os.makedirs(
@@ -173,6 +186,8 @@ class GANModel(LightningModel):
         self.discriminator = discriminator
         self.learning_rate = 1e-4  # Adjusted for GANs
         self.automatic_optimization = False
+        self.realness = 0
+        self.fakeness = 1
 
         if opt and hasattr(opt, 'rate'):
             learning_rate = float(opt.rate)
@@ -195,6 +210,9 @@ class GANModel(LightningModel):
         real_loss = th.nn.functional.binary_cross_entropy_with_logits(real_judgement["data"], th.ones_like(real_judgement["data"], dtype=th.float32))
         fake_loss = th.nn.functional.binary_cross_entropy_with_logits(fake_judgement["data"], th.zeros_like(fake_judgement["data"], dtype=th.float32))
         return (real_loss + fake_loss) / 2
+
+    def forecast_error(self, rmse):
+        return self.generator.forecast_error(rmse)
 
     def training_step(self, batch, batch_idx):
         inputs, targets = batch
@@ -235,17 +253,20 @@ class GANModel(LightningModel):
         targets, _ = self.model.get_targets(**targets)
         inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
-        judgement = self.discriminator(**inputs, target=forecast["data"])
         forecast_loss = self.loss_fn(inputs, forecast, targets)
-        realness = judgement["data"].mean().item()
-        self.log("realness", realness, prog_bar=True)
+        real_judgement = self.discriminator(**inputs, target=targets['data'])
+        fake_judgement = self.discriminator(**inputs, target=forecast["data"])
+        self.realness = real_judgement["data"].mean().item()
+        self.fakeness = fake_judgement["data"].mean().item()
+        self.log("realness", self.realness, prog_bar=True)
+        self.log("fakeness", self.fakeness, prog_bar=True)
         self.log("val_forecast", forecast_loss, prog_bar=True)
         self.log("val_loss", forecast_loss, prog_bar=True)
 
-        rmse = self.compute_rmse(targets, forecast)
+        mse = self.compute_mse(targets, forecast)
         batch_len = inputs['data'].shape[0]
         self.labeled_loss += forecast_loss.item() * batch_len
-        self.labeled_rmse += rmse * batch_len
+        self.labeled_mse += mse * batch_len
         self.counter += batch_len
 
         self.plot(inputs, forecast, targets)
@@ -256,9 +277,18 @@ class GANModel(LightningModel):
         targets, _ = self.model.get_targets(**targets)
         inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
-        judgement = self.discriminator(**inputs, target=forecast["data"])
         forecast_loss = self.loss_fn(inputs, forecast, targets)
-        realness = judgement["data"].mean().item()
-        self.log("realness", realness, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("forecast", forecast_loss, on_step=False, on_epoch=True, prog_bar=True)
+        real_judgement = self.discriminator(**inputs, target=targets['data'])
+        fake_judgement = self.discriminator(**inputs, target=forecast["data"])
+        self.realness = real_judgement["data"].mean().item()
+        self.fakeness = fake_judgement["data"].mean().item()
+        self.log("realness", self.realness, prog_bar=True)
+        self.log("fakeness", self.fakeness, prog_bar=True)
+        self.log("forecast", forecast_loss, prog_bar=True)
         self.plot(inputs, forecast, targets)
+
+    def on_validation_epoch_end(self):
+        balance = self.realness - self.fakeness
+        self.log("balance", balance)
+        if abs(balance - self.opt.balance) < self.opt.tolerance:
+            self.trainer.should_stop = True

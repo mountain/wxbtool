@@ -99,7 +99,8 @@ class Spec(Base2d):
         data = th.cat(vlst, dim=1)
         vdic['data'] = data
         for k, v in kwargs.items():
-            vdic[k] = v.float()
+            if type(v) is th.Tensor:
+                vdic[k] = v.float()
 
         return vdic, data
 
