@@ -29,9 +29,14 @@ Start a testing process for a UNet model following Weyn's solution
 wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn
 ```
 
-Start a data set server with unix socket binding
+Start a data set server with http binding
 ```bash
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b unix:/tmp/test.sock
+wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d 
+```
+
+Start a data set server with ip and port
+```bash
+wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b 127.0.0.1:8088
 ```
 
 Start a training process with unix socket binding
