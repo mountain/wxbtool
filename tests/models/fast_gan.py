@@ -67,9 +67,9 @@ class Mdl(Spec):
         self.update_da_status(batch_size)
 
         _, input = self.get_inputs(**kwargs)
-        noise = kwargs['noise']
+        seed = kwargs['seed']
         cnst = self.get_augmented_constant(input)
-        input = th.cat((input, cnst, noise), dim=1)
+        input = th.cat((input, cnst, seed), dim=1)
 
         output = self.mlp(input).view(batch_size, self.setting.pred_span, 32, 64)
 

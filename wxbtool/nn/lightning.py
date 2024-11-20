@@ -3,6 +3,8 @@ import torch as th
 import lightning as ltn
 
 from torch.utils.data import DataLoader
+
+from wxbtool.data.dataset import ensemble_loader
 from wxbtool.util.plotter import plot
 
 
@@ -135,7 +137,7 @@ class LightningModel(ltn.LightningModule):
 
         self.counter = 0
         self.labeled_loss = 0
-        self.labeled_rmse = 0
+        self.labeled_mse = 0
 
         print()
 
@@ -188,12 +190,17 @@ class GANModel(LightningModel):
         self.automatic_optimization = False
         self.realness = 0
         self.fakeness = 1
+        self.alpha = 0.5
+        self.crps = None
 
         if opt and hasattr(opt, 'rate'):
             learning_rate = float(opt.rate)
             ratio = float(opt.ratio)
             self.generator.learning_rate = learning_rate
             self.discriminator.learning_rate = learning_rate / ratio
+
+        if opt and hasattr(opt, 'alpha'):
+            self.alpha = float(opt.alpha)
 
     def configure_optimizers(self):
         # Separate optimizers for generator and discriminator
@@ -214,11 +221,35 @@ class GANModel(LightningModel):
     def forecast_error(self, rmse):
         return self.generator.forecast_error(rmse)
 
+    def compute_crps(self, predictions, targets):
+        ensemble_size, channels, height, width = predictions.shape
+
+        num_pixels = channels * height * width
+        predictions_reshaped = predictions.view(ensemble_size, -1)  # [ensemble_size, num_pixels]
+        targets_reshaped = targets.view(ensemble_size, -1)  # [ensemble_size, num_pixels]
+
+        abs_errors = th.abs(predictions_reshaped - targets_reshaped)  # [ensemble_size, num_pixels]
+        mean_abs_errors = abs_errors.mean(dim=0)  # [num_pixels]
+
+        predictions_a = predictions_reshaped.unsqueeze(1)  # [ensemble_size, 1, num_pixels]
+        predictions_b = predictions_reshaped.unsqueeze(0)  # [1, ensemble_size, num_pixels]
+        pairwise_diff = th.abs(predictions_a - predictions_b)  # [ensemble_size, ensemble_size, num_pixels]
+        mean_pairwise_diff = pairwise_diff.mean(dim=(0, 1))  # [num_pixels]
+
+        # Calculate CRPS using the formula
+        crps = mean_abs_errors - 0.5 * mean_pairwise_diff  # [num_pixels]
+        self.crps = crps.view(-1, 1, height, width)
+
+        # Average CRPS over all pixels and the batch
+        crps_mean = crps.mean()
+
+        return crps_mean
+
     def training_step(self, batch, batch_idx):
         inputs, targets = batch
         inputs, _ = self.model.get_inputs(**inputs)
         targets, _ = self.model.get_targets(**targets)
-        inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
+        inputs['seed'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
 
         g_optimizer, d_optimizer = self.optimizers()
 
@@ -227,7 +258,7 @@ class GANModel(LightningModel):
         judgement = self.discriminator(**inputs, target=forecast["data"])
         forecast_loss = self.loss_fn(inputs, forecast, targets)
         generate_loss = self.generator_loss(judgement)
-        total_loss = forecast_loss + generate_loss
+        total_loss = self.alpha * forecast_loss + (1 - self.alpha) * generate_loss
         self.log("total", total_loss, prog_bar=True)
         self.log("forecast", forecast_loss, prog_bar=True)
         self.manual_backward(total_loss)
@@ -237,7 +268,7 @@ class GANModel(LightningModel):
 
         self.toggle_optimizer(d_optimizer)
         forecast = self.generator(**inputs)
-        forecast["data"].detach()  # Detach to avoid generator gradient updates
+        forecast["data"] = forecast["data"].detach()  # Detach to avoid generator gradient updates
         real_judgement = self.discriminator(**inputs, target=targets['data'])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         judgement_loss = self.discriminator_loss(real_judgement, fake_judgement)
@@ -251,15 +282,17 @@ class GANModel(LightningModel):
         inputs, targets = batch
         inputs, _ = self.model.get_inputs(**inputs)
         targets, _ = self.model.get_targets(**targets)
-        inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
+        inputs['seed'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(inputs, forecast, targets)
         real_judgement = self.discriminator(**inputs, target=targets['data'])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
+        crps = self.compute_crps(forecast["data"], targets["data"])
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
         self.log("realness", self.realness, prog_bar=True)
         self.log("fakeness", self.fakeness, prog_bar=True)
+        self.log("crps", crps, prog_bar=True)
         self.log("val_forecast", forecast_loss, prog_bar=True)
         self.log("val_loss", forecast_loss, prog_bar=True)
 
@@ -275,16 +308,18 @@ class GANModel(LightningModel):
         inputs, targets = batch
         inputs, _ = self.model.get_inputs(**inputs)
         targets, _ = self.model.get_targets(**targets)
-        inputs['noise'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
+        inputs['seed'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(inputs, forecast, targets)
         real_judgement = self.discriminator(**inputs, target=targets['data'])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
+        crps = self.compute_crps(forecast["data"], targets["data"])
         self.log("realness", self.realness, prog_bar=True)
         self.log("fakeness", self.fakeness, prog_bar=True)
         self.log("forecast", forecast_loss, prog_bar=True)
+        self.log("crps", crps, prog_bar=True)
         self.plot(inputs, forecast, targets)
 
     def on_validation_epoch_end(self):
@@ -292,3 +327,27 @@ class GANModel(LightningModel):
         self.log("balance", balance)
         if abs(balance - self.opt.balance) < self.opt.tolerance:
             self.trainer.should_stop = True
+
+    def val_dataloader(self):
+        if self.model.dataset_eval is None:
+            if self.opt.data != "":
+                self.model.load_dataset("train", "client", url=self.opt.data)
+            else:
+                self.model.load_dataset("train", "server")
+        return ensemble_loader(
+            self.model.dataset_eval,
+            self.opt.batch_size,
+            True,
+        )
+
+    def test_dataloader(self):
+        if self.model.dataset_test is None:
+            if self.opt.data != "":
+                self.model.load_dataset("train", "client", url=self.opt.data)
+            else:
+                self.model.load_dataset("train", "server")
+        return ensemble_loader(
+            self.model.dataset_test,
+            self.opt.batch_size,
+            True,
+        )

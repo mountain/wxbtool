@@ -8,6 +8,7 @@ import logging
 import json
 import http.client
 import socket
+import random
 
 import xarray as xr
 import numpy as np
@@ -18,7 +19,7 @@ import msgpack_numpy as m
 m.patch()
 
 from itertools import product  # noqa: E402
-from torch.utils.data import Dataset  # noqa: E402
+from torch.utils.data import Dataset, DataLoader, Sampler  # noqa: E402
 
 from wxbtool.data.variables import codes, vars2d, vars3d  # noqa: E402
 
@@ -360,3 +361,33 @@ class WxDatasetClient(Dataset):
                 val[var] = np.array(np.copy(blk), dtype=np.float32)
 
         return data["inputs"], data["targets"]
+
+
+class EnsembleBatchSampler(Sampler):
+    def __init__(self, dataset, ensemble_size, shuffle=True):
+        super().__init__()
+        self.dataset = dataset
+        self.ensemble_size = ensemble_size
+        self.shuffle = shuffle
+        self.indices = list(range(len(dataset)))
+        if self.shuffle:
+            random.shuffle(self.indices)
+
+    def __iter__(self):
+        for idx in self.indices:
+            for _ in range(self.ensemble_size):
+                yield idx
+
+    def __len__(self):
+        return len(self.dataset) * self.ensemble_size
+
+
+def ensemble_loader(dataset, ensemble_size, shuffle=True):
+    sampler = EnsembleBatchSampler(dataset, ensemble_size, shuffle)
+    return DataLoader(
+        dataset,
+        batch_size=ensemble_size,
+        sampler=sampler,
+        num_workers=0,
+        pin_memory=True,
+    )
