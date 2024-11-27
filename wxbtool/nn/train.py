@@ -40,7 +40,13 @@ def main(context, opt):
 
         n_epochs = 1 if opt.test == "true" else opt.n_epochs
 
+        if opt.gpu is not None:
+            devices = [int(idx) for idx in opt.gpu.split(",")]
+        else:
+            devices = "cpu"
+
         trainer = pl.Trainer(
+            devices=devices,
             accelerator=accelerator,
             precision=32,
             max_epochs=n_epochs,
