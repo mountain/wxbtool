@@ -74,5 +74,4 @@ class Mdl(Spec):
         }
 
 
-
 model = Mdl(setting)

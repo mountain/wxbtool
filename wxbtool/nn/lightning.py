@@ -209,12 +209,15 @@ class GANModel(LightningModel):
 
     def generator_loss(self, fake_judgement):
         # Loss for generator (we want the discriminator to predict all generated images as real)
-        return th.nn.functional.binary_cross_entropy(fake_judgement["data"], th.ones_like(fake_judgement["data"], dtype=th.float32))
+        return th.nn.functional.binary_cross_entropy(
+            fake_judgement["data"], th.ones_like(fake_judgement["data"], dtype=th.float32))
 
     def discriminator_loss(self, real_judgement, fake_judgement):
         # Loss for discriminator (real images should be classified as real, fake images as fake)
-        real_loss = th.nn.functional.binary_cross_entropy(real_judgement["data"], th.ones_like(real_judgement["data"], dtype=th.float32))
-        fake_loss = th.nn.functional.binary_cross_entropy(fake_judgement["data"], th.zeros_like(fake_judgement["data"], dtype=th.float32))
+        real_loss = th.nn.functional.binary_cross_entropy(
+            real_judgement["data"], th.ones_like(real_judgement["data"], dtype=th.float32))
+        fake_loss = th.nn.functional.binary_cross_entropy(
+            fake_judgement["data"], th.zeros_like(fake_judgement["data"], dtype=th.float32))
         return (real_loss + fake_loss) / 2
 
     def forecast_error(self, rmse):
@@ -280,7 +283,6 @@ class GANModel(LightningModel):
         g_optimizer.zero_grad()
         realness = real_judgement["data"].mean().item()
         fakeness = fake_judgement["data"].mean().item()
-        exit_loop = fakeness > self.fakeness
         self.realness = realness
         self.fakeness = fakeness
         self.log("realness", self.realness, prog_bar=True)
@@ -300,7 +302,6 @@ class GANModel(LightningModel):
         d_optimizer.zero_grad()
         realness = real_judgement["data"].mean().item()
         fakeness = fake_judgement["data"].mean().item()
-        exit_loop = realness > self.realness
         self.realness = realness
         self.fakeness = fakeness
         self.log("realness", self.realness, prog_bar=True)

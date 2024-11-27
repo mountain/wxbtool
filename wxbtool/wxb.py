@@ -98,7 +98,8 @@ def train(parser, context, args):
         "-w", "--weightdecay", type=float, default=0.0, help="weight decay"
     )
     parser.add_argument(
-        "-R", "--ratio", type=str, default="10", help="the ratio of the two learning rates between generator and discriminator in GAN"
+        "-R", "--ratio", type=str, default="10",
+        help="the ratio of the two learning rates between generator and discriminator in GAN"
     )
     parser.add_argument(
         "-A", "--alpha", type=float, default=0.1, help="a 0 to 1 weight to control the loss calculation in GAN"

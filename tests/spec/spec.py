@@ -7,7 +7,7 @@ import torch.nn as nn
 from wxbtool.nn.model import Base2d
 from wxbtool.nn.setting import Setting
 from wxbtool.data.variables import vars3d, code2var, split_name
-from wxbtool.norms.meanstd import normalizors, denorm_t2m, norm_t2m
+from wxbtool.norms.meanstd import normalizors, norm_t2m
 
 mse = nn.MSELoss()
 

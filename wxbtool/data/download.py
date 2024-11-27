@@ -87,6 +87,7 @@ class ERA5Downloader:
             variable,
             year,
             month,
+            day,
             filename
         )
 
@@ -157,7 +158,8 @@ class ERA5Downloader:
     def download(self):
         """Execute the download process based on the configuration."""
         start_date, end_date = self.get_time_span()
-        logging.info(f"Downloading data from {start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}.")
+        logging.info(
+            f"Downloading data from {start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}.")
 
         for variable in self.config.variables:
             for date, time_str in self.generate_datetime_list(start_date, end_date):
@@ -173,7 +175,6 @@ class ERA5Downloader:
 
 
 def main(context, opt):
-    output_folder = "era5"
     try:
         sys.path.insert(0, os.getcwd())
         mdm = importlib.import_module(opt.module, package=None)
