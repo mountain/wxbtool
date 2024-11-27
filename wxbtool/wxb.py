@@ -53,7 +53,7 @@ def dserve(parser, context, args):
 
 @subcmd("train", help="start training")
 def train(parser, context, args):
-    parser.add_argument("-g", "--gpu", type=str, default="0", help="indexes of gpu")
+    parser.add_argument("-g", "--gpu", type=str, default="", help="indexes of gpu")
     parser.add_argument(
         "-c",
         "--n_cpu",

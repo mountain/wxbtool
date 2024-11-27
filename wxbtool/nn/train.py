@@ -40,10 +40,10 @@ def main(context, opt):
 
         n_epochs = 1 if opt.test == "true" else opt.n_epochs
 
-        if opt.gpu is not None:
+        if opt.gpu is not None and opt.gpu != "":
             devices = [int(idx) for idx in opt.gpu.split(",")]
         else:
-            devices = "cpu"
+            devices = 1
 
         trainer = pl.Trainer(
             devices=devices,
