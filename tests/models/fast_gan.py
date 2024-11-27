@@ -66,12 +66,12 @@ class Mdl(Spec):
         batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
-        _, input = self.get_inputs(**kwargs)
+        inputs = self.get_inputs(**kwargs)['data']
         seed = kwargs['seed']
-        cnst = self.get_augmented_constant(input)
-        input = th.cat((input, cnst, seed), dim=1)
+        cnst = self.get_augmented_constant(inputs)
+        inputs = th.cat((inputs, cnst, seed), dim=1)
 
-        output = self.mlp(input).view(batch_size, self.setting.pred_span, 32, 64)
+        output = self.mlp(inputs).view(batch_size, self.setting.pred_span, 32, 64)
 
         return {"t2m": output, "data": output}
 
@@ -104,12 +104,13 @@ class Dsc(Spec):
         batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
-        _, input = self.get_inputs(**kwargs)
-        cnst = self.get_augmented_constant(input)
+        inputs = kwargs['data']
+        cnst = self.get_augmented_constant(inputs)
         target = kwargs['target']
-        input = th.cat((input, cnst, target), dim=1)
+        inputs = th.cat((inputs, cnst, target), dim=1)
 
-        output = self.mlp(input).view(batch_size, self.setting.pred_span, 32, 64)
+        output = self.mlp(inputs).view(batch_size, self.setting.pred_span, 32, 64)
+        output = th.sigmoid(output)
 
         return {"t2m": output, "data": output}
 

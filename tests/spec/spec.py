@@ -7,8 +7,7 @@ import torch.nn as nn
 from wxbtool.nn.model import Base2d
 from wxbtool.nn.setting import Setting
 from wxbtool.data.variables import vars3d, code2var, split_name
-from wxbtool.norms.meanstd import normalizors, denorm_t2m
-
+from wxbtool.norms.meanstd import normalizors, denorm_t2m, norm_t2m
 
 mse = nn.MSELoss()
 
@@ -79,6 +78,9 @@ class Setting30d(SettingSimple):
 class Spec(Base2d):
     def __init__(self, setting):
         super().__init__(setting)
+        self.vars_out = [
+            't2m',
+        ]
 
     def get_inputs(self, **kwargs):
         vdic, vlst = {}, []
@@ -102,25 +104,34 @@ class Spec(Base2d):
             if type(v) is th.Tensor:
                 vdic[k] = v.float()
 
-        return vdic, data
+        return vdic
 
     def get_targets(self, **kwargs):
-        t2m = kwargs["2m_temperature"].view(-1, self.setting.pred_span, 32, 64).float()
-        t2m = self.augment_data(t2m)
-        return {"t2m": t2m, "data": t2m, "2m_temperature": t2m}, t2m
+        t2m = norm_t2m(
+            kwargs["2m_temperature"].view(-1, self.setting.pred_span, 32, 64)
+        ).float()
+
+        return {
+            'data': t2m,
+            't2m': t2m,
+        }
 
     def get_results(self, **kwargs):
-        t2m = denorm_t2m(kwargs["t2m"])
-        return {"t2m": t2m, "data": t2m, "2m_temperature": t2m}, t2m
+        t2m = kwargs["t2m"].float()
+        return {
+            'data': t2m,
+            't2m': t2m,
+        }
 
     def forward(self, **kwargs):
         raise NotImplementedError("Spec is abstract and can not be initialized")
 
     def lossfun(self, inputs, result, target):
-        _, rst = self.get_results(**result)
-        _, tgt = self.get_targets(**target)
-        rst = self.weight.float() * rst.view(-1, self.setting.pred_span, 32, 64)
-        tgt = self.weight.float() * tgt.view(-1, self.setting.pred_span, 32, 64)
+        rst = result['data']
+        tgt = target['data']
+        weight = self.get_weight(rst.device).float()
+        rst = weight * rst.view(-1, self.setting.pred_span, 32, 64)
+        tgt = weight * tgt.view(-1, self.setting.pred_span, 32, 64)
 
         losst = mse(rst[:, 0], tgt[:, 0])
 

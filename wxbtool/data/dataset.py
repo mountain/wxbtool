@@ -171,7 +171,6 @@ class WxDataset(Dataset):
                         f"Variable {var} has inconsistent length {length}. Expected length: {max_length}."
                     )
 
-                # 根据需要，选择是否抛出异常
                 raise ValueError(
                     "Inconsistent data lengths across variables detected. Please check the data loading process."
                 )
