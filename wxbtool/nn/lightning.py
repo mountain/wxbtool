@@ -65,6 +65,11 @@ class LightningModel(ltn.LightningModule):
         observation = observation.cpu().numpy()
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
+   
+        plot(vars[0], open("anomaly_%s_fcs.png" % vars[0], mode="wb"), f_anomaly[0])
+        plot(vars[0], open("anomaly_%s_obs.png" % vars[0], mode="wb"), o_anomaly[0])
+        print("f_anomaly", f_anomaly.min(), f_anomaly.max())
+        print("o_anomaly", o_anomaly.min(), o_anomaly.max())
 
         numerator = np.sum(f_anomaly * o_anomaly)
         denominator = np.sqrt(np.sum(f_anomaly**2) * np.sum(o_anomaly**2))

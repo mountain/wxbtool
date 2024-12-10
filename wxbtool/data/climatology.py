@@ -5,6 +5,7 @@ import numpy as np
 from functools import lru_cache
 from wxbtool.data.dataset import all_levels
 from wxbtool.data.variables import split_name, code2var, codes, vars3d, vars2d
+from wxbtool.norms.meanstd import normalizors
 
 
 class ClimatologyAccessor:
@@ -133,7 +134,7 @@ class ClimatologyAccessor:
             self.load_climatology_var(var)
             climatology_var = self.climatology_data[var]
             selected_data = climatology_var[doy_indices]
-            climatology_dict[var] = selected_data
+            climatology_dict[var] = normalizors[var](selected_data)
 
         return np.concatenate([climatology_dict[v] for v in vars], axis=0)
 
