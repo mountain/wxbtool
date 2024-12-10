@@ -1,11 +1,14 @@
+import os
 import numpy as np
 import torch as th
 import lightning as ltn
 
 from torch.utils.data import DataLoader
-
+from wxbtool.data.climatology import ClimatologyAccessor
 from wxbtool.data.dataset import ensemble_loader
 from wxbtool.util.plotter import plot
+from torch.optim import Optimizer
+from typing import Iterable, Optional, Callable, List, Dict
 
 
 class LightningModel(ltn.LightningModule):
@@ -22,6 +25,9 @@ class LightningModel(ltn.LightningModule):
 
         if opt and hasattr(opt, 'rate'):
             self.learning_rate = float(opt.rate)
+
+        self.climatology_accessors = {}
+        self.data_home = os.environ.get("WXBHOME", "/data/climatology")
 
     def configure_optimizers(self):
         optimizer = th.optim.Adam(self.parameters(), lr=self.learning_rate)
@@ -42,6 +48,29 @@ class LightningModel(ltn.LightningModule):
         )
         mse = np.mean(self.model.weight.cpu().numpy() * (rst - tgt) ** 2)
         return mse
+
+    def calculate_acc(self, forecast, observation, batch_idx, mode='eval'):
+        if mode not in self.climatology_accessors:
+            self.climatology_accessors[mode] = ClimatologyAccessor(home=f"{self.data_home}/climatology")
+        
+        accessor = self.climatology_accessors[mode]
+        vars = tuple(self.model.vars_out)
+        if mode == 'eval':
+            years = tuple(self.model.setting.years_eval)
+        else:
+            years = tuple(self.model.setting.years_test)
+
+        climatology = accessor.get_climatology(years, vars, batch_idx)
+        forecast = forecast.cpu().numpy()
+        observation = observation.cpu().numpy()
+        f_anomaly = forecast - climatology
+        o_anomaly = observation - climatology
+
+        numerator = np.sum(f_anomaly * o_anomaly)
+        denominator = np.sqrt(np.sum(f_anomaly**2) * np.sum(o_anomaly**2))
+
+        acc = numerator / (denominator + 1e-10)  # to avoid divided by zero
+        return acc
 
     def forecast_error(self, rmse):
         return rmse
@@ -70,7 +99,7 @@ class LightningModel(ltn.LightningModule):
 
         loss = self.loss_fn(inputs, results, targets)
 
-        self.log("train_loss", loss, prog_bar=True)
+        self.log("train_loss", loss, prog_bar=True, sync_dist=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -82,14 +111,16 @@ class LightningModel(ltn.LightningModule):
         results = self.forward(**inputs)
         loss = self.loss_fn(inputs, results, targets)
         mse = self.compute_mse(targets, results)
+        acc = self.calculate_acc(results["data"], targets["data"], batch_idx=batch_idx, mode='test')
 
         self.labeled_loss += loss.item() * batch_len
         self.labeled_mse += mse * batch_len
         self.counter += batch_len
 
         rmse = np.sqrt(self.labeled_mse / self.counter)
-        self.log("val_rmse", rmse, prog_bar=True)
-        self.log("val_loss", loss, prog_bar=True)
+        self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
+        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
+        self.log("val_acc", acc, prog_bar=True, sync_dist=True)
 
         self.plot(inputs, results, targets)
 
@@ -102,41 +133,45 @@ class LightningModel(ltn.LightningModule):
         results = self.forward(**inputs)
         loss = self.loss_fn(inputs, results, targets)
         mse = self.compute_mse(targets, results)
+        acc = self.calculate_acc(results["data"], targets["data"], batch_idx=batch_idx, mode='test')
 
         self.labeled_loss += loss.item() * batch_len
         self.labeled_mse += mse * batch_len
         self.counter += batch_len
 
         rmse = np.sqrt(self.labeled_mse / self.counter)
-        self.log("test_loss", loss, prog_bar=True)
-        self.log("test_rmse", rmse, prog_bar=True)
+        self.log("test_loss", loss, prog_bar=True, sync_dist=True)
+        self.log("test_rmse", rmse, prog_bar=True, sync_dist=True)
+        self.log("test_acc", acc, prog_bar=True, sync_dist=True)
 
         self.plot(inputs, results, targets)
 
-    def on_save_checkpoint(self, checkpoint) -> None:
+    def on_save_checkpoint(self, checkpoint):
         import glob
         import os
 
         rmse = np.sqrt(self.labeled_mse / self.counter)
         error = self.forecast_error(rmse)
         loss = self.labeled_loss / self.counter
-        record = "%2.5f-%03d-%1.5f.ckpt" % (error, checkpoint["epoch"], loss)
-        mname = self.model.name
-        fname = f"trains/{mname}/best-{record}"
-        os.makedirs(
-            f"trains/{mname}", exist_ok=True
-        )
-        with open(fname, "bw") as f:
-            th.save(checkpoint, f)
-        for ix, ckpt in enumerate(sorted(glob.glob(f"trains/{mname}/best-*.ckpt"), reverse=False)):
-            if ix > 5:
-                os.unlink(ckpt)
+        if self.trainer.global_rank == 0:
+            print()
+            record = "%2.5f-%03d-%1.5f.ckpt" % (error, checkpoint["epoch"], loss)
+            mname = self.model.name
+            fname = f"trains/{mname}/best-{record}"
+            os.makedirs(
+               f"trains/{mname}", exist_ok=True
+            )
+            with open(fname, "bw") as f:
+                th.save(checkpoint, f)
+            for ix, ckpt in enumerate(sorted(glob.glob(f"trains/{mname}/best-*.ckpt"), reverse=False)):
+                if ix > 5:
+                    os.unlink(ckpt)
 
         self.counter = 0
         self.labeled_loss = 0
         self.labeled_mse = 0
 
-        print()
+        return checkpoint
 
     def train_dataloader(self):
         if self.model.dataset_train is None:
@@ -250,19 +285,6 @@ class GANModel(LightningModel):
 
         return crps_mean, absb_mean
 
-    def calculate_acc(self, forecast, observation):
-        forecast = forecast.cpu().numpy()
-        observation = observation.cpu().numpy()
-
-        f_anomaly = forecast - np.mean(forecast)
-        o_anomaly = observation - np.mean(observation)
-
-        numerator = np.sum(f_anomaly * o_anomaly)
-        denominator = np.sqrt(np.sum(f_anomaly**2) * np.sum(o_anomaly**2))
-
-        acc = numerator / denominator
-        return acc
-
     def training_step(self, batch, batch_idx):
         inputs, targets = batch
         inputs = self.model.get_inputs(**inputs)
@@ -285,10 +307,10 @@ class GANModel(LightningModel):
         fakeness = fake_judgement["data"].mean().item()
         self.realness = realness
         self.fakeness = fakeness
-        self.log("realness", self.realness, prog_bar=True)
-        self.log("fakeness", self.fakeness, prog_bar=True)
-        self.log("total", total_loss, prog_bar=True)
-        self.log("forecast", forecast_loss, prog_bar=True)
+        self.log("realness", self.realness, prog_bar=True, sync_dist=True)
+        self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
+        self.log("total", total_loss, prog_bar=True, sync_dist=True)
+        self.log("forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.untoggle_optimizer(g_optimizer)
 
         self.toggle_optimizer(d_optimizer)
@@ -304,9 +326,9 @@ class GANModel(LightningModel):
         fakeness = fake_judgement["data"].mean().item()
         self.realness = realness
         self.fakeness = fakeness
-        self.log("realness", self.realness, prog_bar=True)
-        self.log("fakeness", self.fakeness, prog_bar=True)
-        self.log("judgement", judgement_loss, prog_bar=True)
+        self.log("realness", self.realness, prog_bar=True, sync_dist=True)
+        self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
+        self.log("judgement", judgement_loss, prog_bar=True, sync_dist=True)
         self.untoggle_optimizer(d_optimizer)
 
         if batch_idx % 10 == 0:
@@ -322,16 +344,16 @@ class GANModel(LightningModel):
         real_judgement = self.discriminator(**inputs, target=targets['data'])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
-        acc = self.calculate_acc(forecast["data"], targets["data"])
+        acc = self.calculate_acc(forecast["data"], targets["data"], batch_idx=batch_idx, mode='eval')
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
-        self.log("realness", self.realness, prog_bar=True)
-        self.log("fakeness", self.fakeness, prog_bar=True)
-        self.log("crps", crps, prog_bar=True)
-        self.log("absb", absb, prog_bar=True)
-        self.log("acc", acc, prog_bar=True)
-        self.log("val_forecast", forecast_loss, prog_bar=True)
-        self.log("val_loss", forecast_loss, prog_bar=True)
+        self.log("realness", self.realness, prog_bar=True, sync_dist=True)
+        self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
+        self.log("crps", crps, prog_bar=True, sync_dist=True)
+        self.log("absb", absb, prog_bar=True, sync_dist=True)
+        self.log("acc", acc, prog_bar=True, sync_dist=True)
+        self.log("val_forecast", forecast_loss, prog_bar=True, sync_dist=True)
+        self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
 
         mse = self.compute_mse(targets, forecast)
         batch_len = inputs['data'].shape[0]
@@ -353,13 +375,13 @@ class GANModel(LightningModel):
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
-        acc = self.calculate_acc(forecast["data"], targets["data"])
-        self.log("realness", self.realness, prog_bar=True)
-        self.log("fakeness", self.fakeness, prog_bar=True)
-        self.log("forecast", forecast_loss, prog_bar=True)
-        self.log("crps", crps, prog_bar=True)
-        self.log("absb", absb, prog_bar=True)
-        self.log("acc", acc, prog_bar=True)
+        acc = self.calculate_acc(forecast["data"], targets["data"], batch_idx=batch_idx, mode='test')
+        self.log("realness", self.realness, prog_bar=True, sync_dist=True)
+        self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
+        self.log("forecast", forecast_loss, prog_bar=True, sync_dist=True)
+        self.log("crps", crps, prog_bar=True, sync_dist=True)
+        self.log("absb", absb, prog_bar=True, sync_dist=True)
+        self.log("acc", acc, prog_bar=True, sync_dist=True)
         self.plot(inputs, forecast, targets)
 
     def on_validation_epoch_end(self):

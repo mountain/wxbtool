@@ -11,7 +11,7 @@ from wxbtool.nn.lightning import LightningModel, GANModel
 
 if th.cuda.is_available():
     accelerator = "gpu"
-    th.set_float32_matmul_precision("medium")
+    th.set_float32_matmul_precision("high")
 elif th.backends.mps.is_available():
     accelerator = "cpu"
 else:
@@ -24,6 +24,13 @@ def main(context, opt):
         sys.path.insert(0, os.getcwd())
         mdm = importlib.import_module(opt.module, package=None)
 
+        n_epochs = 1 if opt.test == "true" else opt.n_epochs
+
+        if opt.gpu is not None and opt.gpu != "":
+            devices = [int(idx) for idx in opt.gpu.split(",")]
+        else:
+            devices = 1
+
         if opt.gan == "true":
             learning_rate = float(opt.rate)
             ratio = float(opt.ratio)
@@ -32,26 +39,26 @@ def main(context, opt):
             model.generator.learning_rate = generator_lr
             model.discriminator.learning_rate = discriminator_lr
             callbacks = []
+            trainer = pl.Trainer(
+                strategy="ddp_find_unused_parameters_true",
+                devices=devices,
+                accelerator=accelerator,
+                precision=32,
+                max_epochs=n_epochs,
+                callbacks=callbacks,
+            )
         else:
             learning_rate = float(opt.rate)
             model = LightningModel(mdm.model, opt=opt)
             model.learning_rate = learning_rate
-            callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=30)]
-
-        n_epochs = 1 if opt.test == "true" else opt.n_epochs
-
-        if opt.gpu is not None and opt.gpu != "":
-            devices = [int(idx) for idx in opt.gpu.split(",")]
-        else:
-            devices = 1
-
-        trainer = pl.Trainer(
-            devices=devices,
-            accelerator=accelerator,
-            precision=32,
-            max_epochs=n_epochs,
-            callbacks=callbacks,
-        )
+            callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=50)]
+            trainer = pl.Trainer(
+                devices=devices,
+                accelerator=accelerator,
+                precision=32,
+                max_epochs=n_epochs,
+                callbacks=callbacks,
+            )
 
         if opt.load:
             model.load_from_checkpoint(opt.load)
