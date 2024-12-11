@@ -37,6 +37,30 @@ class LightningModel(ltn.LightningModule):
     def loss_fn(self, input, result, target):
         return self.model.lossfun(input, result, target)
 
+    def compute_me(self, targets, results):
+        tgt = targets['data']
+        rst = results['data']
+        tgt = (
+            tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
+        )
+        rst = (
+            rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
+        )
+        me = np.sum(self.model.weight.cpu().numpy() * (rst - tgt)) / np.sum(self.model.weight.cpu().numpy())
+        return me
+
+    def compute_mae(self, targets, results):
+        tgt = targets['data']
+        rst = results['data']
+        tgt = (
+            tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
+        )
+        rst = (
+            rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
+        )
+        me = np.sum(self.model.weight.cpu().numpy() * np.abs(rst - tgt)) / np.sum(self.model.weight.cpu().numpy())
+        return me
+
     def compute_mse(self, targets, results):
         tgt = targets['data']
         rst = results['data']
@@ -46,8 +70,25 @@ class LightningModel(ltn.LightningModule):
         rst = (
             rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
-        mse = np.mean(self.model.weight.cpu().numpy() * (rst - tgt) ** 2)
+        mse = np.sum(self.model.weight.cpu().numpy() * (rst - tgt) ** 2) / np.sum(self.model.weight.cpu().numpy())
         return mse
+
+    def compute_rmse(self, targets, results):
+        mse = self.compute_mse(targets, results)
+        return np.sqrt(mse)
+
+    def compute_sd(self, targets, results):
+        me = self.compute_me(targets, results)
+        tgt = targets['data']
+        rst = results['data']
+        tgt = (
+            tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
+        )
+        rst = (
+            rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
+        )
+        sd = np.sum(self.model.weight.cpu().numpy() * (rst - tgt - me) ** 2) / np.sum(self.model.weight.cpu().numpy())
+        return np.sqrt(sd)        
 
     def calculate_acc(self, forecast, observation, batch_idx, mode='eval'):
         if mode not in self.climatology_accessors:
@@ -60,19 +101,23 @@ class LightningModel(ltn.LightningModule):
         else:
             years = tuple(self.model.setting.years_test)
 
+        weight = self.model.weight.cpu().numpy()
         climatology = accessor.get_climatology(years, vars, batch_idx)
         forecast = forecast.cpu().numpy()
         observation = observation.cpu().numpy()
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
-   
+        f_anomaly_bar = np.sum(weight * f_anomaly) / np.sum(weight)
+        o_anomaly_bar = np.sum(weight * o_anomaly) / np.sum(weight)
         plot(vars[0], open("anomaly_%s_fcs.png" % vars[0], mode="wb"), f_anomaly[0])
         plot(vars[0], open("anomaly_%s_obs.png" % vars[0], mode="wb"), o_anomaly[0])
         # print("f_anomaly", f_anomaly.min(), f_anomaly.max())
         # print("o_anomaly", o_anomaly.min(), o_anomaly.max())
 
-        numerator = np.sum(f_anomaly * o_anomaly)
-        denominator = np.sqrt(np.sum(f_anomaly**2) * np.sum(o_anomaly**2))
+        f_anomaly = f_anomaly - f_anomaly_bar
+        o_anomaly = o_anomaly - o_anomaly_bar
+        numerator = np.sum(weight * f_anomaly * o_anomaly)
+        denominator = np.sqrt(np.sum(weight * f_anomaly**2) * np.sum(weight * o_anomaly**2))
 
         acc = numerator / (denominator + 1e-10)  # to avoid divided by zero
         return acc
@@ -116,18 +161,17 @@ class LightningModel(ltn.LightningModule):
         results = self.forward(**inputs)
         loss = self.loss_fn(inputs, results, targets)
         mse = self.compute_mse(targets, results)
+        rmse = self.compute_rmse(targets, results)
         acc = self.calculate_acc(results["data"], targets["data"], batch_idx=batch_idx, mode='test')
 
+        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
+        self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
+        self.log("val_acc", acc, prog_bar=True, sync_dist=True)
+        self.plot(inputs, results, targets)
+        
         self.labeled_loss += loss.item() * batch_len
         self.labeled_mse += mse * batch_len
         self.counter += batch_len
-
-        rmse = np.sqrt(self.labeled_mse / self.counter)
-        self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
-        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
-        self.log("val_acc", acc, prog_bar=True, sync_dist=True)
-
-        self.plot(inputs, results, targets)
 
     def test_step(self, batch, batch_idx):
         inputs, targets = batch
@@ -137,19 +181,14 @@ class LightningModel(ltn.LightningModule):
         targets = self.model.get_targets(**targets)
         results = self.forward(**inputs)
         loss = self.loss_fn(inputs, results, targets)
-        mse = self.compute_mse(targets, results)
+        rmse = self.compute_rmse(targets, results)
         acc = self.calculate_acc(results["data"], targets["data"], batch_idx=batch_idx, mode='test')
 
-        self.labeled_loss += loss.item() * batch_len
-        self.labeled_mse += mse * batch_len
-        self.counter += batch_len
-
-        rmse = np.sqrt(self.labeled_mse / self.counter)
-        self.log("test_loss", loss, prog_bar=True, sync_dist=True)
-        self.log("test_rmse", rmse, prog_bar=True, sync_dist=True)
-        self.log("test_acc", acc, prog_bar=True, sync_dist=True)
-
+        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
+        self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
+        self.log("val_acc", acc, prog_bar=True, sync_dist=True)
         self.plot(inputs, results, targets)
+        self.counter += batch_len
 
     def on_save_checkpoint(self, checkpoint):
         import glob
