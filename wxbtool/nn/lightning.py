@@ -40,38 +40,50 @@ class LightningModel(ltn.LightningModule):
     def compute_me(self, targets, results):
         tgt = targets['data']
         rst = results['data']
+        weight = self.model.weight.cpu().numpy()
         tgt = (
             tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
         rst = (
             rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
-        me = np.sum(self.model.weight.cpu().numpy() * (rst - tgt)) / np.sum(self.model.weight.cpu().numpy())
-        return me
+        weight = (
+            weight.reshape(1, 1, 32, 64)
+        )
+        me = np.sum(weight * (rst - tgt), axis=(2, 3)) / np.sum(weight, axis=(2, 3))
+        return me.mean()
 
     def compute_mae(self, targets, results):
         tgt = targets['data']
         rst = results['data']
+        weight = self.model.weight.cpu().numpy()
         tgt = (
             tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
         rst = (
             rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
-        me = np.sum(self.model.weight.cpu().numpy() * np.abs(rst - tgt)) / np.sum(self.model.weight.cpu().numpy())
-        return me
+        weight = (
+            weight.reshape(1, 1, 32, 64)
+        )
+        mae = np.sum(weight * np.abs(rst - tgt), axis=(2, 3)) / np.sum(weight, axis=(2, 3))
+        return mae.mean()
 
     def compute_mse(self, targets, results):
         tgt = targets['data']
         rst = results['data']
+        weight = self.model.weight.cpu().numpy()
         tgt = (
             tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
         rst = (
             rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
-        mse = np.sum(self.model.weight.cpu().numpy() * (rst - tgt) ** 2) / np.sum(self.model.weight.cpu().numpy())
-        return mse
+        weight = (
+            weight.reshape(1, 1, 32, 64)
+        )
+        mse = np.sum(weight * (rst - tgt) ** 2, axis=(2, 3)) / np.sum(weight, axis=(2, 3))
+        return mse.mean()
 
     def compute_rmse(self, targets, results):
         mse = self.compute_mse(targets, results)
@@ -81,19 +93,23 @@ class LightningModel(ltn.LightningModule):
         me = self.compute_me(targets, results)
         tgt = targets['data']
         rst = results['data']
+        weight = self.model.weight.cpu().numpy()
         tgt = (
             tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
         rst = (
             rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
-        sd = np.sum(self.model.weight.cpu().numpy() * (rst - tgt - me) ** 2) / np.sum(self.model.weight.cpu().numpy())
-        return np.sqrt(sd)        
+        weight = (
+            weight.reshape(1, 1, 32, 64)
+        )
+        sd = np.sum(weight * (rst - tgt - me) ** 2, axis=(2, 3)) / np.sum(weight, axis=(2, 3))
+        return np.sqrt(sd.mean())        
 
     def calculate_acc(self, forecast, observation, batch_idx, mode='eval'):
         if mode not in self.climatology_accessors:
             self.climatology_accessors[mode] = ClimatologyAccessor(home=f"{self.data_home}/climatology")
-        
+
         accessor = self.climatology_accessors[mode]
         vars = tuple(self.model.vars_out)
         if mode == 'eval':
@@ -105,6 +121,12 @@ class LightningModel(ltn.LightningModule):
         climatology = accessor.get_climatology(years, vars, batch_idx)
         forecast = forecast.cpu().numpy()
         observation = observation.cpu().numpy()
+
+        weight = weight.reshape(1, 1, 32, 64)
+        climatology = climatology.reshape(1, 1, 32, 64)
+        forecast = forecast.reshape(-1, self.model.setting.pred_span, 32, 64)
+        observation = observation.reshape(-1, self.model.setting.pred_span, 32, 64)
+
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
         f_anomaly_bar = np.sum(weight * f_anomaly) / np.sum(weight)
@@ -116,11 +138,11 @@ class LightningModel(ltn.LightningModule):
 
         f_anomaly = f_anomaly - f_anomaly_bar
         o_anomaly = o_anomaly - o_anomaly_bar
-        numerator = np.sum(weight * f_anomaly * o_anomaly)
-        denominator = np.sqrt(np.sum(weight * f_anomaly**2) * np.sum(weight * o_anomaly**2))
+        numerator = np.sum(weight * f_anomaly * o_anomaly, axis=(2, 3))
+        denominator = np.sqrt(np.sum(weight * f_anomaly**2, axis=(2, 3)) * np.sum(weight * o_anomaly**2, axis=(2, 3)))
 
         acc = numerator / (denominator + 1e-10)  # to avoid divided by zero
-        return acc
+        return acc.mean()
 
     def forecast_error(self, rmse):
         return rmse
