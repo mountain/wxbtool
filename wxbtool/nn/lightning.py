@@ -17,10 +17,6 @@ class LightningModel(ltn.LightningModule):
         self.model = model
         self.learning_rate = 1e-3
 
-        self.counter = 0
-        self.labeled_loss = 0
-        self.labeled_mse = 0
-
         self.opt = opt
 
         if opt and hasattr(opt, 'rate'):
@@ -29,6 +25,14 @@ class LightningModel(ltn.LightningModule):
         self.climatology_accessors = {}
         self.data_home = os.environ.get("WXBHOME", "/data/climatology")
 
+        self.counter = 0
+        self.labeled_loss = 0
+        self.labeled_mse_numerator = 0
+        self.labeled_mse_denominator = 0
+        self.labeled_acc_prod_term = 0
+        self.labeled_acc_fsum_term = 0
+        self.labeled_acc_osum_term = 0
+
     def configure_optimizers(self):
         optimizer = th.optim.Adam(self.parameters(), lr=self.learning_rate)
         scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 53)
@@ -36,38 +40,6 @@ class LightningModel(ltn.LightningModule):
 
     def loss_fn(self, input, result, target):
         return self.model.lossfun(input, result, target)
-
-    def compute_me(self, targets, results):
-        tgt = targets['data']
-        rst = results['data']
-        weight = self.model.weight.cpu().numpy()
-        tgt = (
-            tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
-        )
-        rst = (
-            rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
-        )
-        weight = (
-            weight.reshape(1, 1, 32, 64)
-        )
-        me = np.sum(weight * (rst - tgt), axis=(2, 3)) / np.sum(weight, axis=(2, 3))
-        return me.mean()
-
-    def compute_mae(self, targets, results):
-        tgt = targets['data']
-        rst = results['data']
-        weight = self.model.weight.cpu().numpy()
-        tgt = (
-            tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
-        )
-        rst = (
-            rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
-        )
-        weight = (
-            weight.reshape(1, 1, 32, 64)
-        )
-        mae = np.sum(weight * np.abs(rst - tgt), axis=(2, 3)) / np.sum(weight, axis=(2, 3))
-        return mae.mean()
 
     def compute_mse(self, targets, results):
         tgt = targets['data']
@@ -82,34 +54,14 @@ class LightningModel(ltn.LightningModule):
         weight = (
             weight.reshape(1, 1, 32, 64)
         )
-        mse = np.sum(weight * (rst - tgt) ** 2, axis=(2, 3)) / np.sum(weight, axis=(2, 3))
-        return mse.mean()
+        se_sum, weight_sum = np.sum(weight * (rst - tgt) ** 2, axis=(2, 3)), np.sum(weight, axis=(2, 3))
+        return se_sum.sum(), (weight_sum * np.ones_like(se_sum)).sum()
 
-    def compute_rmse(self, targets, results):
-        mse = self.compute_mse(targets, results)
-        return np.sqrt(mse)
-
-    def compute_sd(self, targets, results):
-        me = self.compute_me(targets, results)
-        tgt = targets['data']
-        rst = results['data']
-        weight = self.model.weight.cpu().numpy()
-        tgt = (
-            tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
-        )
-        rst = (
-            rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
-        )
-        weight = (
-            weight.reshape(1, 1, 32, 64)
-        )
-        sd = np.sum(weight * (rst - tgt - me) ** 2, axis=(2, 3)) / np.sum(weight, axis=(2, 3))
-        return np.sqrt(sd.mean())        
-
-    def calculate_acc(self, forecast, observation, batch_idx, mode='eval'):
+    def calculate_acc(self, forecast, observation, indexies, mode='eval'):
         if mode not in self.climatology_accessors:
             self.climatology_accessors[mode] = ClimatologyAccessor(home=f"{self.data_home}/climatology")
 
+        indexies = list(indexies.cpu().numpy())
         accessor = self.climatology_accessors[mode]
         vars = tuple(self.model.vars_out)
         if mode == 'eval':
@@ -118,32 +70,32 @@ class LightningModel(ltn.LightningModule):
             years = tuple(self.model.setting.years_test)
 
         weight = self.model.weight.cpu().numpy()
-        climatology = accessor.get_climatology(years, vars, batch_idx)
         forecast = forecast.cpu().numpy()
         observation = observation.cpu().numpy()
+        climatology = accessor.get_climatology(years, vars, indexies)
 
         weight = weight.reshape(1, 1, 32, 64)
-        climatology = climatology.reshape(1, 1, 32, 64)
+        climatology = climatology.reshape(-1, 1, 32, 64)
         forecast = forecast.reshape(-1, self.model.setting.pred_span, 32, 64)
         observation = observation.reshape(-1, self.model.setting.pred_span, 32, 64)
 
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
-        f_anomaly_bar = np.sum(weight * f_anomaly) / np.sum(weight)
-        o_anomaly_bar = np.sum(weight * o_anomaly) / np.sum(weight)
         plot(vars[0], open("anomaly_%s_fcs.png" % vars[0], mode="wb"), f_anomaly[0])
         plot(vars[0], open("anomaly_%s_obs.png" % vars[0], mode="wb"), o_anomaly[0])
-        # print("f_anomaly", f_anomaly.min(), f_anomaly.max())
-        # print("o_anomaly", o_anomaly.min(), o_anomaly.max())
 
+        f_anomaly_bar = np.sum(weight * f_anomaly) / np.sum(weight)
+        o_anomaly_bar = np.sum(weight * o_anomaly) / np.sum(weight)
         f_anomaly = f_anomaly - f_anomaly_bar
         o_anomaly = o_anomaly - o_anomaly_bar
-        numerator = np.sum(weight * f_anomaly * o_anomaly, axis=(2, 3))
-        denominator = np.sqrt(np.sum(weight * f_anomaly**2, axis=(2, 3)) * np.sum(weight * o_anomaly**2, axis=(2, 3)))
 
-        acc = numerator / (denominator + 1e-10)  # to avoid divided by zero
-        return acc.mean()
+        prod = np.sum(weight * f_anomaly * o_anomaly, axis=(2, 3))
+        fsum = np.sum(weight * f_anomaly**2, axis=(2, 3))
+        osum = np.sum(weight * o_anomaly**2, axis=(2, 3))
 
+        return prod.sum(), fsum.sum(), osum.sum()
+
+ 
     def forecast_error(self, rmse):
         return rmse
 
@@ -164,7 +116,7 @@ class LightningModel(ltn.LightningModule):
                 plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt)
 
     def training_step(self, batch, batch_idx):
-        inputs, targets = batch
+        inputs, targets, _ = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
         results = self.forward(**inputs)
@@ -175,16 +127,24 @@ class LightningModel(ltn.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        inputs, targets = batch
+        inputs, targets, indexies = batch
         batch_len = inputs[self.model.setting.vars[0]].shape[0]
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
         results = self.forward(**inputs)
         loss = self.loss_fn(inputs, results, targets)
-        mse = self.compute_mse(targets, results)
-        rmse = self.compute_rmse(targets, results)
-        acc = self.calculate_acc(results["data"], targets["data"], batch_idx=batch_idx, mode='test')
+
+        mse_numerator, mse_denominator = self.compute_mse(targets, results)
+        self.labeled_mse_numerator += mse_numerator
+        self.labeled_mse_denominator += mse_denominator
+        rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
+        
+        prod, fsum, osum = self.calculate_acc(results["data"], targets["data"], indexies=indexies, mode='test')
+        self.labeled_acc_prod_term += prod
+        self.labeled_acc_fsum_term += fsum
+        self.labeled_acc_osum_term += osum
+        acc = self.labeled_acc_prod_term / np.sqrt(self.labeled_acc_fsum_term * self.labeled_acc_osum_term)
 
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
         self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
@@ -192,19 +152,27 @@ class LightningModel(ltn.LightningModule):
         self.plot(inputs, results, targets)
         
         self.labeled_loss += loss.item() * batch_len
-        self.labeled_mse += mse * batch_len
         self.counter += batch_len
 
     def test_step(self, batch, batch_idx):
-        inputs, targets = batch
+        inputs, targets, indexies = batch
         batch_len = inputs[self.model.setting.vars[0]].shape[0]
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
         results = self.forward(**inputs)
         loss = self.loss_fn(inputs, results, targets)
-        rmse = self.compute_rmse(targets, results)
-        acc = self.calculate_acc(results["data"], targets["data"], batch_idx=batch_idx, mode='test')
+
+        mse_numerator, mse_denominator = self.compute_mse(targets, results)
+        self.labeled_mse_numerator += mse_numerator
+        self.labeled_mse_denominator += mse_denominator
+        rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
+        
+        prod, fsum, osum = self.calculate_acc(results["data"], targets["data"], indexies=indexies, mode='test')
+        self.labeled_acc_prod_term += prod
+        self.labeled_acc_fsum_term += fsum
+        self.labeled_acc_osum_term += osum
+        acc = self.labeled_acc_prod_term / np.sqrt(self.labeled_acc_fsum_term * self.labeled_acc_osum_term)
 
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
         self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
@@ -216,7 +184,7 @@ class LightningModel(ltn.LightningModule):
         import glob
         import os
 
-        rmse = np.sqrt(self.labeled_mse / self.counter)
+        rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
         error = self.forecast_error(rmse)
         loss = self.labeled_loss / self.counter
         if self.trainer.global_rank == 0:
@@ -235,7 +203,11 @@ class LightningModel(ltn.LightningModule):
 
         self.counter = 0
         self.labeled_loss = 0
-        self.labeled_mse = 0
+        self.labeled_mse_numerator = 0
+        self.labeled_mse_denominator = 0
+        self.labeled_acc_prod_term = 0
+        self.labeled_acc_fsum_term = 0
+        self.labeled_acc_osum_term = 0
 
         return checkpoint
 

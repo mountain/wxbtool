@@ -106,11 +106,12 @@ def seek(hash, mode, idx):
         )
 
     app.logger.info("query data[%s] at %d", mode, idx)
-    inputs, targets = ds[idx]
+    inputs, targets, items = ds[idx]
     msg = msgpack.dumps(
         {
             "inputs": inputs,
             "targets": targets,
+            "items": items,
         }
     )
 

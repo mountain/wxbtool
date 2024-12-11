@@ -277,7 +277,7 @@ class WxDataset(Dataset):
                         f"Target slice for var {var} at index {item} has shape {target_slice.shape}"
                     )
 
-        return inputs, targets
+        return inputs, targets, item
 
 
 class WxDatasetClient(Dataset):
@@ -356,10 +356,12 @@ class WxDatasetClient(Dataset):
             data = msgpack.loads(r.content)
 
         for key, val in data.items():
+            if key != "inputs" and key != "targets":
+                continue
             for var, blk in val.items():
                 val[var] = np.array(np.copy(blk), dtype=np.float32)
 
-        return data["inputs"], data["targets"]
+        return data["inputs"], data["targets"], item
 
 
 class EnsembleBatchSampler(Sampler):
