@@ -22,6 +22,8 @@ class ClimatologyAccessor:
         """
         self.home = home
         self.climatology_data = {}  # Cache for climatology DataArrays
+        self.doy_indexer = None
+        self.yr_indexer = None
 
     @staticmethod
     def is_leap_year(year):
@@ -36,11 +38,9 @@ class ClimatologyAccessor:
         """
         return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
 
-    @staticmethod
-    @lru_cache(maxsize=None)
-    def build_reindexer(years_tuple):
+    def build_indexers(self, years_tuple):
         """
-        Build a reindexer list that maps each batch index to a day-of-year (DOY) index.
+        Build indexers list that maps each batch index to a day-of-year (DOY) index.
         For leap years, the 366th day is mapped to the 365th day (index 364).
 
         Parameters:
@@ -52,11 +52,12 @@ class ClimatologyAccessor:
         reindexer = []
         for yr in years_tuple:
             # Add DOY indices 0 to 364 for each year
-            reindexer.extend(range(365))
+            self.doy_indexer.extend(range(365))
+            self.yr_indexer.extend([yr] * 365)
             if ClimatologyAccessor.is_leap_year(yr):
                 # Map the 366th day to index 364
-                reindexer.append(364)
-        return reindexer
+                self.doy_indexer.append(364)
+                self.yr_indexer.append(yr)
 
     def load_climatology_var(self, var):
         """
@@ -89,7 +90,7 @@ class ClimatologyAccessor:
                     ds = ds.transpose("time", "level", "lat", "lon")
                     self.climatology_data[var] = np.array(ds[codes[vname]].data, dtype=np.float32)[:, all_levels.index(lvl)]
 
-    def get_climatology(self, years, vars, batch_idx):
+    def get_climatology(self, vars, indexes):
         """
         Retrieve climatology data for specified variables based on batch indices.
 
@@ -102,30 +103,23 @@ class ClimatologyAccessor:
         - dict: Dictionary containing climatology data for each variable.
                 Format: {var: data_array}
         """
-        # Convert batch_idx to a list if it's a single integer
-        if isinstance(batch_idx, int):
-            batch_indices = [batch_idx]
-            single_index = True
-        elif isinstance(batch_idx, (list, tuple, np.ndarray)):
-            batch_indices = list(batch_idx)
-            single_index = False
+        # Convert indexes to a list
+        if isinstance(indexes, int):
+            indexes = [indexes]
+        elif isinstance(indexes, (list, tuple, np.ndarray)):
+            indexes = list(indexes)
         else:
             raise TypeError("`batch_idx` should be an integer or a list/tuple of integers.")
 
-        # Convert years list to a tuple for caching
-        years_tuple = tuple(years)
+        total_days = len(self.doy_indexer)
 
-        # Build or retrieve the cached reindexer
-        reindexer = self.build_reindexer(years_tuple)
-        total_days = len(reindexer)
-
-        # Validate batch_indices
-        for idx in batch_indices:
+        # Validate indexes
+        for idx in indexes:
             if idx < 0 or idx >= total_days:
-                raise IndexError(f"batch_idx {idx} is out of range (0-{total_days-1}).")
+                raise IndexError(f"indexes {idx} is out of range (0-{total_days-1}).")
 
         # Map batch_idx to DOY indices using the reindexer
-        doy_indices = [reindexer[idx] for idx in batch_indices]
+        doy_indices = [self.doy_indexer[idx] for idx in indexes]
 
         climatology_dict = {}
 

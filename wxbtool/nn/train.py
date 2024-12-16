@@ -53,6 +53,7 @@ def main(context, opt):
             model.learning_rate = learning_rate
             callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=50)]
             trainer = pl.Trainer(
+                strategy="ddp_find_unused_parameters_true",
                 devices=devices,
                 accelerator=accelerator,
                 precision=32,
