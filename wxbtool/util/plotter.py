@@ -6,13 +6,13 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import numpy as np
-import torch
 import torch.nn.functional as F
 
 from scipy.ndimage import zoom
 from threading import local
-from wxbtool.data.variables import split_name
+from wxbtool.data.variables import split_name, code2var
 from wxbtool.util.cmaps import cmaps, var2cmap
+from wxbtool.norms.minmax import min_values, max_values
 
 
 data = local()
@@ -50,9 +50,9 @@ class Ploter:
         self.lat = lat
         self.proj = ccrs.PlateCarree(central_longitude=180)  # 0~360 投影
 
-    def plot(self, input_data, truth, forecast, title="Input vs Truth vs Forecast", year=2000, doy=0, save_path=None):
-        vmin = min(np.nanmin(input_data), np.nanmin(truth), np.nanmin(forecast))
-        vmax = max(np.nanmax(input_data), np.nanmax(truth), np.nanmax(forecast))
+    def plot(self, code, input_data, truth, forecast, title="Input vs Truth vs Forecast", year=2000, doy=0, save_path=None):
+        vmin = min_values[code2var[code]]
+        vmax = max_values[code2var[code]]
 
         fig, axes = plt.subplots(1, 3, figsize=(20, 6),
                                  subplot_kw={'projection': self.proj},
@@ -92,7 +92,7 @@ def adjust_longitude(lon):
     return lon
 
 
-def plot_image(input_data, truth, forecast, title="", save_path=None):
+def plot_image(code, input_data, truth, forecast, title="", year=2000, doy=0, save_path=None):
     input_data_high = bicubic_upsample(input_data, scale=(8, 8))
     truth_high = bicubic_upsample(truth, scale=(8, 8))
     forecast_high = bicubic_upsample(forecast, scale=(8, 8))
@@ -102,4 +102,4 @@ def plot_image(input_data, truth, forecast, title="", save_path=None):
     lon_grid, lat_grid = np.meshgrid(lon_high, lat_high)
 
     ploter = Ploter(lon_grid, lat_grid)
-    ploter.plot(input_data_high, truth_high, forecast_high, title=title, save_path=save_path)
+    ploter.plot(code, input_data_high, truth_high, forecast_high, title=title, year=year, doy=doy, save_path=save_path)

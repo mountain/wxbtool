@@ -1,6 +1,7 @@
 import xarray as xr
 import os
 import numpy as np
+import torch
 
 from functools import lru_cache
 from wxbtool.data.dataset import all_levels
@@ -22,8 +23,8 @@ class ClimatologyAccessor:
         """
         self.home = home
         self.climatology_data = {}  # Cache for climatology DataArrays
-        self.doy_indexer = None
-        self.yr_indexer = None
+        self.doy_indexer = []
+        self.yr_indexer = []
 
     @staticmethod
     def is_leap_year(year):
@@ -49,7 +50,6 @@ class ClimatologyAccessor:
         Returns:
         - list of int: Reindexer list mapping batch_idx to DOY index.
         """
-        reindexer = []
         for yr in years_tuple:
             # Add DOY indices 0 to 364 for each year
             self.doy_indexer.extend(range(365))
@@ -108,8 +108,10 @@ class ClimatologyAccessor:
             indexes = [indexes]
         elif isinstance(indexes, (list, tuple, np.ndarray)):
             indexes = list(indexes)
+        elif isinstance(indexes, torch.Tensor):
+            indexes = indexes.tolist()
         else:
-            raise TypeError("`batch_idx` should be an integer or a list/tuple of integers.")
+            raise TypeError(f"`indexes` should be an integer or a list/tuple of integers, but got: {type(indexes)}")
 
         total_days = len(self.doy_indexer)
 

@@ -72,11 +72,13 @@ class LightningModel(ltn.LightningModule):
         return self.climatology_accessors[mode]
 
     def get_climatology(self, vars, indexies, mode):
-        accessor = self.get_climatology_accessors[mode]
+        accessor = self.get_climatology_accessor(mode)
         return accessor.get_climatology(vars, indexies)
 
     def calculate_acc(self, forecast, observation, indexies, mode):
-        climatology = self.get_climatology(self.model.setting.vars, indexies, mode)
+        vars_out = self.model.vars_out
+        climatology = self.get_climatology(vars_out, indexies, mode)
+
         indexies = list(indexies.cpu().numpy())
         weight = self.model.weight.cpu().numpy()
         forecast = forecast.cpu().numpy()
@@ -89,8 +91,8 @@ class LightningModel(ltn.LightningModule):
 
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
-        plot(vars[0], open("anomaly_%s_fcs.png" % vars[0], mode="wb"), f_anomaly[0])
-        plot(vars[0], open("anomaly_%s_obs.png" % vars[0], mode="wb"), o_anomaly[0])
+        plot(vars_out[0], open("anomaly_%s_fcs.png" % vars_out[0], mode="wb"), f_anomaly[0])
+        plot(vars_out[0], open("anomaly_%s_obs.png" % vars_out[0], mode="wb"), o_anomaly[0])
 
         # f_anomaly_bar = np.sum(weight * f_anomaly) / np.sum(weight)
         # o_anomaly_bar = np.sum(weight * o_anomaly) / np.sum(weight)
@@ -130,6 +132,7 @@ class LightningModel(ltn.LightningModule):
         forecast = denormalizors[var](forecast)
         truth = denormalizors[var](truth)
         plot_image(
+            self.model.vars_out[0],
             input_data=input_data,
             truth=truth,
             forecast=forecast,
@@ -203,7 +206,7 @@ class LightningModel(ltn.LightningModule):
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
         self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
         self.log("val_acc", acc, prog_bar=True, sync_dist=True)
-        self.plot(inputs, results, targets, batch_idx, mode='test')
+        self.plot(inputs, results, targets, indexies, batch_idx, mode='test')
         self.counter += batch_len
 
     def on_save_checkpoint(self, checkpoint):
