@@ -36,3 +36,8 @@ dependencies = [
 
 [project.scripts]
 wxb = "wxbtool.wxb:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.3",
+]

@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 
 class TestTest(unittest.TestCase):
-
     def setUp(self):
         pass
 

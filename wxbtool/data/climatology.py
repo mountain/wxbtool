@@ -3,9 +3,8 @@ import os
 import numpy as np
 import torch
 
-from functools import lru_cache
 from wxbtool.data.dataset import all_levels
-from wxbtool.data.variables import split_name, code2var, codes, vars3d, vars2d
+from wxbtool.data.variables import split_name, code2var, codes, vars2d
 from wxbtool.norms.meanstd import normalizors
 
 
@@ -14,7 +13,7 @@ class ClimatologyAccessor:
     A class to handle climatology data retrieval with caching for reindexer and climatology data.
     """
 
-    def __init__(self, home='/path/to/climatology'):
+    def __init__(self, home="/path/to/climatology"):
         """
         Initialize the ClimatologyAccessor with the path to climatology data files.
 
@@ -74,8 +73,10 @@ class ClimatologyAccessor:
             code, lvl = split_name(var)
             vname = code2var.get(code, None)
             if vname is None:
-                raise ValueError(f"Variable '{var}' is not supported for climatology data.")
-            
+                raise ValueError(
+                    f"Variable '{var}' is not supported for climatology data."
+                )
+
             file_path = os.path.join(self.home, f"{vname}.nc")
             if not os.path.isfile(file_path):
                 raise FileNotFoundError(f"Climatology data file not found: {file_path}")
@@ -117,14 +118,16 @@ class ClimatologyAccessor:
         elif isinstance(indexes, torch.Tensor):
             indexes = indexes.tolist()
         else:
-            raise TypeError(f"`indexes` should be an integer or a list/tuple of integers, but got: {type(indexes)}")
+            raise TypeError(
+                f"`indexes` should be an integer or a list/tuple of integers, but got: {type(indexes)}"
+            )
 
         total_days = len(self.doy_indexer)
 
         # Validate indexes
         for idx in indexes:
             if idx < 0 or idx >= total_days:
-                raise IndexError(f"indexes {idx} is out of range (0-{total_days-1}).")
+                raise IndexError(f"indexes {idx} is out of range (0-{total_days - 1}).")
 
         # Map batch_idx to DOY indices using the doy indexer
         doy_indices = [self.doy_indexer[idx] for idx in indexes]
@@ -144,22 +147,26 @@ class ClimatologyAccessor:
 # Example Usage
 if __name__ == "__main__":
     # Initialize the accessor with the path to climatology data
-    climatology_accessor = ClimatologyAccessor(home='/data/climatology')
+    climatology_accessor = ClimatologyAccessor(home="/data/climatology")
 
     # Define the years and variables
     years = [2000, 2001, 2002, 2003, 2004]  # Includes both leap and non-leap years
-    variables = ['temperature', 'precipitation']
+    variables = ["temperature", "precipitation"]
 
     # Example 1: Retrieve climatology data for a single batch_idx
     batch_index = 0  # Corresponds to January 1st of the first year
-    climatology_single = climatology_accessor.get_climatology(years, variables, batch_index)
+    climatology_single = climatology_accessor.get_climatology(
+        years, variables, batch_index
+    )
     print("Single batch_idx:")
     for var, data in climatology_single.items():
         print(f"Variable: {var}, Data: {data}")
 
     # Example 2: Retrieve climatology data for multiple batch_idx values
     batch_indices = [0, 365, 730, 1095, 1460]  # Corresponds to January 1st of each year
-    climatology_multiple = climatology_accessor.get_climatology(years, variables, batch_indices)
+    climatology_multiple = climatology_accessor.get_climatology(
+        years, variables, batch_indices
+    )
     print("\nMultiple batch_idx:")
     for var, data in climatology_multiple.items():
         print(f"Variable: {var}, Data: {data}")

@@ -25,7 +25,11 @@ class Setting:
             "temperature",
             "total_cloud_cover",
         ]
-        self.vars2d = ["toa_incident_solar_radiation", "total_cloud_cover", "2m_temperature"]
+        self.vars2d = [
+            "toa_incident_solar_radiation",
+            "total_cloud_cover",
+            "2m_temperature",
+        ]
         self.vars3d = ["geopotential", "temperature"]
         self.vars_in = ["z500", "z1000", "tau", "t850", "tcc", "t2m", "tisr"]
         self.vars_out = ["t850", "z500"]

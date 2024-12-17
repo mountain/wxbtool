@@ -1,5 +1,5 @@
 """
-    Test model in wxbtool package
+Test model in wxbtool package
 """
 
 import numpy as np
@@ -66,8 +66,8 @@ class Mdl(Spec):
         batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
-        inputs = self.get_inputs(**kwargs)['data']
-        seed = kwargs['seed']
+        inputs = self.get_inputs(**kwargs)["data"]
+        seed = kwargs["seed"]
         cnst = self.get_augmented_constant(inputs)
         inputs = th.cat((inputs, cnst, seed), dim=1)
 
@@ -104,9 +104,9 @@ class Dsc(Spec):
         batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
-        inputs = kwargs['data']
+        inputs = kwargs["data"]
         cnst = self.get_augmented_constant(inputs)
-        target = kwargs['target']
+        target = kwargs["target"]
         inputs = th.cat((inputs, cnst, target), dim=1)
 
         output = self.mlp(inputs).view(batch_size, self.setting.pred_span, 32, 64)

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
 
 """
-    Demo model in wxbtool package
+Demo model in wxbtool package
 
-    This model predict t850 3-days in the future
-    it cost more memory and can be fitted into one P40 gpu at batch size 8
-    the weighted rmse is 2.00 K
+This model predict t850 3-days in the future
+it cost more memory and can be fitted into one P40 gpu at batch size 8
+the weighted rmse is 2.00 K
 """
 
 import torch as th

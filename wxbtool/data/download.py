@@ -14,10 +14,8 @@ from wxbtool.nn.lightning import GANModel, LightningModel
 # Configure logging to display information and errors
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler()
-    ]
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.StreamHandler()],
 )
 
 
@@ -32,9 +30,15 @@ class Config:
     retention_days: int = 7  # Number of days to retain data
     retention_action: str = "delete"  # Options: "delete", "archive"
     archive_folder: Optional[str] = None  # Required if action is "archive"
-    reference_time_delta: datetime.timedelta = field(default_factory=lambda: datetime.timedelta(weeks=1))
-    grid: List[float] = field(default_factory=lambda: [5.625, 5.625])  # Spatial resolution
-    area: List[float] = field(default_factory=lambda: [90, -180, -90, 180])  # Global coverage
+    reference_time_delta: datetime.timedelta = field(
+        default_factory=lambda: datetime.timedelta(weeks=1)
+    )
+    grid: List[float] = field(
+        default_factory=lambda: [5.625, 5.625]
+    )  # Spatial resolution
+    area: List[float] = field(
+        default_factory=lambda: [90, -180, -90, 180]
+    )  # Global coverage
 
 
 class ERA5Downloader:
@@ -62,12 +66,18 @@ class ERA5Downloader:
         elif self.config.coverage == "weekly":
             start_date = end_date - datetime.timedelta(weeks=1)
         elif self.config.coverage == "monthly":
-            start_date = end_date - datetime.timedelta(days=30)  # Approximate month as 30 days
+            start_date = end_date - datetime.timedelta(
+                days=30
+            )  # Approximate month as 30 days
         else:
-            raise ValueError("Unsupported coverage type. Use 'daily', 'weekly', or 'monthly'.")
+            raise ValueError(
+                "Unsupported coverage type. Use 'daily', 'weekly', or 'monthly'."
+            )
         return start_date, end_date
 
-    def generate_datetime_list(self, start_date: datetime.datetime, end_date: datetime.datetime):
+    def generate_datetime_list(
+        self, start_date: datetime.datetime, end_date: datetime.datetime
+    ):
         """Generate a list of (date, hour) tuples for each hour within the time span."""
         current_datetime = start_date.replace(hour=0, minute=0, second=0, microsecond=0)
         end_datetime = end_date.replace(hour=23, minute=0, second=0, microsecond=0)
@@ -75,7 +85,9 @@ class ERA5Downloader:
             yield current_datetime, f"{current_datetime.hour:02}:00"
             current_datetime += datetime.timedelta(hours=1)
 
-    def build_filename(self, variable: str, date: datetime.datetime, time_str: str) -> str:
+    def build_filename(
+        self, variable: str, date: datetime.datetime, time_str: str
+    ) -> str:
         """Construct the filename for the NetCDF file."""
         year = date.strftime("%Y")
         month = date.strftime("%m")
@@ -83,12 +95,7 @@ class ERA5Downloader:
         hour = time_str.split(":")[0]
         filename = f"{date.strftime('%Y%m%d')}_{hour}.nc"
         return os.path.join(
-            self.config.output_folder,
-            variable,
-            year,
-            month,
-            day,
-            filename
+            self.config.output_folder, variable, year, month, day, filename
         )
 
     def ensure_variable_dirs(self, variable: str, date: datetime.datetime):
@@ -99,7 +106,9 @@ class ERA5Downloader:
         var_month_path = os.path.join(var_year_path, month)
         os.makedirs(var_month_path, exist_ok=True)
 
-    def retrieve_data(self, variable: str, date: datetime.datetime, time_str: str, filename: str):
+    def retrieve_data(
+        self, variable: str, date: datetime.datetime, time_str: str, filename: str
+    ):
         """Retrieve data for a specific variable, date, and time."""
         request_params = {
             "product_type": "reanalysis",
@@ -119,7 +128,9 @@ class ERA5Downloader:
         elif variable in self.config.vars2d:
             dataset = "reanalysis-era5-single-levels"
         else:
-            logging.warning(f"Variable '{variable}' is not recognized as single or pressure level.")
+            logging.warning(
+                f"Variable '{variable}' is not recognized as single or pressure level."
+            )
             return
 
         try:
@@ -130,8 +141,12 @@ class ERA5Downloader:
 
     def manage_retention(self):
         """Manage data retention by deleting or archiving old files."""
-        retention_threshold = datetime.datetime.utcnow() - datetime.timedelta(days=self.config.retention_days)
-        logging.info(f"Managing retention: deleting or archiving files older than {self.config.retention_days} days.")
+        retention_threshold = datetime.datetime.utcnow() - datetime.timedelta(
+            days=self.config.retention_days
+        )
+        logging.info(
+            f"Managing retention: deleting or archiving files older than {self.config.retention_days} days."
+        )
 
         for variable in self.config.variables:
             var_path = os.path.join(self.config.output_folder, variable)
@@ -140,18 +155,31 @@ class ERA5Downloader:
                     if file.endswith(".nc"):
                         file_path = os.path.join(root, file)
                         try:
-                            file_mtime = datetime.datetime.utcfromtimestamp(os.path.getmtime(file_path))
+                            file_mtime = datetime.datetime.utcfromtimestamp(
+                                os.path.getmtime(file_path)
+                            )
                             if file_mtime < retention_threshold:
                                 if self.config.retention_action == "delete":
                                     os.remove(file_path)
                                     logging.info(f"Deleted old file: {file_path}")
-                                elif self.config.retention_action == "archive" and self.config.archive_folder:
+                                elif (
+                                    self.config.retention_action == "archive"
+                                    and self.config.archive_folder
+                                ):
                                     # Determine archive subdirectory based on variable, year, month
-                                    relative_path = os.path.relpath(root, self.config.output_folder)
-                                    archive_dir = os.path.join(self.config.archive_folder, relative_path)
+                                    relative_path = os.path.relpath(
+                                        root, self.config.output_folder
+                                    )
+                                    archive_dir = os.path.join(
+                                        self.config.archive_folder, relative_path
+                                    )
                                     os.makedirs(archive_dir, exist_ok=True)
-                                    shutil.move(file_path, os.path.join(archive_dir, file))
-                                    logging.info(f"Archived old file: {file_path} to {archive_dir}")
+                                    shutil.move(
+                                        file_path, os.path.join(archive_dir, file)
+                                    )
+                                    logging.info(
+                                        f"Archived old file: {file_path} to {archive_dir}"
+                                    )
                         except Exception as e:
                             logging.error(f"Error processing file {file_path}: {e}")
 
@@ -159,7 +187,8 @@ class ERA5Downloader:
         """Execute the download process based on the configuration."""
         start_date, end_date = self.get_time_span()
         logging.info(
-            f"Downloading data from {start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}.")
+            f"Downloading data from {start_date.strftime('%Y-%m-%d %H:%M')} to {end_date.strftime('%Y-%m-%d %H:%M')}."
+        )
 
         for variable in self.config.variables:
             for date, time_str in self.generate_datetime_list(start_date, end_date):
@@ -204,9 +233,9 @@ def main(context, opt):
             levels=levels,
             grid=[resolution, resolution],  # Spatial resolution
             area=[90, -180, -90, 180],  # Global coverage
-            coverage = "weekly",  # Options: "daily", "weekly", "monthly"
-            retention_days = {"daily": 1, "weekly": 7, "monthly": 30}[opt.retention],
-            retention_action = "delete",  # Options: "delete", "archive"
+            coverage="weekly",  # Options: "daily", "weekly", "monthly"
+            retention_days={"daily": 1, "weekly": 7, "monthly": 30}[opt.retention],
+            retention_action="delete",  # Options: "delete", "archive"
         )
 
         # Initialize and run the downloader

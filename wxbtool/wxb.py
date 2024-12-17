@@ -91,24 +91,33 @@ def train(parser, context, args):
     parser.add_argument(
         "-k", "--check", type=str, default="", help="checkpoint file to load"
     )
-    parser.add_argument(
-        "-r", "--rate", type=str, default="0.001", help="learning rate"
-    )
+    parser.add_argument("-r", "--rate", type=str, default="0.001", help="learning rate")
     parser.add_argument(
         "-w", "--weightdecay", type=float, default=0.0, help="weight decay"
     )
     parser.add_argument(
-        "-R", "--ratio", type=str, default="10",
-        help="the ratio of the two learning rates between generator and discriminator in GAN"
+        "-R",
+        "--ratio",
+        type=str,
+        default="10",
+        help="the ratio of the two learning rates between generator and discriminator in GAN",
     )
     parser.add_argument(
-        "-A", "--alpha", type=float, default=0.1, help="a 0 to 1 weight to control the loss calculation in GAN"
+        "-A",
+        "--alpha",
+        type=float,
+        default=0.1,
+        help="a 0 to 1 weight to control the loss calculation in GAN",
     )
     parser.add_argument(
         "-B", "--balance", type=float, default=0.9, help="exit balance for GAN training"
     )
     parser.add_argument(
-        "-T", "--tolerance", type=float, default=0.05, help="exit balance tolerance for GAN training"
+        "-T",
+        "--tolerance",
+        type=float,
+        default=0.05,
+        help="exit balance tolerance for GAN training",
     )
     parser.add_argument(
         "-d",
@@ -118,7 +127,11 @@ def train(parser, context, args):
         help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
     )
     parser.add_argument(
-        "-G", "--gan", type=str, default="false", help="training GAN or not, default is false"
+        "-G",
+        "--gan",
+        type=str,
+        default="false",
+        help="training GAN or not, default is false",
     )
     parser.add_argument(
         "-t", "--test", type=str, default="false", help="setting for test"
@@ -140,10 +153,7 @@ def test(parser, context, args):
         help="number of cpu threads to use during batch generation",
     )
     parser.add_argument(
-        "-b", "--batch_size",
-        type=int,
-        default=64,
-        help="size of the batches"
+        "-b", "--batch_size", type=int, default=64, help="size of the batches"
     )
     parser.add_argument(
         "-m",
@@ -167,7 +177,11 @@ def test(parser, context, args):
         help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
     )
     parser.add_argument(
-        "-G", "--gan", type=str, default="false", help="training GAN or not, default is false"
+        "-G",
+        "--gan",
+        type=str,
+        default="false",
+        help="training GAN or not, default is false",
     )
     parser.add_argument(
         "-t", "--test", type=str, default="false", help="setting for test"
@@ -187,7 +201,11 @@ def download(parser, context, args):
         help="module of the metrological model to load",
     )
     parser.add_argument(
-        "-G", "--gan", type=str, default="false", help="model is GAN or not, default is false"
+        "-G",
+        "--gan",
+        type=str,
+        default="false",
+        help="model is GAN or not, default is false",
     )
     parser.add_argument(
         "--coverage",

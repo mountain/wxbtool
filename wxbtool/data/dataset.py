@@ -43,7 +43,6 @@ all_levels = [
 
 
 class WindowArray(type(np.zeros(0, dtype=np.float32))):
-
     def __new__(subtype, orig, shift=0, step=1):
         shape = [orig.shape[_] for _ in range(len(orig.shape))]
         self = np.ndarray.__new__(
@@ -322,7 +321,11 @@ class WxDatasetClient(Dataset):
             conn = http.client.HTTPConnection("localhost")
             conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             conn.sock.connect(sock_path)
-            conn.request("GET", "/" + endpoint, headers={"Host": "localhost", "Connection": "close"})
+            conn.request(
+                "GET",
+                "/" + endpoint,
+                headers={"Host": "localhost", "Connection": "close"},
+            )
             r = conn.getresponse()
             if r.status != 200:
                 raise Exception("http error %s: %s" % (r.status, r.reason))
@@ -344,7 +347,11 @@ class WxDatasetClient(Dataset):
             conn = http.client.HTTPConnection("localhost")
             conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             conn.sock.connect(sock_path)
-            conn.request("GET", "/" + endpoint, headers={"Host": "localhost", "Connection": "close"})
+            conn.request(
+                "GET",
+                "/" + endpoint,
+                headers={"Host": "localhost", "Connection": "close"},
+            )
             r = conn.getresponse()
             if r.status != 200:
                 raise Exception("http error %s: %s" % (r.status, r.reason))

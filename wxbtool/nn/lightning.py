@@ -8,8 +8,6 @@ from wxbtool.data.climatology import ClimatologyAccessor
 from wxbtool.data.dataset import ensemble_loader
 from wxbtool.util.plotter import plot, plot_image
 from wxbtool.norms.meanstd import denormalizors
-from torch.optim import Optimizer
-from typing import Iterable, Optional, Callable, List, Dict
 
 
 class LightningModel(ltn.LightningModule):
@@ -20,7 +18,7 @@ class LightningModel(ltn.LightningModule):
 
         self.opt = opt
 
-        if opt and hasattr(opt, 'rate'):
+        if opt and hasattr(opt, "rate"):
             self.learning_rate = float(opt.rate)
 
         self.climatology_accessors = {}
@@ -43,8 +41,8 @@ class LightningModel(ltn.LightningModule):
         return self.model.lossfun(input, result, target)
 
     def compute_mse(self, targets, results):
-        tgt = targets['data']
-        rst = results['data']
+        tgt = targets["data"]
+        rst = results["data"]
         weight = self.model.weight.cpu().numpy()
         tgt = (
             tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
@@ -52,20 +50,23 @@ class LightningModel(ltn.LightningModule):
         rst = (
             rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
         )
-        weight = (
-            weight.reshape(1, 1, 32, 64)
+        weight = weight.reshape(1, 1, 32, 64)
+        se_sum, weight_sum = (
+            np.sum(weight * (rst - tgt) ** 2, axis=(2, 3)),
+            np.sum(weight, axis=(2, 3)),
         )
-        se_sum, weight_sum = np.sum(weight * (rst - tgt) ** 2, axis=(2, 3)), np.sum(weight, axis=(2, 3))
         return se_sum.sum(), (weight_sum * np.ones_like(se_sum)).sum()
 
     def get_climatology_accessor(self, mode):
         if mode not in self.climatology_accessors:
-            self.climatology_accessors[mode] = ClimatologyAccessor(home=f"{self.data_home}/climatology")
-            if mode == 'train':
+            self.climatology_accessors[mode] = ClimatologyAccessor(
+                home=f"{self.data_home}/climatology"
+            )
+            if mode == "train":
                 years = tuple(self.model.setting.years_train)
-            if mode == 'eval':
+            if mode == "eval":
                 years = tuple(self.model.setting.years_eval)
-            if mode == 'test':
+            if mode == "test":
                 years = tuple(self.model.setting.years_test)
             self.climatology_accessors[mode].build_indexers(years)
 
@@ -82,8 +83,12 @@ class LightningModel(ltn.LightningModule):
         result = []
         for ix in range(span):
             delta = ix * step
-            shifts = list([idx + delta + shift for idx in indexies])  # shift to the forecast time
-            data = accessor.get_climatology(vars_out, shifts).reshape(-1, len(vars_out), 32, 64)
+            shifts = list(
+                [idx + delta + shift for idx in indexies]
+            )  # shift to the forecast time
+            data = accessor.get_climatology(vars_out, shifts).reshape(
+                -1, len(vars_out), 32, 64
+            )
             result.append(data)
         return np.concatenate(result, axis=0)
 
@@ -102,8 +107,16 @@ class LightningModel(ltn.LightningModule):
         o_anomaly = observation - climatology
 
         vars_out = self.model.vars_out
-        plot(vars_out[0], open("anomaly_%s_fcs.png" % vars_out[0], mode="wb"), f_anomaly[0])
-        plot(vars_out[0], open("anomaly_%s_obs.png" % vars_out[0], mode="wb"), o_anomaly[0])
+        plot(
+            vars_out[0],
+            open("anomaly_%s_fcs.png" % vars_out[0], mode="wb"),
+            f_anomaly[0],
+        )
+        plot(
+            vars_out[0],
+            open("anomaly_%s_obs.png" % vars_out[0], mode="wb"),
+            o_anomaly[0],
+        )
 
         # f_anomaly_bar = np.sum(weight * f_anomaly) / np.sum(weight)
         # o_anomaly_bar = np.sum(weight * o_anomaly) / np.sum(weight)
@@ -116,7 +129,6 @@ class LightningModel(ltn.LightningModule):
 
         return prod.sum(), fsum.sum(), osum.sum()
 
- 
     def forecast_error(self, rmse):
         return rmse
 
@@ -151,12 +163,12 @@ class LightningModel(ltn.LightningModule):
                 title="%s" % var,
                 year=self.climatology_accessors[mode].yr_indexer[indexies[0]],
                 doy=self.climatology_accessors[mode].doy_indexer[indexies[0]],
-                save_path="%s_%02d.png" % (var, batch_idx)
+                save_path="%s_%02d.png" % (var, batch_idx),
             )
 
     def training_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
-        self.get_climatology(indexies, 'train')
+        self.get_climatology(indexies, "train")
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
@@ -181,16 +193,20 @@ class LightningModel(ltn.LightningModule):
         self.labeled_mse_denominator += mse_denominator
         rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
 
-        prod, fsum, osum = self.calculate_acc(results["data"], targets["data"], indexies=indexies, mode='eval')
+        prod, fsum, osum = self.calculate_acc(
+            results["data"], targets["data"], indexies=indexies, mode="eval"
+        )
         self.labeled_acc_prod_term += prod
         self.labeled_acc_fsum_term += fsum
         self.labeled_acc_osum_term += osum
-        acc = self.labeled_acc_prod_term / np.sqrt(self.labeled_acc_fsum_term * self.labeled_acc_osum_term)
+        acc = self.labeled_acc_prod_term / np.sqrt(
+            self.labeled_acc_fsum_term * self.labeled_acc_osum_term
+        )
 
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
         self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
         self.log("val_acc", acc, prog_bar=True, sync_dist=True)
-        self.plot(inputs, results, targets, indexies, batch_idx, mode='eval')
+        self.plot(inputs, results, targets, indexies, batch_idx, mode="eval")
 
         self.labeled_loss += loss.item() * batch_len
         self.counter += batch_len
@@ -208,17 +224,21 @@ class LightningModel(ltn.LightningModule):
         self.labeled_mse_numerator += mse_numerator
         self.labeled_mse_denominator += mse_denominator
         rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
-        
-        prod, fsum, osum = self.calculate_acc(results["data"], targets["data"], indexies=indexies, mode='test')
+
+        prod, fsum, osum = self.calculate_acc(
+            results["data"], targets["data"], indexies=indexies, mode="test"
+        )
         self.labeled_acc_prod_term += prod
         self.labeled_acc_fsum_term += fsum
         self.labeled_acc_osum_term += osum
-        acc = self.labeled_acc_prod_term / np.sqrt(self.labeled_acc_fsum_term * self.labeled_acc_osum_term)
+        acc = self.labeled_acc_prod_term / np.sqrt(
+            self.labeled_acc_fsum_term * self.labeled_acc_osum_term
+        )
 
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
         self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
         self.log("val_acc", acc, prog_bar=True, sync_dist=True)
-        self.plot(inputs, results, targets, indexies, batch_idx, mode='test')
+        self.plot(inputs, results, targets, indexies, batch_idx, mode="test")
         self.counter += batch_len
 
     def on_save_checkpoint(self, checkpoint):
@@ -233,12 +253,12 @@ class LightningModel(ltn.LightningModule):
             record = "%2.5f-%03d-%1.5f.ckpt" % (error, checkpoint["epoch"], loss)
             mname = self.model.name
             fname = f"trains/{mname}/best-{record}"
-            os.makedirs(
-               f"trains/{mname}", exist_ok=True
-            )
+            os.makedirs(f"trains/{mname}", exist_ok=True)
             with open(fname, "bw") as f:
                 th.save(checkpoint, f)
-            for ix, ckpt in enumerate(sorted(glob.glob(f"trains/{mname}/best-*.ckpt"), reverse=False)):
+            for ix, ckpt in enumerate(
+                sorted(glob.glob(f"trains/{mname}/best-*.ckpt"), reverse=False)
+            ):
                 if ix > 5:
                     os.unlink(ckpt)
 
@@ -304,19 +324,23 @@ class GANModel(LightningModel):
         self.alpha = 0.5
         self.crps = None
 
-        if opt and hasattr(opt, 'rate'):
+        if opt and hasattr(opt, "rate"):
             learning_rate = float(opt.rate)
             ratio = float(opt.ratio)
             self.generator.learning_rate = learning_rate
             self.discriminator.learning_rate = learning_rate / ratio
 
-        if opt and hasattr(opt, 'alpha'):
+        if opt and hasattr(opt, "alpha"):
             self.alpha = float(opt.alpha)
 
     def configure_optimizers(self):
         # Separate optimizers for generator and discriminator
-        g_optimizer = th.optim.Adam(self.generator.parameters(), lr=self.generator.learning_rate)
-        d_optimizer = th.optim.Adam(self.discriminator.parameters(), lr=self.discriminator.learning_rate)
+        g_optimizer = th.optim.Adam(
+            self.generator.parameters(), lr=self.generator.learning_rate
+        )
+        d_optimizer = th.optim.Adam(
+            self.discriminator.parameters(), lr=self.discriminator.learning_rate
+        )
         g_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(g_optimizer, 37)
         d_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(d_optimizer, 37)
         return [g_optimizer, d_optimizer], [g_scheduler, d_scheduler]
@@ -324,14 +348,20 @@ class GANModel(LightningModel):
     def generator_loss(self, fake_judgement):
         # Loss for generator (we want the discriminator to predict all generated images as real)
         return th.nn.functional.binary_cross_entropy(
-            fake_judgement["data"], th.ones_like(fake_judgement["data"], dtype=th.float32))
+            fake_judgement["data"],
+            th.ones_like(fake_judgement["data"], dtype=th.float32),
+        )
 
     def discriminator_loss(self, real_judgement, fake_judgement):
         # Loss for discriminator (real images should be classified as real, fake images as fake)
         real_loss = th.nn.functional.binary_cross_entropy(
-            real_judgement["data"], th.ones_like(real_judgement["data"], dtype=th.float32))
+            real_judgement["data"],
+            th.ones_like(real_judgement["data"], dtype=th.float32),
+        )
         fake_loss = th.nn.functional.binary_cross_entropy(
-            fake_judgement["data"], th.zeros_like(fake_judgement["data"], dtype=th.float32))
+            fake_judgement["data"],
+            th.zeros_like(fake_judgement["data"], dtype=th.float32),
+        )
         return (real_loss + fake_loss) / 2
 
     def forecast_error(self, rmse):
@@ -341,15 +371,27 @@ class GANModel(LightningModel):
         ensemble_size, channels, height, width = predictions.shape
 
         num_pixels = channels * height * width
-        predictions_reshaped = predictions.reshape(ensemble_size, num_pixels)  # [ensemble_size, num_pixels]
-        targets_reshaped = targets.reshape(ensemble_size, num_pixels)  # [ensemble_size, num_pixels]
+        predictions_reshaped = predictions.reshape(
+            ensemble_size, num_pixels
+        )  # [ensemble_size, num_pixels]
+        targets_reshaped = targets.reshape(
+            ensemble_size, num_pixels
+        )  # [ensemble_size, num_pixels]
 
-        abs_errors = th.abs(predictions_reshaped - targets_reshaped)  # [ensemble_size, num_pixels]
+        abs_errors = th.abs(
+            predictions_reshaped - targets_reshaped
+        )  # [ensemble_size, num_pixels]
         mean_abs_errors = abs_errors.mean(dim=0)  # [num_pixels]
 
-        predictions_a = predictions_reshaped.unsqueeze(1)  # [ensemble_size, 1, num_pixels]
-        predictions_b = predictions_reshaped.unsqueeze(0)  # [1, ensemble_size, num_pixels]
-        pairwise_diff = th.abs(predictions_a - predictions_b)  # [ensemble_size, ensemble_size, num_pixels]
+        predictions_a = predictions_reshaped.unsqueeze(
+            1
+        )  # [ensemble_size, 1, num_pixels]
+        predictions_b = predictions_reshaped.unsqueeze(
+            0
+        )  # [1, ensemble_size, num_pixels]
+        pairwise_diff = th.abs(
+            predictions_a - predictions_b
+        )  # [ensemble_size, ensemble_size, num_pixels]
         mean_pairwise_diff = pairwise_diff.mean(dim=(0, 1))  # [num_pixels]
 
         # Calculate CRPS using the formula
@@ -366,17 +408,17 @@ class GANModel(LightningModel):
 
     def training_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
-        self.get_climatology(indexies, 'train')
+        self.get_climatology(indexies, "train")
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        inputs['seed'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
+        inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
 
         g_optimizer, d_optimizer = self.optimizers()
 
         self.toggle_optimizer(g_optimizer)
         forecast = self.generator(**inputs)
-        real_judgement = self.discriminator(**inputs, target=targets['data'])
+        real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         forecast_loss = self.loss_fn(inputs, forecast, targets)
         generate_loss = self.generator_loss(fake_judgement)
@@ -396,8 +438,10 @@ class GANModel(LightningModel):
 
         self.toggle_optimizer(d_optimizer)
         forecast = self.generator(**inputs)
-        forecast["data"] = forecast["data"].detach()  # Detach to avoid generator gradient updates
-        real_judgement = self.discriminator(**inputs, target=targets['data'])
+        forecast["data"] = forecast[
+            "data"
+        ].detach()  # Detach to avoid generator gradient updates
+        real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         judgement_loss = self.discriminator_loss(real_judgement, fake_judgement)
         self.manual_backward(judgement_loss)
@@ -413,16 +457,16 @@ class GANModel(LightningModel):
         self.untoggle_optimizer(d_optimizer)
 
         if batch_idx % 10 == 0:
-            self.plot(inputs, forecast, targets, indexies, batch_idx, mode='train')
+            self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
 
     def validation_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        inputs['seed'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
+        inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(inputs, forecast, targets)
-        real_judgement = self.discriminator(**inputs, target=targets['data'])
+        real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
 
@@ -431,12 +475,16 @@ class GANModel(LightningModel):
         self.labeled_mse_denominator += mse_denominator
         rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
 
-        prod, fsum, osum = self.calculate_acc(forecast["data"], targets["data"], indexies=indexies, mode='eval')
+        prod, fsum, osum = self.calculate_acc(
+            forecast["data"], targets["data"], indexies=indexies, mode="eval"
+        )
         self.labeled_acc_prod_term += prod
         self.labeled_acc_fsum_term += fsum
         self.labeled_acc_osum_term += osum
-        acc = self.labeled_acc_prod_term / np.sqrt(self.labeled_acc_fsum_term * self.labeled_acc_osum_term)
-        
+        acc = self.labeled_acc_prod_term / np.sqrt(
+            self.labeled_acc_fsum_term * self.labeled_acc_osum_term
+        )
+
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
         self.log("realness", self.realness, prog_bar=True, sync_dist=True)
@@ -448,20 +496,20 @@ class GANModel(LightningModel):
         self.log("val_forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
 
-        batch_len = inputs['data'].shape[0]
+        batch_len = inputs["data"].shape[0]
         self.labeled_loss += forecast_loss.item() * batch_len
         self.counter += batch_len
 
-        self.plot(inputs, forecast, targets, indexies, batch_idx, mode='eval')
+        self.plot(inputs, forecast, targets, indexies, batch_idx, mode="eval")
 
     def test_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        inputs['seed'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
+        inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(inputs, forecast, targets)
-        real_judgement = self.discriminator(**inputs, target=targets['data'])
+        real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
@@ -472,11 +520,15 @@ class GANModel(LightningModel):
         self.labeled_mse_denominator += mse_denominator
         rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
 
-        prod, fsum, osum = self.calculate_acc(forecast["data"], targets["data"], indexies, mode='test')
+        prod, fsum, osum = self.calculate_acc(
+            forecast["data"], targets["data"], indexies, mode="test"
+        )
         self.labeled_acc_prod_term += prod
         self.labeled_acc_fsum_term += fsum
         self.labeled_acc_osum_term += osum
-        acc = self.labeled_acc_prod_term / np.sqrt(self.labeled_acc_fsum_term * self.labeled_acc_osum_term)
+        acc = self.labeled_acc_prod_term / np.sqrt(
+            self.labeled_acc_fsum_term * self.labeled_acc_osum_term
+        )
 
         self.log("realness", self.realness, prog_bar=True, sync_dist=True)
         self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
@@ -485,7 +537,7 @@ class GANModel(LightningModel):
         self.log("absb", absb, prog_bar=True, sync_dist=True)
         self.log("acc", acc, prog_bar=True, sync_dist=True)
         self.log("rmse", rmse, prog_bar=True, sync_dist=True)
-        self.plot(inputs, forecast, targets, indexies, batch_idx, mode='test')
+        self.plot(inputs, forecast, targets, indexies, batch_idx, mode="test")
 
     def on_validation_epoch_end(self):
         balance = self.realness - self.fakeness

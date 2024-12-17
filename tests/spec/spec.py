@@ -1,5 +1,5 @@
 """
- A modeling spec for t2m
+A modeling spec for t2m
 """
 
 import torch as th
@@ -79,7 +79,7 @@ class Spec(Base2d):
     def __init__(self, setting):
         super().__init__(setting)
         self.vars_out = [
-            't2m',
+            "t2m",
         ]
 
     def get_inputs(self, **kwargs):
@@ -88,9 +88,13 @@ class Spec(Base2d):
             code, lvl = split_name(nm)
             v = code2var[code]
             if v in vars3d:
-                d = kwargs[v].view(
-                    -1, self.setting.input_span, self.setting.height, 32, 64
-                )[:, :, self.setting.levels.index(lvl)].float()
+                d = (
+                    kwargs[v]
+                    .view(-1, self.setting.input_span, self.setting.height, 32, 64)[
+                        :, :, self.setting.levels.index(lvl)
+                    ]
+                    .float()
+                )
             else:
                 d = kwargs[v].view(-1, self.setting.input_span, 32, 64).float()
             d = normalizors[nm](d)
@@ -99,7 +103,7 @@ class Spec(Base2d):
             vlst.append(d)
 
         data = th.cat(vlst, dim=1)
-        vdic['data'] = data
+        vdic["data"] = data
         for k, v in kwargs.items():
             if type(v) is th.Tensor:
                 vdic[k] = v.float()
@@ -112,23 +116,23 @@ class Spec(Base2d):
         ).float()
 
         return {
-            'data': t2m,
-            't2m': t2m,
+            "data": t2m,
+            "t2m": t2m,
         }
 
     def get_results(self, **kwargs):
         t2m = kwargs["t2m"].float()
         return {
-            'data': t2m,
-            't2m': t2m,
+            "data": t2m,
+            "t2m": t2m,
         }
 
     def forward(self, **kwargs):
         raise NotImplementedError("Spec is abstract and can not be initialized")
 
     def lossfun(self, inputs, result, target):
-        rst = result['data']
-        tgt = target['data']
+        rst = result["data"]
+        tgt = target["data"]
         weight = self.get_weight(rst.device).float()
         rst = weight * rst.view(-1, self.setting.pred_span, 32, 64)
         tgt = weight * tgt.view(-1, self.setting.pred_span, 32, 64)

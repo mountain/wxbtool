@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 
 """
- A modeling spec for t850
+A modeling spec for t850
 
- This spec follows basic settings and discussions in
+This spec follows basic settings and discussions in
 
-   Improving Data‐Driven Global Weather Prediction Using Deep Convolutional Neural Networks on a Cubed Sphere
-   by Jonathan A. Weyn, Dale R. Durran, Rich Caruana
-   https://doi.org/10.1029/2020MS002109
+  Improving Data‐Driven Global Weather Prediction Using Deep Convolutional Neural Networks on a Cubed Sphere
+  by Jonathan A. Weyn, Dale R. Durran, Rich Caruana
+  https://doi.org/10.1029/2020MS002109
 
- But specialized for recurrence neural networks
+But specialized for recurrence neural networks
 
 """
 

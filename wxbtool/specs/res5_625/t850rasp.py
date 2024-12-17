@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 
 """
- A modeling spec for t850
+A modeling spec for t850
 
- This spec follows basic settings and discussions in
+This spec follows basic settings and discussions in
 
-   Data-driven medium-range weather prediction with a Resnet pretrained on climate simulations:
-   A new model for WeatherBench
-   by Stephan Rasp, Nils Thuerey
-   https://arxiv.org/pdf/2008.08626.pdf
+  Data-driven medium-range weather prediction with a Resnet pretrained on climate simulations:
+  A new model for WeatherBench
+  by Stephan Rasp, Nils Thuerey
+  https://arxiv.org/pdf/2008.08626.pdf
 
 """
 

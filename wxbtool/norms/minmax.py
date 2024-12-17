@@ -121,4 +121,3 @@ max_values = {
     "total_cloud_cover": 1,
     "2m_temperature": 318,
 }
-

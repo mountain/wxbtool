@@ -5,7 +5,6 @@ import numpy as np
 
 
 class TestWindowArray(unittest.TestCase):
-
     def test_window_access(self):
         from wxbtool.data.dataset import WindowArray
 
