@@ -32,7 +32,7 @@ class TestDataset(Dataset):
             else:
                 inputs.update({var: np.ones((1, setting.input_span, 32, 64))})
                 targets.update({var: np.ones((1, setting.pred_span, 32, 64))})
-        return inputs, targets
+        return inputs, targets, item
 
 
 class Mdl(Spec):

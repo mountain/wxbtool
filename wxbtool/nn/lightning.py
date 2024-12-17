@@ -71,26 +71,37 @@ class LightningModel(ltn.LightningModule):
 
         return self.climatology_accessors[mode]
 
-    def get_climatology(self, vars, indexies, mode):
+    def get_climatology(self, indexies, mode):
         accessor = self.get_climatology_accessor(mode)
-        return accessor.get_climatology(vars, indexies)
+        vars_out = self.model.vars_out
+        step = self.model.setting.step
+        span = self.model.setting.pred_span
+        shift = self.model.setting.pred_shift
+        indexies = indexies.cpu().numpy()
+
+        result = []
+        for ix in range(span):
+            delta = ix * step
+            shifts = list([idx + delta + shift for idx in indexies])  # shift to the forecast time
+            data = accessor.get_climatology(vars_out, shifts).reshape(-1, len(vars_out), 32, 64)
+            result.append(data)
+        return np.concatenate(result, axis=0)
 
     def calculate_acc(self, forecast, observation, indexies, mode):
-        vars_out = self.model.vars_out
-        climatology = self.get_climatology(vars_out, indexies, mode)
-
-        indexies = list(indexies.cpu().numpy())
+        climatology = self.get_climatology(indexies, mode)
         weight = self.model.weight.cpu().numpy()
         forecast = forecast.cpu().numpy()
         observation = observation.cpu().numpy()
 
         weight = weight.reshape(1, 1, 32, 64)
-        climatology = climatology.reshape(-1, 1, 32, 64)
-        forecast = forecast.reshape(-1, self.model.setting.pred_span, 32, 64)
-        observation = observation.reshape(-1, self.model.setting.pred_span, 32, 64)
+        forecast = forecast.reshape(-1, len(self.model.vars_out), 32, 64)
+        observation = observation.reshape(-1, len(self.model.vars_out), 32, 64)
 
+        assert climatology.shape == forecast.shape == observation.shape
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
+
+        vars_out = self.model.vars_out
         plot(vars_out[0], open("anomaly_%s_fcs.png" % vars_out[0], mode="wb"), f_anomaly[0])
         plot(vars_out[0], open("anomaly_%s_obs.png" % vars_out[0], mode="wb"), o_anomaly[0])
 
@@ -124,27 +135,28 @@ class LightningModel(ltn.LightningModule):
                 tgrt = targets[var][0, ix].detach().cpu().numpy().reshape(32, 64)
                 plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst)
                 plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt)
-        
-        input_data = inputs['data'][0, 0].detach().cpu().numpy()
-        truth = targets['data'][0, 0].detach().cpu().numpy()
-        forecast = results['data'][0, 0].detach().cpu().numpy()
-        input_data = denormalizors[var](input_data)
-        forecast = denormalizors[var](forecast)
-        truth = denormalizors[var](truth)
-        plot_image(
-            self.model.vars_out[0],
-            input_data=input_data,
-            truth=truth,
-            forecast=forecast,
-            title="%s" % var,
-            year=self.climatology_accessors[mode].yr_indexer[indexies[0]],
-            doy=self.climatology_accessors[mode].doy_indexer[indexies[0]],
-            save_path="%s_%02d.png" % (var, batch_idx)
-        )
+
+        for bas, var in enumerate(self.model.vars_out):
+            input_data = inputs[var][0, 0].detach().cpu().numpy()
+            truth = targets[var][0, 0].detach().cpu().numpy()
+            forecast = results[var][0, 0].detach().cpu().numpy()
+            input_data = denormalizors[var](input_data)
+            forecast = denormalizors[var](forecast)
+            truth = denormalizors[var](truth)
+            plot_image(
+                var,
+                input_data=input_data,
+                truth=truth,
+                forecast=forecast,
+                title="%s" % var,
+                year=self.climatology_accessors[mode].yr_indexer[indexies[0]],
+                doy=self.climatology_accessors[mode].doy_indexer[indexies[0]],
+                save_path="%s_%02d.png" % (var, batch_idx)
+            )
 
     def training_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
-        self.get_climatology(self.model.setting.vars, indexies, 'train')
+        self.get_climatology(indexies, 'train')
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
@@ -354,6 +366,8 @@ class GANModel(LightningModel):
 
     def training_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
+        self.get_climatology(indexies, 'train')
+
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
         inputs['seed'] = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
@@ -399,7 +413,7 @@ class GANModel(LightningModel):
         self.untoggle_optimizer(d_optimizer)
 
         if batch_idx % 10 == 0:
-            self.plot(inputs, forecast, targets, indexies, mode='train')
+            self.plot(inputs, forecast, targets, indexies, batch_idx, mode='train')
 
     def validation_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
@@ -438,7 +452,7 @@ class GANModel(LightningModel):
         self.labeled_loss += forecast_loss.item() * batch_len
         self.counter += batch_len
 
-        self.plot(inputs, forecast, targets, indexies, mode='eval')
+        self.plot(inputs, forecast, targets, indexies, batch_idx, mode='eval')
 
     def test_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
@@ -471,7 +485,7 @@ class GANModel(LightningModel):
         self.log("absb", absb, prog_bar=True, sync_dist=True)
         self.log("acc", acc, prog_bar=True, sync_dist=True)
         self.log("rmse", rmse, prog_bar=True, sync_dist=True)
-        self.plot(inputs, forecast, targets, indexies, mode='test')
+        self.plot(inputs, forecast, targets, indexies, batch_idx, mode='test')
 
     def on_validation_epoch_end(self):
         balance = self.realness - self.fakeness

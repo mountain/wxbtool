@@ -30,6 +30,8 @@ dependencies = [
     "flake8>=7.1.1",
     "pytest>=8.3.3",
     "cdsapi>=0.7.4",
+    "cartopy>=0.24.1",
+    "scipy>=1.14.1",
 ]
 
 [project.scripts]

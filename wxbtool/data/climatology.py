@@ -83,12 +83,18 @@ class ClimatologyAccessor:
             if vname in vars2d:
                 with xr.open_dataset(file_path) as ds:
                     ds = ds.transpose("time", "lat", "lon")
-                    self.climatology_data[var] = np.array(ds[codes[vname]].data, dtype=np.float32)
+                    data = np.array(ds[codes[vname]].data, dtype=np.float32)
+                    # add a channel dimension at the 1 position
+                    data = np.expand_dims(data, axis=1)
+                    self.climatology_data[var] = data
             else:
-                all_levels.index(lvl)
+                lvl_idx = all_levels.index(lvl)
                 with xr.open_dataset(file_path) as ds:
                     ds = ds.transpose("time", "level", "lat", "lon")
-                    self.climatology_data[var] = np.array(ds[codes[vname]].data, dtype=np.float32)[:, all_levels.index(lvl)]
+                    data = np.array(ds[codes[vname]].data, dtype=np.float32)[:, lvl_idx]
+                    # add a channel dimension at 1 position
+                    data = np.expand_dims(data, axis=1)
+                    self.climatology_data[var] = data
 
     def get_climatology(self, vars, indexes):
         """
@@ -120,7 +126,7 @@ class ClimatologyAccessor:
             if idx < 0 or idx >= total_days:
                 raise IndexError(f"indexes {idx} is out of range (0-{total_days-1}).")
 
-        # Map batch_idx to DOY indices using the reindexer
+        # Map batch_idx to DOY indices using the doy indexer
         doy_indices = [self.doy_indexer[idx] for idx in indexes]
 
         climatology_dict = {}
@@ -132,7 +138,7 @@ class ClimatologyAccessor:
             selected_data = climatology_var[doy_indices]
             climatology_dict[var] = normalizors[var](selected_data)
 
-        return np.concatenate([climatology_dict[v] for v in vars], axis=0)
+        return np.concatenate([climatology_dict[v] for v in vars], axis=1)
 
 
 # Example Usage
