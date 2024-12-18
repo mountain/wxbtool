@@ -74,3 +74,35 @@ class TestTest(unittest.TestCase):
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()
+
+    @mock.patch.dict(
+        os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
+    )
+    def test_climate30d(self):
+        import wxbtool.wxb as wxb
+
+        testargs = [
+            "wxb",
+            "dserve",
+            "-m",
+            "spec.spec",
+            "-s",
+            "Setting30d",
+            "-t",
+            "true",
+        ]
+        with patch.object(sys, "argv", testargs):
+            wxb.main()
+
+        testargs = [
+            "wxb",
+            "test",
+            "-m",
+            "models.climate_30d",
+            "-b",
+            "30",
+            "-t",
+            "true",
+        ]
+        with patch.object(sys, "argv", testargs):
+            wxb.main()

@@ -4,7 +4,6 @@ import numpy as np
 import torch
 
 from wxbtool.data.dataset import all_levels
-from wxbtool.data.variables import split_name, code2var, codes, vars2d
 from wxbtool.norms.meanstd import normalizors
 
 
@@ -69,9 +68,11 @@ class ClimatologyAccessor:
         - FileNotFoundError: If the climatology file for the variable is not found.
         - ValueError: If the climatology data does not contain a 'time' dimension.
         """
+        import wxbtool.data.variables as variables
+
         if var not in self.climatology_data:
-            code, lvl = split_name(var)
-            vname = code2var.get(code, None)
+            code, lvl = variables.split_name(var)
+            vname = variables.code2var.get(code, None)
             if vname is None:
                 raise ValueError(
                     f"Variable '{var}' is not supported for climatology data."
@@ -81,10 +82,10 @@ class ClimatologyAccessor:
             if not os.path.isfile(file_path):
                 raise FileNotFoundError(f"Climatology data file not found: {file_path}")
 
-            if vname in vars2d:
+            if vname in variables.vars2d:
                 with xr.open_dataset(file_path) as ds:
                     ds = ds.transpose("time", "lat", "lon")
-                    data = np.array(ds[codes[vname]].data, dtype=np.float32)
+                    data = np.array(ds[variables.codes[vname]].data, dtype=np.float32)
                     # add a channel dimension at the 1 position
                     data = np.expand_dims(data, axis=1)
                     self.climatology_data[var] = data
@@ -92,7 +93,9 @@ class ClimatologyAccessor:
                 lvl_idx = all_levels.index(lvl)
                 with xr.open_dataset(file_path) as ds:
                     ds = ds.transpose("time", "level", "lat", "lon")
-                    data = np.array(ds[codes[vname]].data, dtype=np.float32)[:, lvl_idx]
+                    data = np.array(ds[variables.codes[vname]].data, dtype=np.float32)[
+                        :, lvl_idx
+                    ]
                     # add a channel dimension at 1 position
                     data = np.expand_dims(data, axis=1)
                     self.climatology_data[var] = data

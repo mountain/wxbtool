@@ -53,6 +53,7 @@ def init(opt):
         sys.exit(1)
 
     spec.load_dataset("train", "server")
+    spec.load_dataset("eval", "server")
     spec.load_dataset("test", "server")
     dtrain = spec.dataset_train
     deval = spec.dataset_eval

@@ -21,7 +21,6 @@ m.patch()
 from itertools import product  # noqa: E402
 from torch.utils.data import Dataset, DataLoader, Sampler  # noqa: E402
 
-from wxbtool.data.variables import codes, vars2d, vars3d  # noqa: E402
 
 logger = logging.getLogger()
 
@@ -106,15 +105,17 @@ class WxDataset(Dataset):
         self.memmap(dumpdir)
 
     def load(self, dumpdir):
+        import wxbtool.data.variables as v  # noqa: E402
+
         levels_selector = [all_levels.index(lvl) for lvl in self.levels]
         selector = np.array(levels_selector, dtype=np.int64)
 
         size = 0
         lastvar = None
         for var, yr in product(self.vars, self.years):
-            if var in vars3d:
+            if var in v.vars3d:
                 length = self.load_3ddata(yr, var, selector, self.accumulated)
-            elif var in vars2d:
+            elif var in v.vars2d:
                 length = self.load_2ddata(yr, var, self.accumulated)
             else:
                 raise ValueError("variable %s does not supported!" % var)
@@ -186,14 +187,19 @@ class WxDataset(Dataset):
             del self.accumulated[var]
 
     def load_2ddata(self, year, var, accumulated):
+        import wxbtool.data.variables as v  # noqa: E402
+
         data_path = "%s/%s/%s_%d_%s.nc" % (self.root, var, var, year, self.resolution)
         with xr.open_dataset(data_path) as ds:
             ds = ds.transpose("time", "lat", "lon")
             if var not in accumulated:
-                accumulated[var] = np.array(ds[codes[var]].data, dtype=np.float32)
+                accumulated[var] = np.array(ds[v.codes[var]].data, dtype=np.float32)
             else:
                 accumulated[var] = np.concatenate(
-                    [accumulated[var], np.array(ds[codes[var]].data, dtype=np.float32)],
+                    [
+                        accumulated[var],
+                        np.array(ds[v.codes[var]].data, dtype=np.float32),
+                    ],
                     axis=0,
                 )
             logger.info("%s[%d]: %s", var, year, str(accumulated[var].shape))
@@ -201,18 +207,20 @@ class WxDataset(Dataset):
         return accumulated[var].shape[0]
 
     def load_3ddata(self, year, var, selector, accumulated):
+        import wxbtool.data.variables as v  # noqa: E402
+
         data_path = "%s/%s/%s_%d_%s.nc" % (self.root, var, var, year, self.resolution)
         with xr.open_dataset(data_path) as ds:
             ds = ds.transpose("time", "level", "lat", "lon")
             if var not in accumulated:
-                accumulated[var] = np.array(ds[codes[var]].data, dtype=np.float32)[
+                accumulated[var] = np.array(ds[v.codes[var]].data, dtype=np.float32)[
                     :, selector, :, :
                 ]
             else:
                 accumulated[var] = np.concatenate(
                     [
                         accumulated[var],
-                        np.array(ds[codes[var]].data, dtype=np.float32)[
+                        np.array(ds[v.codes[var]].data, dtype=np.float32)[
                             :, selector, :, :
                         ],
                     ],
@@ -228,6 +236,8 @@ class WxDataset(Dataset):
         np.save(file_dump, self.accumulated[var])
 
     def memmap(self, dumpdir):
+        import wxbtool.data.variables as v  # noqa: E402
+
         with open("%s/shapes.json" % dumpdir) as fp:
             shapes = json.load(fp)
 
@@ -241,7 +251,7 @@ class WxDataset(Dataset):
             shift = data.shape[0] - total_size
             self.accumulated[var] = np.reshape(data[shift:], shape)
 
-            if var in vars2d or var in vars3d:
+            if var in v.vars2d or var in v.vars3d:
                 self.inputs[var] = self.accumulated[var]
                 self.targets[var] = self.accumulated[var]
 
@@ -256,9 +266,11 @@ class WxDataset(Dataset):
         return length
 
     def __getitem__(self, item):
+        import wxbtool.data.variables as v  # noqa: E402
+
         inputs, targets = {}, {}
         for var in self.vars:
-            if var in vars2d or var in vars3d:
+            if var in v.vars2d or var in v.vars3d:
                 input_slice = self.inputs[var][item :: self.step][: self.input_span]
                 target_slice = self.targets[var][
                     item

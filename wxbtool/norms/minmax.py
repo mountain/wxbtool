@@ -83,6 +83,7 @@ normalizors = {
     "toa_incident_solar_radiation": norm_tisr,
     "total_cloud_cover": norm_tcc,
     "2m_temperature": norm_tmp,
+    "test_variable": lambda x: x,
 }
 
 
@@ -96,6 +97,7 @@ denormalizors = {
     "toa_incident_solar_radiation": denorm_tisr,
     "total_cloud_cover": denorm_tcc,
     "2m_temperature": denorm_tmp,
+    "test_variable": lambda x: x,
 }
 
 min_values = {
@@ -108,6 +110,7 @@ min_values = {
     "toa_incident_solar_radiation": 0,
     "total_cloud_cover": 0,
     "2m_temperature": 223,
+    "test_variable": 0,
 }
 
 max_values = {
@@ -120,4 +123,5 @@ max_values = {
     "toa_incident_solar_radiation": 5500000,
     "total_cloud_cover": 1,
     "2m_temperature": 318,
+    "test_variable": 1,
 }

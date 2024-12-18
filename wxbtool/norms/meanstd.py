@@ -388,6 +388,7 @@ normalizors = {
     "q700": norm_q700,
     "q850": norm_q850,
     "q925": norm_q925,
+    "test": lambda x: x,
 }
 
 
@@ -433,4 +434,5 @@ denormalizors = {
     "q700": denorm_q700,
     "q850": denorm_q850,
     "q925": denorm_q925,
+    "test": lambda x: x,
 }

@@ -5,14 +5,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import wxbtool.norms.minmax as minmax
 
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-from PIL import Image  # 用于灰度转换
 from scipy.ndimage import zoom
 from threading import local
-from wxbtool.data.variables import split_name, code2var
 from wxbtool.util.cmaps import cmaps, var2cmap
-from wxbtool.norms.minmax import min_values, max_values
 
 
 data = local()
@@ -40,7 +37,9 @@ def imsave(fileobj, data):
 
 
 def plot(var, fileobj, data):
-    code, _ = split_name(var)
+    import wxbtool.data.variables as variables
+
+    code, _ = variables.split_name(var)
     imsave(fileobj, colorize(data, imgdata(), var2cmap[code]))
 
 
@@ -61,8 +60,10 @@ class Ploter:
         doy=0,
         save_path=None,
     ):
-        vmin = min_values[code2var[code]]
-        vmax = max_values[code2var[code]]
+        import wxbtool.data.variables as variables
+
+        vmin = minmax.min_values[variables.code2var[code]]
+        vmax = minmax.max_values[variables.code2var[code]]
 
         fig, axes = plt.subplots(
             1,
@@ -145,33 +146,3 @@ def plot_image(
         doy=doy,
         save_path=save_path,
     )
-
-
-def generate_labeled_array(label, image_size=(512, 1024)):
-    fig, ax = plt.subplots(figsize=(image_size[1] / 100, image_size[0] / 100), dpi=100)
-
-    ax.set_facecolor("white")
-    ax.text(
-        0.5,
-        0.5,
-        str(label),
-        color="black",
-        fontsize=48,
-        ha="center",
-        va="center",
-        transform=ax.transAxes,
-    )
-
-    ax.axis("off")
-
-    canvas = FigureCanvas(fig)
-    canvas.draw()
-    image_array = np.frombuffer(canvas.buffer_rgba(), dtype=np.uint8)
-    image_array = image_array.reshape(fig.canvas.get_width_height()[::-1] + (4,))
-
-    plt.close(fig)
-
-    image_pil = Image.fromarray(image_array[:, :, :3])
-    image_gray = image_pil.convert("L")
-
-    return np.array(image_gray)
