@@ -37,8 +37,30 @@ class LightningModel(ltn.LightningModule):
         scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 53)
         return [optimizer], [scheduler]
 
-    def loss_fn(self, input, result, target):
-        return self.model.lossfun(input, result, target)
+    def loss_fn(self, input, result, target, indexies=None, mode="train"):
+        loss = self.model.lossfun(input, result, target)
+        
+        # forecast = result["data"].to(loss.device)
+        # observation = target["data"].to(loss.device)
+        # climatology = self.get_climatology(indexies, mode)
+        # climatology = th.tensor(climatology, dtype=th.float32).to(loss.device)
+        # weight = self.model.weight.view(1, 1, 32, 64).to(loss.device)
+
+        # f_anomaly = forecast - climatology
+        # o_anomaly = observation - climatology
+
+        # f_anomaly_bar = th.sum(weight * f_anomaly) / th.sum(weight)
+        # o_anomaly_bar = th.sum(weight * o_anomaly) / th.sum(weight)
+        # f_anomaly = f_anomaly - f_anomaly_bar
+        # o_anomaly = o_anomaly - o_anomaly_bar
+
+        # prod = th.sum(weight * f_anomaly * o_anomaly)
+        # fsum = th.sum(weight * f_anomaly**2)
+        # osum = th.sum(weight * o_anomaly**2)
+        # acc = prod / th.sqrt(fsum * osum + 1e-7)
+        # loss = loss + 0.01 * (1 - acc)
+
+        return loss
 
     def compute_mse(self, targets, results):
         tgt = targets["data"]
@@ -118,16 +140,11 @@ class LightningModel(ltn.LightningModule):
             o_anomaly[0],
         )
 
-        # f_anomaly_bar = np.sum(weight * f_anomaly) / np.sum(weight)
-        # o_anomaly_bar = np.sum(weight * o_anomaly) / np.sum(weight)
-        # f_anomaly = f_anomaly - f_anomaly_bar
-        # o_anomaly = o_anomaly - o_anomaly_bar
+        prod = np.sum(weight * f_anomaly * o_anomaly)
+        fsum = np.sum(weight * f_anomaly**2)
+        osum = np.sum(weight * o_anomaly**2)
 
-        prod = np.sum(weight * f_anomaly * o_anomaly, axis=(2, 3))
-        fsum = np.sum(weight * f_anomaly**2, axis=(2, 3))
-        osum = np.sum(weight * o_anomaly**2, axis=(2, 3))
-
-        return prod.sum(), fsum.sum(), osum.sum()
+        return prod, fsum, osum
 
     def forecast_error(self, rmse):
         return rmse
@@ -172,9 +189,9 @@ class LightningModel(ltn.LightningModule):
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        results = self.forward(**inputs)
+        results = self.forward(indexies=indexies, **inputs)
 
-        loss = self.loss_fn(inputs, results, targets)
+        loss = self.loss_fn(inputs, results, targets, indexies=indexies, mode="train")
 
         self.log("train_loss", loss, prog_bar=True, sync_dist=True)
         return loss
@@ -185,8 +202,8 @@ class LightningModel(ltn.LightningModule):
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        results = self.forward(**inputs)
-        loss = self.loss_fn(inputs, results, targets)
+        results = self.forward(indexies=indexies, **inputs)
+        loss = self.loss_fn(inputs, results, targets, indexies=indexies, mode="eval")
 
         mse_numerator, mse_denominator = self.compute_mse(targets, results)
         self.labeled_mse_numerator += mse_numerator
@@ -217,8 +234,8 @@ class LightningModel(ltn.LightningModule):
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        results = self.forward(**inputs)
-        loss = self.loss_fn(inputs, results, targets)
+        results = self.forward(indexies=indexies, **inputs)
+        loss = self.loss_fn(inputs, results, targets, indexies=indexies, mode="test")
 
         mse_numerator, mse_denominator = self.compute_mse(targets, results)
         self.labeled_mse_numerator += mse_numerator
@@ -235,9 +252,9 @@ class LightningModel(ltn.LightningModule):
             self.labeled_acc_fsum_term * self.labeled_acc_osum_term
         )
 
-        self.log("val_loss", loss, prog_bar=True, sync_dist=True)
-        self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
-        self.log("val_acc", acc, prog_bar=True, sync_dist=True)
+        self.log("test_loss", loss, prog_bar=True, sync_dist=True)
+        self.log("test_rmse", rmse, prog_bar=True, sync_dist=True)
+        self.log("test_acc", acc, prog_bar=True, sync_dist=True)
         self.plot(inputs, results, targets, indexies, batch_idx, mode="test")
         self.counter += batch_len
 
@@ -420,7 +437,7 @@ class GANModel(LightningModel):
         forecast = self.generator(**inputs)
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
-        forecast_loss = self.loss_fn(inputs, forecast, targets)
+        forecast_loss = self.loss_fn(inputs, forecast, targets, indexies=indexies, mode="train")
         generate_loss = self.generator_loss(fake_judgement)
         total_loss = self.alpha * forecast_loss + (1 - self.alpha) * generate_loss
         self.manual_backward(total_loss)
@@ -465,7 +482,7 @@ class GANModel(LightningModel):
         targets = self.model.get_targets(**targets)
         inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
-        forecast_loss = self.loss_fn(inputs, forecast, targets)
+        forecast_loss = self.loss_fn(inputs, forecast, targets, indexies=indexies, mode="eval")
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
@@ -508,7 +525,7 @@ class GANModel(LightningModel):
         targets = self.model.get_targets(**targets)
         inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
-        forecast_loss = self.loss_fn(inputs, forecast, targets)
+        forecast_loss = self.loss_fn(inputs, forecast, targets, indexies=indexies, mode="test")
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         self.realness = real_judgement["data"].mean().item()

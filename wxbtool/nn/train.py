@@ -66,6 +66,7 @@ def main(context, opt):
 
         trainer.fit(model)
         trainer.test(model=model, dataloaders=model.test_dataloader())
+        th.save(model, model.model.name + ".ckpt")
     except ImportError as e:
         exc_info = sys.exc_info()
         print(e)
