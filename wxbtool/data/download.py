@@ -195,10 +195,11 @@ class ERA5Downloader:
             for date, time_str in self.generate_datetime_list(start_date, end_date):
                 self.ensure_variable_dirs(variable, date)
                 filename = self.build_filename(variable, date, time_str)
-                if not os.path.exists(filename):
-                    self.retrieve_data(variable, date, time_str, filename)
+                abs_filename = os.path.abspath(filename)
+                if not os.path.exists(abs_filename):
+                    self.retrieve_data(variable, date, time_str, abs_filename)
                 else:
-                    logging.info(f"File already exists: {filename}")
+                    logging.info(f"File already exists: {abs_filename}")
 
         # After downloading, manage retention
         self.manage_retention()
@@ -227,7 +228,7 @@ def main(context, opt):
                 f.write(f"key: {key}\n")
 
         config = Config(
-            output_folder="/home/tony/era5",  # Replace with your desired output path
+            output_folder="era5/",  # Replace with your desired output path
             variables=variables,
             vars2d=vars2d,
             vars3d=vars3d,
