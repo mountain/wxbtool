@@ -4,6 +4,8 @@ from wxbtool.data.download import main as dnmain
 from wxbtool.data.dsserver import main as dsmain
 from wxbtool.nn.train import main as tnmain
 from wxbtool.nn.test import main as ttmain
+from wxbtool.nn.infer import main as infer_main
+from wxbtool.nn.infer import main_gan as inferg_main
 
 
 @subcmd
@@ -191,8 +193,22 @@ def test(parser, context, args):
     ttmain(context, opt)
 
 
-@subcmd("download", help="download the latest hourly ERA5 data from ECMWF")
-def download(parser, context, args):
+@subcmd("infer", help="start inference")
+def infer(parser, context, args):
+    parser.add_argument("-g", "--gpu", type=str, default="0", help="index of gpu")
+    parser.add_argument(
+        "-c",
+        "--n_cpu",
+        type=int,
+        default=8,
+        help="number of cpu threads to use during batch generation",
+    )
+    parser.add_argument(
+        "-b", "--batch_size",
+        type=int,
+        default=64,
+        help="size of the batches"
+    )
     parser.add_argument(
         "-m",
         "--module",
@@ -201,11 +217,97 @@ def download(parser, context, args):
         help="module of the metrological model to load",
     )
     parser.add_argument(
-        "-G",
-        "--gan",
+        "-l",
+        "--load",
         type=str,
-        default="false",
-        help="model is GAN or not, default is false",
+        default="",
+        help="dump file of the metrological model to load",
+    )
+    parser.add_argument(
+        "-d",
+        "--data",
+        type=str,
+        default="",
+        help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
+    )
+    parser.add_argument(
+        "-t", "--datetime",
+        type=str,
+        required=True,
+        help="specific datetime for inference in the format YYYY-MM-DDTHH:MM:SS",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=str,
+        required=True,
+        help="output file format, either png or nc",
+    )
+    opt = parser.parse_args(args)
+
+    infer_main(context, opt)
+
+
+@subcmd("inferg", help="start GAN inference")
+def inferg(parser, context, args):
+    parser.add_argument("-g", "--gpu", type=str, default="0", help="index of gpu")
+    parser.add_argument(
+        "-c",
+        "--n_cpu",
+        type=int,
+        default=8,
+        help="number of cpu threads to use during batch generation",
+    )
+    parser.add_argument(
+        "-b", "--batch_size",
+        type=int,
+        default=64,
+        help="size of the batches"
+    )
+    parser.add_argument(
+        "-l",
+        "--load",
+        type=str,
+        default="",
+        help="dump file of the metrological model to load",
+    )
+    parser.add_argument(
+        "-d",
+        "--data",
+        type=str,
+        default="",
+        help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
+    )
+    parser.add_argument(
+        "-t", "--datetime",
+        type=str,
+        required=True,
+        help="specific datetime for inference in the format YYYY-MM-DDTHH:MM:SS",
+    )
+    parser.add_argument(
+        "-s", "--samples",
+        type=int,
+        required=True,
+        help="number of samples for GAN inference",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=str,
+        required=True,
+        help="output file format, either png or nc",
+    )
+    opt = parser.parse_args(args)
+
+    inferg_main(context, opt)
+
+
+@subcmd("download", help="download the latest hourly ERA5 data from ECMWF")
+def download(parser, context, args):
+    parser.add_argument(
+        "-m",
+        "--module",
+        type=str,
+        default="wxbtool.zoo.unet.t850d3",
+        help="module of the metrological model to load",
     )
     parser.add_argument(
         "--coverage",
