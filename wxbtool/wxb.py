@@ -298,13 +298,7 @@ def inferg(parser, context, args):
     opt = parser.parse_args(args)
 
     inferg_main(context, opt)
-        "-G",
-        "--gan",
-        type=str,
-        default="false",
-        help="model is GAN or not, default is false",
-    )
-    
+
 
 @subcmd("download", help="download the latest hourly ERA5 data from ECMWF")
 def download(parser, context, args):
