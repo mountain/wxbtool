@@ -6,6 +6,7 @@ import xarray as xr
 import numpy as np
 import matplotlib.pyplot as plt
 
+from wxbtool.data.dataset import WxDataset
 from wxbtool.util.plotter import plot
 
 if th.cuda.is_available():
