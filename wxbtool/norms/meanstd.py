@@ -13,7 +13,10 @@ def norm_tcc(tcc):
 
 
 def norm_tp(tp):
-    tp = th.log(0.001 + tp) - np.log(0.001)
+    if type(tp) is th.Tensor:
+        tp = th.log(0.001 + tp) - np.log(0.001)
+    else:
+        tp = np.log(0.001 + tp) - np.log(0.001)
     return (tp - 0.07109370560218127) / 0.1847837422860926
 
 
@@ -178,9 +181,17 @@ def denorm_tcc(tcc):
 
 
 def denorm_tp(tp):
-    return (
-        th.exp((tp * 0.1847837422860926 + 0.07109370560218127) + np.log(0.001)) - 0.001
-    )
+    if type(tp) is th.Tensor:
+        tp = (
+            th.exp((tp * 0.1847837422860926 + 0.07109370560218127) + np.log(0.001))
+            - 0.001
+        )
+    else:
+        tp = (
+            np.exp((tp * 0.1847837422860926 + 0.07109370560218127) + np.log(0.001))
+            - 0.001
+        )
+    return tp
 
 
 def denorm_tisr(tisr):
@@ -377,6 +388,7 @@ normalizors = {
     "q700": norm_q700,
     "q850": norm_q850,
     "q925": norm_q925,
+    "test": lambda x: x,
 }
 
 
@@ -422,4 +434,5 @@ denormalizors = {
     "q700": denorm_q700,
     "q850": denorm_q850,
     "q925": denorm_q925,
+    "test": lambda x: x,
 }

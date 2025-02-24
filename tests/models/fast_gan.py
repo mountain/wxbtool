@@ -1,5 +1,5 @@
 """
-    Test model in wxbtool package
+Test model in wxbtool package
 """
 
 import numpy as np
@@ -32,14 +32,14 @@ class TestDataset(Dataset):
             else:
                 inputs.update({var: np.ones((1, setting.input_span, 32, 64))})
                 targets.update({var: np.ones((1, setting.pred_span, 32, 64))})
-        return inputs, targets
+        return inputs, targets, item
 
 
 class Mdl(Spec):
     def __init__(self, setting):
         super().__init__(setting)
         self.name = "fastg"
-        self.mlp = SimpleCNN2d(
+        self.cnn = SimpleCNN2d(
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size
             + 2
@@ -59,16 +59,19 @@ class Mdl(Spec):
         self.eval_size = len(self.dataset_eval)
         self.test_size = len(self.dataset_test)
 
+    def forecast_error(self, rmse):
+        return rmse
+
     def forward(self, **kwargs):
         batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
-        _, input = self.get_inputs(**kwargs)
-        noise = kwargs['noise']
-        cnst = self.get_augmented_constant(input)
-        input = th.cat((input, cnst, noise), dim=1)
+        inputs = self.get_inputs(**kwargs)["data"]
+        seed = kwargs["seed"]
+        cnst = self.get_augmented_constant(inputs)
+        inputs = th.cat((inputs, cnst, seed), dim=1)
 
-        output = self.mlp(input).view(batch_size, self.setting.pred_span, 32, 64)
+        output = self.cnn(inputs).view(batch_size, self.setting.pred_span, 32, 64)
 
         return {"t2m": output, "data": output}
 
@@ -101,12 +104,13 @@ class Dsc(Spec):
         batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
-        _, input = self.get_inputs(**kwargs)
-        cnst = self.get_augmented_constant(input)
-        target = kwargs['target']
-        input = th.cat((input, cnst, target), dim=1)
+        inputs = kwargs["data"]
+        cnst = self.get_augmented_constant(inputs)
+        target = kwargs["target"]
+        inputs = th.cat((inputs, cnst, target), dim=1)
 
-        output = self.mlp(input).view(batch_size, self.setting.pred_span, 32, 64)
+        output = self.mlp(inputs).view(batch_size, self.setting.pred_span, 32, 64)
+        output = th.sigmoid(output)
 
         return {"t2m": output, "data": output}
 

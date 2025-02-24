@@ -83,6 +83,7 @@ normalizors = {
     "toa_incident_solar_radiation": norm_tisr,
     "total_cloud_cover": norm_tcc,
     "2m_temperature": norm_tmp,
+    "test_variable": lambda x: x,
 }
 
 
@@ -96,4 +97,31 @@ denormalizors = {
     "toa_incident_solar_radiation": denorm_tisr,
     "total_cloud_cover": denorm_tcc,
     "2m_temperature": denorm_tmp,
+    "test_variable": lambda x: x,
+}
+
+min_values = {
+    "geopotential": -10000,
+    "temperature": 173,
+    "specific_humidity": 0,
+    "relative_humidity": 0,
+    "u_component_of_wind": -250,
+    "v_component_of_wind": -250,
+    "toa_incident_solar_radiation": 0,
+    "total_cloud_cover": 0,
+    "2m_temperature": 223,
+    "test_variable": 0,
+}
+
+max_values = {
+    "geopotential": 500000,
+    "temperature": 373,
+    "specific_humidity": 0.1,
+    "relative_humidity": 200,
+    "u_component_of_wind": 250,
+    "v_component_of_wind": 250,
+    "toa_incident_solar_radiation": 5500000,
+    "total_cloud_cover": 1,
+    "2m_temperature": 318,
+    "test_variable": 1,
 }

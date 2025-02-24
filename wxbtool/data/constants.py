@@ -50,11 +50,20 @@ def load_lon2d(resolution, root):
 
 
 # Area weight
+# Calculate the area weight of each grid point
+# Note the difference of grid and its dual grid
+# Reference: formula (1) in https://arxiv.org/pdf/2308.15560
 def load_area_weight(resolution, root):
-    data_path = "%s/constants/constants_%s.nc" % (root, resolution)
-    ds = xr.open_dataset(data_path)
-    ds = ds.transpose("lat", "lon")
-    lat = np.array(ds["lat2d"].data, dtype=np.float64)
-    dt = np.cos(lat * np.pi / 180)
-    dt = dt / dt.mean()
-    return dt
+    res = float(resolution[:-3])
+    n_lat, n_lng = int(180 // res), int(360 // res)
+    lat_edges = np.linspace(-90.0, +90.0, n_lat + 1)
+    lat_edges = np.radians(lat_edges)
+    sin_lat_edges = np.sin(lat_edges)
+    interval_areas = sin_lat_edges[1:] - sin_lat_edges[:-1]
+    avg_area = np.sum(interval_areas) / n_lat
+    lat_weights = interval_areas / avg_area
+    weight = np.tile(lat_weights[:, np.newaxis], (1, n_lng))
+
+    assert np.isclose(weight.sum(), n_lat * n_lng)
+
+    return weight

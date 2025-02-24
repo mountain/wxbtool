@@ -53,6 +53,7 @@ def init(opt):
         sys.exit(1)
 
     spec.load_dataset("train", "server")
+    spec.load_dataset("eval", "server")
     spec.load_dataset("test", "server")
     dtrain = spec.dataset_train
     deval = spec.dataset_eval
@@ -106,11 +107,12 @@ def seek(hash, mode, idx):
         )
 
     app.logger.info("query data[%s] at %d", mode, idx)
-    inputs, targets = ds[idx]
+    inputs, targets, items = ds[idx]
     msg = msgpack.dumps(
         {
             "inputs": inputs,
             "targets": targets,
+            "items": items,
         }
     )
 

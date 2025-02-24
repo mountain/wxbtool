@@ -8,6 +8,7 @@ import logging
 import json
 import http.client
 import socket
+import random
 
 import xarray as xr
 import numpy as np
@@ -18,9 +19,8 @@ import msgpack_numpy as m
 m.patch()
 
 from itertools import product  # noqa: E402
-from torch.utils.data import Dataset  # noqa: E402
+from torch.utils.data import Dataset, DataLoader, Sampler  # noqa: E402
 
-from wxbtool.data.variables import codes, vars2d, vars3d  # noqa: E402
 
 logger = logging.getLogger()
 
@@ -42,7 +42,6 @@ all_levels = [
 
 
 class WindowArray(type(np.zeros(0, dtype=np.float32))):
-
     def __new__(subtype, orig, shift=0, step=1):
         shape = [orig.shape[_] for _ in range(len(orig.shape))]
         self = np.ndarray.__new__(
@@ -106,15 +105,17 @@ class WxDataset(Dataset):
         self.memmap(dumpdir)
 
     def load(self, dumpdir):
+        import wxbtool.data.variables as v  # noqa: E402
+
         levels_selector = [all_levels.index(lvl) for lvl in self.levels]
         selector = np.array(levels_selector, dtype=np.int64)
 
         size = 0
         lastvar = None
         for var, yr in product(self.vars, self.years):
-            if var in vars3d:
+            if var in v.vars3d:
                 length = self.load_3ddata(yr, var, selector, self.accumulated)
-            elif var in vars2d:
+            elif var in v.vars2d:
                 length = self.load_2ddata(yr, var, self.accumulated)
             else:
                 raise ValueError("variable %s does not supported!" % var)
@@ -170,7 +171,6 @@ class WxDataset(Dataset):
                         f"Variable {var} has inconsistent length {length}. Expected length: {max_length}."
                     )
 
-                # 根据需要，选择是否抛出异常
                 raise ValueError(
                     "Inconsistent data lengths across variables detected. Please check the data loading process."
                 )
@@ -187,14 +187,19 @@ class WxDataset(Dataset):
             del self.accumulated[var]
 
     def load_2ddata(self, year, var, accumulated):
+        import wxbtool.data.variables as v  # noqa: E402
+
         data_path = "%s/%s/%s_%d_%s.nc" % (self.root, var, var, year, self.resolution)
         with xr.open_dataset(data_path) as ds:
             ds = ds.transpose("time", "lat", "lon")
             if var not in accumulated:
-                accumulated[var] = np.array(ds[codes[var]].data, dtype=np.float32)
+                accumulated[var] = np.array(ds[v.codes[var]].data, dtype=np.float32)
             else:
                 accumulated[var] = np.concatenate(
-                    [accumulated[var], np.array(ds[codes[var]].data, dtype=np.float32)],
+                    [
+                        accumulated[var],
+                        np.array(ds[v.codes[var]].data, dtype=np.float32),
+                    ],
                     axis=0,
                 )
             logger.info("%s[%d]: %s", var, year, str(accumulated[var].shape))
@@ -202,18 +207,20 @@ class WxDataset(Dataset):
         return accumulated[var].shape[0]
 
     def load_3ddata(self, year, var, selector, accumulated):
+        import wxbtool.data.variables as v  # noqa: E402
+
         data_path = "%s/%s/%s_%d_%s.nc" % (self.root, var, var, year, self.resolution)
         with xr.open_dataset(data_path) as ds:
             ds = ds.transpose("time", "level", "lat", "lon")
             if var not in accumulated:
-                accumulated[var] = np.array(ds[codes[var]].data, dtype=np.float32)[
+                accumulated[var] = np.array(ds[v.codes[var]].data, dtype=np.float32)[
                     :, selector, :, :
                 ]
             else:
                 accumulated[var] = np.concatenate(
                     [
                         accumulated[var],
-                        np.array(ds[codes[var]].data, dtype=np.float32)[
+                        np.array(ds[v.codes[var]].data, dtype=np.float32)[
                             :, selector, :, :
                         ],
                     ],
@@ -229,6 +236,8 @@ class WxDataset(Dataset):
         np.save(file_dump, self.accumulated[var])
 
     def memmap(self, dumpdir):
+        import wxbtool.data.variables as v  # noqa: E402
+
         with open("%s/shapes.json" % dumpdir) as fp:
             shapes = json.load(fp)
 
@@ -242,7 +251,7 @@ class WxDataset(Dataset):
             shift = data.shape[0] - total_size
             self.accumulated[var] = np.reshape(data[shift:], shape)
 
-            if var in vars2d or var in vars3d:
+            if var in v.vars2d or var in v.vars3d:
                 self.inputs[var] = self.accumulated[var]
                 self.targets[var] = self.accumulated[var]
 
@@ -257,9 +266,11 @@ class WxDataset(Dataset):
         return length
 
     def __getitem__(self, item):
+        import wxbtool.data.variables as v  # noqa: E402
+
         inputs, targets = {}, {}
         for var in self.vars:
-            if var in vars2d or var in vars3d:
+            if var in v.vars2d or var in v.vars3d:
                 input_slice = self.inputs[var][item :: self.step][: self.input_span]
                 target_slice = self.targets[var][
                     item
@@ -277,7 +288,7 @@ class WxDataset(Dataset):
                         f"Target slice for var {var} at index {item} has shape {target_slice.shape}"
                     )
 
-        return inputs, targets
+        return inputs, targets, item
 
 
 class WxDatasetClient(Dataset):
@@ -322,7 +333,11 @@ class WxDatasetClient(Dataset):
             conn = http.client.HTTPConnection("localhost")
             conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             conn.sock.connect(sock_path)
-            conn.request("GET", "/" + endpoint, headers={"Host": "localhost", "Connection": "close"})
+            conn.request(
+                "GET",
+                "/" + endpoint,
+                headers={"Host": "localhost", "Connection": "close"},
+            )
             r = conn.getresponse()
             if r.status != 200:
                 raise Exception("http error %s: %s" % (r.status, r.reason))
@@ -344,7 +359,11 @@ class WxDatasetClient(Dataset):
             conn = http.client.HTTPConnection("localhost")
             conn.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             conn.sock.connect(sock_path)
-            conn.request("GET", "/" + endpoint, headers={"Host": "localhost", "Connection": "close"})
+            conn.request(
+                "GET",
+                "/" + endpoint,
+                headers={"Host": "localhost", "Connection": "close"},
+            )
             r = conn.getresponse()
             if r.status != 200:
                 raise Exception("http error %s: %s" % (r.status, r.reason))
@@ -356,7 +375,39 @@ class WxDatasetClient(Dataset):
             data = msgpack.loads(r.content)
 
         for key, val in data.items():
+            if key != "inputs" and key != "targets":
+                continue
             for var, blk in val.items():
                 val[var] = np.array(np.copy(blk), dtype=np.float32)
 
-        return data["inputs"], data["targets"]
+        return data["inputs"], data["targets"], item
+
+
+class EnsembleBatchSampler(Sampler):
+    def __init__(self, dataset, ensemble_size, shuffle=True):
+        super().__init__()
+        self.dataset = dataset
+        self.ensemble_size = ensemble_size
+        self.shuffle = shuffle
+        self.indices = list(range(len(dataset)))
+        if self.shuffle:
+            random.shuffle(self.indices)
+
+    def __iter__(self):
+        for idx in self.indices:
+            for _ in range(self.ensemble_size):
+                yield idx
+
+    def __len__(self):
+        return len(self.dataset) * self.ensemble_size
+
+
+def ensemble_loader(dataset, ensemble_size, shuffle=True):
+    sampler = EnsembleBatchSampler(dataset, ensemble_size, shuffle)
+    return DataLoader(
+        dataset,
+        batch_size=ensemble_size,
+        sampler=sampler,
+        num_workers=0,
+        pin_memory=True,
+    )

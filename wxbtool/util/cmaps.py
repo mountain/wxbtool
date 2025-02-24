@@ -1338,4 +1338,5 @@ var2cmap = {
     "t": "coolwarm",
     "z": "coolwarm",
     "tau": "coolwarm",
+    "test": "coolwarm",
 }

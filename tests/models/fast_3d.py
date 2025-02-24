@@ -1,5 +1,5 @@
 """
-    Test model in wxbtool package
+Test model in wxbtool package
 """
 
 import numpy as np
@@ -32,14 +32,14 @@ class TestDataset(Dataset):
             else:
                 inputs.update({var: np.ones((1, setting.input_span, 32, 64))})
                 targets.update({var: np.ones((1, setting.pred_span, 32, 64))})
-        return inputs, targets
+        return inputs, targets, item
 
 
 class Mdl(Spec):
     def __init__(self, setting):
         super().__init__(setting)
         self.name = "fast"
-        self.mlp = SimpleCNN2d(
+        self.cnn = SimpleCNN2d(
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size
             + 2,
@@ -59,16 +59,16 @@ class Mdl(Spec):
         self.test_size = len(self.dataset_test)
 
     def forward(self, **kwargs):
-        batch_size = kwargs["2m_temperature"].size()[0]
+        batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
-        _, input = self.get_inputs(**kwargs)
-        cnst = self.get_augmented_constant(input)
-        input = th.cat((input, cnst), dim=1)
+        inputs = kwargs["data"]
+        cnst = self.get_augmented_constant(inputs)
+        inputs = th.cat((inputs, cnst), dim=1)
 
-        output = self.mlp(input)
+        output = self.cnn(inputs).view(batch_size, self.setting.pred_span, 32, 64)
 
-        return {"t2m": output.view(batch_size, self.setting.pred_span, 32, 64)}
+        return {"t2m": output, "data": output}
 
 
 model = Mdl(setting)

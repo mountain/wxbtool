@@ -1,6 +1,6 @@
 [project]
 name = "wxbtool"
-version = "0.1.14"
+version = "0.1.21"
 description = "A toolkit for WeatherBench based on PyTorch"
 authors = [{email="mingli.yuan@gmail.com", name="Mingli Yuan"}]
 license = {file = "LICENSE"}
@@ -29,7 +29,15 @@ dependencies = [
     "requests-unixsocket>=0.3.0",
     "flake8>=7.1.1",
     "pytest>=8.3.3",
+    "cdsapi>=0.7.4",
+    "cartopy>=0.24.1",
+    "scipy>=1.14.1",
 ]
 
 [project.scripts]
 wxb = "wxbtool.wxb:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.8.3",
+]

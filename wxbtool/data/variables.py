@@ -8,6 +8,7 @@ vars2d = [
     "total_precipitation",
     "toa_incident_solar_radiation",
     "temperature_850hPa",
+    "test_variable",
 ]
 
 vars3d = [
@@ -37,6 +38,7 @@ codes = {
     "total_cloud_cover": "tcc",
     "total_precipitation": "tp",
     "toa_incident_solar_radiation": "tisr",
+    "test_variable": "test",
 }
 
 code2var = {
@@ -54,6 +56,7 @@ code2var = {
     "tcc": "total_cloud_cover",
     "tp": "total_precipitation",
     "tisr": "toa_incident_solar_radiation",
+    "test": "test_variable",
 }
 
 
@@ -65,6 +68,7 @@ def split_name(composite):
         or composite == "tcc"
         or composite == "tp"
         or composite == "tisr"
+        or composite == "test"
     ):
         return composite, ""
     else:
