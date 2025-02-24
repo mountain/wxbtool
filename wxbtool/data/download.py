@@ -94,17 +94,18 @@ class ERA5Downloader:
         day = date.strftime("%d")
         hour = time_str.split(":")[0]
         filename = f"{date.strftime('%Y%m%d')}_{hour}.nc"
-        return os.path.join(
-            self.config.output_folder, variable, year, month, day, filename
-        )
+        return os.path.join(self.config.output_folder, variable, year, month, day, filename)
 
     def ensure_variable_dirs(self, variable: str, date: datetime.datetime):
         """Ensure that the directory for a specific variable, year, and month exists."""
         year = date.strftime("%Y")
         month = date.strftime("%m")
+        day = date.strftime("%d")
         var_year_path = os.path.join(self.config.output_folder, variable, year)
         var_month_path = os.path.join(var_year_path, month)
-        os.makedirs(var_month_path, exist_ok=True)
+        var_day_path = os.path.join(var_month_path, day)
+        # os.makedirs(var_month_path, exist_ok=True)
+        os.makedirs(var_day_path, exist_ok=True)
 
     def retrieve_data(
         self, variable: str, date: datetime.datetime, time_str: str, filename: str
@@ -194,10 +195,11 @@ class ERA5Downloader:
             for date, time_str in self.generate_datetime_list(start_date, end_date):
                 self.ensure_variable_dirs(variable, date)
                 filename = self.build_filename(variable, date, time_str)
-                if not os.path.exists(filename):
-                    self.retrieve_data(variable, date, time_str, filename)
+                abs_filename = os.path.abspath(filename)
+                if not os.path.exists(abs_filename):
+                    self.retrieve_data(variable, date, time_str, abs_filename)
                 else:
-                    logging.info(f"File already exists: {filename}")
+                    logging.info(f"File already exists: {abs_filename}")
 
         # After downloading, manage retention
         self.manage_retention()
@@ -222,11 +224,11 @@ def main(context, opt):
         if not os.path.exists(os.path.expanduser("~/.cdsapirc")):
             key = input("Please enter your ECMWF API key: ")
             with open(os.path.expanduser("~/.cdsapirc"), "w") as f:
-                f.write("url: https://cds.climate.copernicus.eu/api/v2\n")
+                f.write("url: https://cds.climate.copernicus.eu/api\n")
                 f.write(f"key: {key}\n")
 
         config = Config(
-            output_folder="era5",  # Replace with your desired output path
+            output_folder="era5/",  # Replace with your desired output path
             variables=variables,
             vars2d=vars2d,
             vars3d=vars3d,

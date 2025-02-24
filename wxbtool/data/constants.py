@@ -55,7 +55,7 @@ def load_lon2d(resolution, root):
 # Reference: formula (1) in https://arxiv.org/pdf/2308.15560
 def load_area_weight(resolution, root):
     res = float(resolution[:-3])
-    n_lat, n_lng = 180 // res, 360 // res
+    n_lat, n_lng = int(180 // res), int(360 // res)
     lat_edges = np.linspace(-90.0, +90.0, n_lat + 1)
     lat_edges = np.radians(lat_edges)
     sin_lat_edges = np.sin(lat_edges)
