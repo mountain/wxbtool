@@ -234,7 +234,7 @@ def infer(parser, context, args):
         "-t", "--datetime",
         type=str,
         required=True,
-        help="specific datetime for inference in the format YYYY-MM-DDTHH:MM:SS",
+        help="specific datetime for inference in the format %Y-%m-%d, for example 2025-01-01", # The time that model needs, predict range in [d+model_day-7, d+model_day]  
     )
     parser.add_argument(
         "-o", "--output",
@@ -308,6 +308,13 @@ def download(parser, context, args):
         type=str,
         default="wxbtool.zoo.unet.t850d3",
         help="module of the metrological model to load",
+    )
+    parser.add_argument(
+        "-G",
+        "--gan",
+        type=str,
+        default="false",
+        help="model is GAN or not, default is false",
     )
     parser.add_argument(
         "--coverage",
