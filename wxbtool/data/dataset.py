@@ -15,6 +15,8 @@ import numpy as np
 
 import msgpack
 import msgpack_numpy as m
+import wxbtool.config as config
+from wxbtool.nn.setting import Setting
 
 m.patch()
 
@@ -24,22 +26,11 @@ from torch.utils.data import Dataset, DataLoader, Sampler  # noqa: E402
 
 logger = logging.getLogger()
 
-all_levels = [
-    "50",
-    "100",
-    "150",
-    "200",
-    "250",
-    "300",
-    "400",
-    "500",
-    "600",
-    "700",
-    "850",
-    "925",
-    "1000",
-]
-
+setting = Setting()
+var3d_path = os.path.join(config.root, setting.vars3d[0])
+any_file = os.listdir(var3d_path)[0]
+sample_data = xr.open_dataarray(f"{var3d_path}/{any_file}")
+all_levels = sample_data.level.values.tolist()
 
 class WindowArray(type(np.zeros(0, dtype=np.float32))):
     def __new__(subtype, orig, shift=0, step=1):
@@ -97,17 +88,17 @@ class WxDataset(Dataset):
         hashstr = hashlib.md5(code.encode("utf-8")).hexdigest()
         self.hashcode = hashstr
 
-        dumpdir = path.abspath("%s/.cache/%s" % (self.root, hashstr))
-        if not path.exists(dumpdir):
-            os.makedirs(dumpdir)
-            self.load(dumpdir)
+        dumpdir = path.abspath("%s/.cache/%s" % (self.root, hashstr))  # every time has to reload the .cache file
+        # if not path.exists(dumpdir):
+        os.makedirs(dumpdir, exist_ok=True)
+        self.load(dumpdir)
 
         self.memmap(dumpdir)
 
     def load(self, dumpdir):
         import wxbtool.data.variables as v  # noqa: E402
 
-        levels_selector = [all_levels.index(lvl) for lvl in self.levels]
+        levels_selector = [all_levels.index(float(lvl)) for lvl in self.levels]
         selector = np.array(levels_selector, dtype=np.int64)
 
         size = 0
