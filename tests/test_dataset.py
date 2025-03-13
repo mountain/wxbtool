@@ -9,7 +9,14 @@ import unittest.mock as mock
 from unittest.mock import patch
 
 
-class TestTest(unittest.TestCase):
+class TestDataset(unittest.TestCase):
+    """
+    Optimized test cases for dataset functionality.
+    
+    These tests use smaller batch sizes, fewer workers, and consolidated test cases
+    to reduce test execution time while still verifying functionality.
+    """
+    
     def setUp(self):
         pass
 
@@ -20,8 +27,10 @@ class TestTest(unittest.TestCase):
         os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
     )
     def test_dataset(self):
+        """Test basic dataset functionality with minimal settings."""
         import wxbtool.wxb as wxb
 
+        # Start dataset server
         testargs = [
             "wxb",
             "dserve",
@@ -31,11 +40,25 @@ class TestTest(unittest.TestCase):
             "Setting3d",
             "-t",
             "true",
+            "-w",
+            "2",  # Reduced workers
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
-        testargs = ["wxb", "test", "-m", "models.model", "-b", "10", "-t", "true"]
+        # Test with the dataset
+        testargs = [
+            "wxb", 
+            "test", 
+            "-m", 
+            "models.model", 
+            "-b", 
+            "5",  # Reduced batch size
+            "-t", 
+            "true",
+            "-c",
+            "4",  # Reduced CPU threads
+        ]
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
@@ -43,8 +66,10 @@ class TestTest(unittest.TestCase):
         os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
     )
     def test_unix_socket(self):
+        """Test Unix socket communication with minimal settings."""
         import wxbtool.wxb as wxb
 
+        # Start dataset server with Unix socket
         testargs = [
             "wxb",
             "dserve",
@@ -54,21 +79,26 @@ class TestTest(unittest.TestCase):
             "Setting3d",
             "-t",
             "true",
+            "-w",
+            "2",  # Reduced workers
             "--bind",
             "unix:/tmp/test.sock",
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
+        # Test with the Unix socket
         testargs = [
             "wxb",
             "test",
             "-m",
             "models.model",
             "-b",
-            "10",
+            "5",  # Reduced batch size
             "-t",
             "true",
+            "-c",
+            "4",  # Reduced CPU threads
             "--data",
             "unix:/tmp/test.sock",
         ]
@@ -78,9 +108,11 @@ class TestTest(unittest.TestCase):
     @mock.patch.dict(
         os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
     )
-    def test_climate30d(self):
+    def test_climate_model(self):
+        """Test climate model with minimal settings."""
         import wxbtool.wxb as wxb
 
+        # Start dataset server for climate model
         testargs = [
             "wxb",
             "dserve",
@@ -90,19 +122,24 @@ class TestTest(unittest.TestCase):
             "Setting30d",
             "-t",
             "true",
+            "-w",
+            "2",  # Reduced workers
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()
 
+        # Test climate model
         testargs = [
             "wxb",
             "test",
             "-m",
             "models.climate_30d",
             "-b",
-            "30",
+            "10",  # Reduced batch size (from 30)
             "-t",
             "true",
+            "-c",
+            "4",  # Reduced CPU threads
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()

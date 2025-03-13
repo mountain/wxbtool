@@ -138,6 +138,9 @@ def train(parser, context, args):
     parser.add_argument(
         "-t", "--test", type=str, default="false", help="setting for test"
     )
+    parser.add_argument(
+        "-O", "--optimize", action="store_true", help="use optimized training for CI"
+    )
 
     opt = parser.parse_args(args)
 
@@ -187,6 +190,9 @@ def test(parser, context, args):
     )
     parser.add_argument(
         "-t", "--test", type=str, default="false", help="setting for test"
+    )
+    parser.add_argument(
+        "-O", "--optimize", action="store_true", help="use optimized testing for CI"
     )
     opt = parser.parse_args(args)
 

@@ -25,6 +25,7 @@ def main(context, opt):
         mdm = importlib.import_module(opt.module, package=None)
 
         n_epochs = 1 if opt.test == "true" else opt.n_epochs
+        is_optimized = hasattr(opt, "optimize") and opt.optimize
 
         if opt.gpu is not None and opt.gpu != "":
             devices = [int(idx) for idx in opt.gpu.split(",")]
@@ -39,34 +40,72 @@ def main(context, opt):
             model.generator.learning_rate = generator_lr
             model.discriminator.learning_rate = discriminator_lr
             callbacks = []
-            trainer = pl.Trainer(
-                strategy="ddp_find_unused_parameters_true",
-                devices=devices,
-                accelerator=accelerator,
-                precision=32,
-                max_epochs=n_epochs,
-                callbacks=callbacks,
-            )
+            
+            # Use optimized settings for CI mode
+            if is_optimized:
+                patience = 3  # Reduced patience for early stopping
+                limit_val_batches = 3  # Limit validation to first 3 batches
+                limit_test_batches = 2  # Limit testing to first 2 batches
+                trainer = pl.Trainer(
+                    strategy="ddp_find_unused_parameters_true",
+                    devices=devices,
+                    accelerator=accelerator,
+                    precision=32,
+                    max_epochs=n_epochs,
+                    callbacks=callbacks,
+                    limit_val_batches=limit_val_batches,
+                    limit_test_batches=limit_test_batches,
+                )
+            else:
+                trainer = pl.Trainer(
+                    strategy="ddp_find_unused_parameters_true",
+                    devices=devices,
+                    accelerator=accelerator,
+                    precision=32,
+                    max_epochs=n_epochs,
+                    callbacks=callbacks,
+                )
         else:
             learning_rate = float(opt.rate)
             model = LightningModel(mdm.model, opt=opt)
             model.learning_rate = learning_rate
-            callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=50)]
-            trainer = pl.Trainer(
-                strategy="ddp_find_unused_parameters_true",
-                devices=devices,
-                accelerator=accelerator,
-                precision=32,
-                max_epochs=n_epochs,
-                callbacks=callbacks,
-            )
+            
+            # Use optimized settings for CI mode
+            if is_optimized:
+                patience = 3  # Reduced patience for early stopping
+                callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=patience)]
+                limit_val_batches = 3  # Limit validation to first 3 batches
+                limit_test_batches = 2  # Limit testing to first 2 batches
+                trainer = pl.Trainer(
+                    strategy="ddp_find_unused_parameters_true",
+                    devices=devices,
+                    accelerator=accelerator,
+                    precision=32,
+                    max_epochs=n_epochs,
+                    callbacks=callbacks,
+                    limit_val_batches=limit_val_batches,
+                    limit_test_batches=limit_test_batches,
+                )
+            else:
+                callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=50)]
+                trainer = pl.Trainer(
+                    strategy="ddp_find_unused_parameters_true",
+                    devices=devices,
+                    accelerator=accelerator,
+                    precision=32,
+                    max_epochs=n_epochs,
+                    callbacks=callbacks,
+                )
 
         if opt.load:
             model.load_from_checkpoint(opt.load)
 
         trainer.fit(model)
         trainer.test(model=model, dataloaders=model.test_dataloader())
-        th.save(model, model.model.name + ".ckpt")
+        
+        # Skip saving the model in test mode with optimization
+        if not (opt.test == "true" and is_optimized):
+            th.save(model, model.model.name + ".ckpt")
     except ImportError as e:
         exc_info = sys.exc_info()
         print(e)
