@@ -26,12 +26,6 @@ from torch.utils.data import Dataset, DataLoader, Sampler  # noqa: E402
 
 logger = logging.getLogger()
 
-setting = Setting()
-var3d_path = os.path.join(config.root, setting.vars3d[0])
-any_file = os.listdir(var3d_path)[0]
-sample_data = xr.open_dataarray(f"{var3d_path}/{any_file}")
-all_levels = sample_data.level.values.tolist()
-
 class WindowArray(type(np.zeros(0, dtype=np.float32))):
     def __new__(subtype, orig, shift=0, step=1):
         shape = [orig.shape[_] for _ in range(len(orig.shape))]
@@ -44,25 +38,29 @@ class WindowArray(type(np.zeros(0, dtype=np.float32))):
 class WxDataset(Dataset):
     def __init__(
         self,
-        root,
-        resolution,
-        years,
-        vars,
-        levels,
-        step=1,
-        input_span=2,
-        pred_shift=24,
-        pred_span=1,
+        root=None,
+        resolution=None,
+        years=None,
+        vars=None,
+        levels=None,
+        step=None,
+        input_span=None,
+        pred_shift=None,
+        pred_span=None,
+        setting=None,
     ):
-        self.root = root
-        self.resolution = resolution
-        self.input_span = input_span
-        self.step = step
-        self.pred_shift = pred_shift
-        self.pred_span = pred_span
-        self.years = years
-        self.vars = vars
-        self.levels = levels
+        self.setting = setting if setting is not None else Setting()
+        
+        # Use values from setting if not explicitly provided
+        self.root = root if root is not None else self.setting.root
+        self.resolution = resolution if resolution is not None else self.setting.resolution
+        self.input_span = input_span if input_span is not None else self.setting.input_span
+        self.step = step if step is not None else self.setting.step
+        self.pred_shift = pred_shift if pred_shift is not None else self.setting.pred_shift
+        self.pred_span = pred_span if pred_span is not None else self.setting.pred_span
+        self.years = years if years is not None else self.setting.years_train
+        self.vars = vars if vars is not None else self.setting.vars
+        self.levels = levels if levels is not None else self.setting.levels
         self.inputs = {}
         self.targets = {}
         self.shapes = {
@@ -76,14 +74,14 @@ class WxDataset(Dataset):
             self.length = 64
 
         code = "%s:%s:%s:%s:%s:%s:%s:%s" % (
-            resolution,
-            years,
-            vars,
-            levels,
-            step,
-            input_span,
-            pred_shift,
-            pred_span,
+            self.resolution,
+            self.years,
+            self.vars,
+            self.levels,
+            self.step,
+            self.input_span,
+            self.pred_shift,
+            self.pred_span,
         )
         hashstr = hashlib.md5(code.encode("utf-8")).hexdigest()
         self.hashcode = hashstr
@@ -98,7 +96,27 @@ class WxDataset(Dataset):
     def load(self, dumpdir):
         import wxbtool.data.variables as v  # noqa: E402
 
-        levels_selector = [all_levels.index(float(lvl)) for lvl in self.levels]
+        # Get all available levels from the first 3D variable file
+        var3d_path = os.path.join(self.root, self.setting.vars3d[0])
+        try:
+            any_file = os.listdir(var3d_path)[0]
+            sample_data = xr.open_dataarray(f"{var3d_path}/{any_file}")
+            all_levels = sample_data.level.values.tolist()
+        except (FileNotFoundError, IndexError, AttributeError) as e:
+            logger.warning(f"Could not determine levels automatically: {e}")
+            # Fallback to default levels if we can't determine them automatically
+            all_levels = [50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0, 600.0, 700.0, 850.0, 925.0, 1000.0]
+            logger.info(f"Using default levels: {all_levels}")
+
+        # Find indices of requested levels in the available levels
+        levels_selector = []
+        for lvl in self.levels:
+            try:
+                levels_selector.append(all_levels.index(float(lvl)))
+            except ValueError:
+                logger.error(f"Level {lvl} not found in available levels: {all_levels}")
+                raise ValueError(f"Level {lvl} not found in available levels: {all_levels}")
+        
         selector = np.array(levels_selector, dtype=np.int64)
 
         size = 0
@@ -287,27 +305,39 @@ class WxDatasetClient(Dataset):
         self,
         url,
         phase,
-        resolution,
-        years,
-        vars,
-        levels,
-        step=1,
-        input_span=2,
-        pred_shift=24,
-        pred_span=1,
+        resolution=None,
+        years=None,
+        vars=None,
+        levels=None,
+        step=None,
+        input_span=None,
+        pred_shift=None,
+        pred_span=None,
+        setting=None,
     ):
         self.url = url
         self.phase = phase
+        self.setting = setting if setting is not None else Setting()
+        
+        # Use values from setting if not explicitly provided
+        self.resolution = resolution if resolution is not None else self.setting.resolution
+        self.step = step if step is not None else self.setting.step
+        self.input_span = input_span if input_span is not None else self.setting.input_span
+        self.pred_shift = pred_shift if pred_shift is not None else self.setting.pred_shift
+        self.pred_span = pred_span if pred_span is not None else self.setting.pred_span
+        self.years = years if years is not None else self.setting.years_train
+        self.vars = vars if vars is not None else self.setting.vars
+        self.levels = levels if levels is not None else self.setting.levels
 
         code = "%s:%s:%s:%s:%s:%s:%s:%s" % (
-            resolution,
-            years,
-            vars,
-            levels,
-            step,
-            input_span,
-            pred_shift,
-            pred_span,
+            self.resolution,
+            self.years,
+            self.vars,
+            self.levels,
+            self.step,
+            self.input_span,
+            self.pred_shift,
+            self.pred_span,
         )
         self.hashcode = hashlib.md5(code.encode("utf-8")).hexdigest()
 

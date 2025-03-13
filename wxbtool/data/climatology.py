@@ -2,9 +2,13 @@ import xarray as xr
 import os
 import numpy as np
 import torch
+import logging
 
-from wxbtool.data.dataset import all_levels
+from wxbtool.nn.setting import Setting
 from wxbtool.norms.meanstd import normalizors
+import wxbtool.config as config
+
+logger = logging.getLogger()
 
 
 class ClimatologyAccessor:
@@ -12,17 +16,22 @@ class ClimatologyAccessor:
     A class to handle climatology data retrieval with caching for reindexer and climatology data.
     """
 
-    def __init__(self, home="/path/to/climatology"):
+    def __init__(self, home="/path/to/climatology", setting=None):
         """
         Initialize the ClimatologyAccessor with the path to climatology data files.
 
         Parameters:
         - home (str): Root directory path where climatology `.nc` files are stored.
+        - setting (Setting, optional): Setting instance to use. If None, a new one will be created when needed.
         """
         self.home = home
         self.climatology_data = {}  # Cache for climatology DataArrays
         self.doy_indexer = []
         self.yr_indexer = []
+        
+        # Cache for levels data
+        self._all_levels = None
+        self.setting = setting
 
     @staticmethod
     def is_leap_year(year):
@@ -57,6 +66,31 @@ class ClimatologyAccessor:
                 self.doy_indexer.append(364)
                 self.yr_indexer.append(yr)
 
+    def get_all_levels(self):
+        """
+        Get all available levels from the first 3D variable file.
+        
+        Returns:
+        - list: List of available levels.
+        """
+        if self._all_levels is not None:
+            return self._all_levels
+            
+        setting = self.setting if self.setting is not None else Setting()
+            
+        var3d_path = os.path.join(config.root, setting.vars3d[0])
+        try:
+            any_file = os.listdir(var3d_path)[0]
+            sample_data = xr.open_dataarray(f"{var3d_path}/{any_file}")
+            self._all_levels = sample_data.level.values.tolist()
+        except (FileNotFoundError, IndexError, AttributeError) as e:
+            logger.warning(f"Could not determine levels automatically: {e}")
+            # Fallback to default levels if we can't determine them automatically
+            self._all_levels = [50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0, 600.0, 700.0, 850.0, 925.0, 1000.0]
+            logger.info(f"Using default levels: {self._all_levels}")
+            
+        return self._all_levels
+
     def load_climatology_var(self, var):
         """
         Load and cache climatology data for a given variable.
@@ -90,7 +124,8 @@ class ClimatologyAccessor:
                     data = np.expand_dims(data, axis=1)
                     self.climatology_data[var] = data
             else:
-                lvl_idx = all_levels.index(lvl)
+                all_levels = self.get_all_levels()
+                lvl_idx = all_levels.index(float(lvl))
                 with xr.open_dataset(file_path) as ds:
                     ds = ds.transpose("time", "level", "lat", "lon")
                     data = np.array(ds[variables.codes[vname]].data, dtype=np.float32)[
@@ -105,9 +140,8 @@ class ClimatologyAccessor:
         Retrieve climatology data for specified variables based on batch indices.
 
         Parameters:
-        - years (list of int): List of years.
         - vars (list of str): List of variable names.
-        - batch_idx (int or list of int): Batch index or list of batch indices.
+        - indexes (int or list of int): Batch index or list of batch indices.
 
         Returns:
         - dict: Dictionary containing climatology data for each variable.
@@ -149,27 +183,27 @@ class ClimatologyAccessor:
 
 # Example Usage
 if __name__ == "__main__":
-    # Initialize the accessor with the path to climatology data
-    climatology_accessor = ClimatologyAccessor(home="/data/climatology")
+    # Create a setting instance
+    setting = Setting()
+    
+    # Initialize the accessor with the path to climatology data and the setting
+    climatology_accessor = ClimatologyAccessor(home="/data/climatology", setting=setting)
 
     # Define the years and variables
     years = [2000, 2001, 2002, 2003, 2004]  # Includes both leap and non-leap years
     variables = ["temperature", "precipitation"]
 
+    # Build the indexers
+    climatology_accessor.build_indexers(years)
+
     # Example 1: Retrieve climatology data for a single batch_idx
     batch_index = 0  # Corresponds to January 1st of the first year
-    climatology_single = climatology_accessor.get_climatology(
-        years, variables, batch_index
-    )
+    climatology_single = climatology_accessor.get_climatology(variables, batch_index)
     print("Single batch_idx:")
-    for var, data in climatology_single.items():
-        print(f"Variable: {var}, Data: {data}")
+    print(f"Data shape: {climatology_single.shape}")
 
     # Example 2: Retrieve climatology data for multiple batch_idx values
     batch_indices = [0, 365, 730, 1095, 1460]  # Corresponds to January 1st of each year
-    climatology_multiple = climatology_accessor.get_climatology(
-        years, variables, batch_indices
-    )
+    climatology_multiple = climatology_accessor.get_climatology(variables, batch_indices)
     print("\nMultiple batch_idx:")
-    for var, data in climatology_multiple.items():
-        print(f"Variable: {var}, Data: {data}")
+    print(f"Data shape: {climatology_multiple.shape}")
