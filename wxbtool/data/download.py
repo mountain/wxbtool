@@ -143,7 +143,7 @@ class ERA5Downloader:
     def manage_retention(self):
         """Manage data retention by deleting or archiving old files."""
         retention_threshold = datetime.datetime.utcnow() - datetime.timedelta(
-            days=self.config.retention_days
+            days=self.config.retention_days + 7
         )
         logging.info(
             f"Managing retention: deleting or archiving files older than {self.config.retention_days} days."
@@ -235,7 +235,7 @@ def main(context, opt):
             levels=levels,
             grid=[resolution, resolution],  # Spatial resolution
             area=[90, -180, -90, 180],  # Global coverage
-            coverage="weekly",  # Options: "daily", "weekly", "monthly"
+            coverage=opt.coverage,  # Options: "daily", "weekly", "monthly"
             retention_days={"daily": 1, "weekly": 7, "monthly": 30}[opt.retention],
             retention_action="delete",  # Options: "delete", "archive"
         )
