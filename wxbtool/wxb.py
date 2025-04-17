@@ -141,6 +141,9 @@ def train(parser, context, args):
     parser.add_argument(
         "-O", "--optimize", action="store_true", help="use optimized training for CI"
     )
+    parser.add_argument(
+        "-p", "--plot", type=str, default="false", help="plot training reuslt" 
+    )
 
     opt = parser.parse_args(args)
 
