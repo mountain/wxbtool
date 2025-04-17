@@ -5,7 +5,7 @@ import importlib
 import torch as th
 import lightning.pytorch as pl
 
-from lightning.pytorch.callbacks import EarlyStopping
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from wxbtool.nn.lightning import LightningModel, GANModel
 
 
@@ -19,7 +19,10 @@ else:
 
 
 def main(context, opt):
-    os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
+    if opt.gpu == "-1":
+        accelerator = "cpu"
+    else:
+        os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
     try:
         sys.path.insert(0, os.getcwd())
         mdm = importlib.import_module(opt.module, package=None)
@@ -27,7 +30,7 @@ def main(context, opt):
         n_epochs = 1 if opt.test == "true" else opt.n_epochs
         is_optimized = hasattr(opt, "optimize") and opt.optimize
 
-        if opt.gpu is not None and opt.gpu != "":
+        if opt.gpu is not None and opt.gpu != "" and opt.gpu != "-1":
             devices = [int(idx) for idx in opt.gpu.split(",")]
         else:
             devices = 1
@@ -39,63 +42,45 @@ def main(context, opt):
             model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
             model.generator.learning_rate = generator_lr
             model.discriminator.learning_rate = discriminator_lr
-            callbacks = []
-            
-            # Use optimized settings for CI mode
-            if is_optimized:
-                patience = 3  # Reduced patience for early stopping
-                limit_val_batches = 3  # Limit validation to first 3 batches
-                limit_test_batches = 2  # Limit testing to first 2 batches
-                trainer = pl.Trainer(
-                    strategy="ddp_find_unused_parameters_true",
-                    devices=devices,
-                    accelerator=accelerator,
-                    precision=32,
-                    max_epochs=n_epochs,
-                    callbacks=callbacks,
-                    limit_val_batches=limit_val_batches,
-                    limit_test_batches=limit_test_batches,
-                )
-            else:
-                trainer = pl.Trainer(
-                    strategy="ddp_find_unused_parameters_true",
-                    devices=devices,
-                    accelerator=accelerator,
-                    precision=32,
-                    max_epochs=n_epochs,
-                    callbacks=callbacks,
-                )
+            checkpoint_callback = ModelCheckpoint(
+                                        monitor='crps',
+                                        filename='best-{epoch:03d}-{crps:.3f}-{rmse:.3f}',
+                                        save_top_k=5,
+                                        mode='min',
+                                        dirpath=f'trains/{model.model.name}',
+                                        save_weights_only=False
+                                    )
+            callbacks = [checkpoint_callback]
+            trainer = pl.Trainer(
+                strategy="ddp_find_unused_parameters_true",
+                devices=devices,
+                accelerator=accelerator,
+                # precision=16,f
+                max_epochs=n_epochs,
+                callbacks=callbacks,
+            )
         else:
             learning_rate = float(opt.rate)
             model = LightningModel(mdm.model, opt=opt)
             model.learning_rate = learning_rate
+            checkpoint_callback = ModelCheckpoint(
+                                        monitor='val_rmse',
+                                        filename='best-{epoch:03d}-{val_rmse:.3f}-{val_loss:.3f}',
+                                        save_top_k=5,
+                                        mode='min',
+                                        dirpath=f'trains/{model.model.name}',
+                                        save_weights_only=False
+                                    )
             
-            # Use optimized settings for CI mode
-            if is_optimized:
-                patience = 3  # Reduced patience for early stopping
-                callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=patience)]
-                limit_val_batches = 3  # Limit validation to first 3 batches
-                limit_test_batches = 2  # Limit testing to first 2 batches
-                trainer = pl.Trainer(
-                    strategy="ddp_find_unused_parameters_true",
-                    devices=devices,
-                    accelerator=accelerator,
-                    precision=32,
-                    max_epochs=n_epochs,
-                    callbacks=callbacks,
-                    limit_val_batches=limit_val_batches,
-                    limit_test_batches=limit_test_batches,
-                )
-            else:
-                callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=50)]
-                trainer = pl.Trainer(
-                    strategy="ddp_find_unused_parameters_true",
-                    devices=devices,
-                    accelerator=accelerator,
-                    precision=32,
-                    max_epochs=n_epochs,
-                    callbacks=callbacks,
-                )
+            callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=50), checkpoint_callback]
+            trainer = pl.Trainer(
+                strategy="ddp_find_unused_parameters_true",
+                devices=devices,
+                accelerator=accelerator,
+                # precision="16-mixed",
+                max_epochs=n_epochs,
+                callbacks=callbacks,
+            )
 
         if opt.load:
             model.load_from_checkpoint(opt.load)

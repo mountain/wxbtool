@@ -37,6 +37,8 @@ class TestTrain(unittest.TestCase):
             "true",
             "-c",
             "4",  # Reduced CPU threads
+            "-g",
+            "-1",  # force CPU
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()
@@ -66,6 +68,8 @@ class TestTrain(unittest.TestCase):
             "true",
             "-c",
             "4",  # Reduced CPU threads
+            "-g",
+            "-1",  # force CPU
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()
@@ -92,6 +96,8 @@ class TestTrain(unittest.TestCase):
             "4",  # Reduced CPU threads
             "-t",
             "true",  # Test mode
+            "-g",
+            "-1",  # force CPU
         ]
         with patch.object(sys, "argv", testargs):
             wxb.main()
