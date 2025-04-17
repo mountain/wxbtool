@@ -24,8 +24,6 @@ class LightningModel(ltn.LightningModule):
         self.climatology_accessors = {}
         self.data_home = os.environ.get("WXBHOME", "/data/climatology")
 
-        self.counter = 0
-        self.labeled_loss = 0
         self.labeled_mse_numerator = 0
         self.labeled_mse_denominator = 0
         self.labeled_acc_prod_term = 0
@@ -269,11 +267,8 @@ class LightningModel(ltn.LightningModule):
         self.log("val_acc", acc, prog_bar=True, sync_dist=True)
         
         # Only plot for the first batch in CI mode
-        if not self.ci or batch_idx == 0:
+        if not self.ci or batch_idx == 0 and self.opt.plot == "true":
             self.plot(inputs, results, targets, indexies, batch_idx, mode="eval")
-
-        self.labeled_loss += loss.item() * batch_len
-        self.counter += batch_len
 
     def test_step(self, batch, batch_idx):
         # Skip test for some batches in CI mode or if batch_idx > 1 in any mode
@@ -306,41 +301,10 @@ class LightningModel(ltn.LightningModule):
         self.log("test_loss", loss, prog_bar=True, sync_dist=True)
         self.log("test_rmse", rmse, prog_bar=True, sync_dist=True)
         self.log("test_acc", acc, prog_bar=True, sync_dist=True)
-        
-        # Only plot for the first batch in CI mode
-        if not self.ci or batch_idx == 0:
-            self.plot(inputs, results, targets, indexies, batch_idx, mode="test")
-            
-        self.counter += batch_len
+        self.plot(inputs, results, targets, indexies, batch_idx, mode="test")
 
     def on_save_checkpoint(self, checkpoint):
-        # Skip saving checkpoints in CI mode
-        if self.ci:
-            return checkpoint
-            
-        # Original implementation
-        import glob
-        import os
 
-        rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
-        error = self.forecast_error(rmse)
-        loss = self.labeled_loss / self.counter
-        if self.trainer.global_rank == 0:
-            print()
-            record = "%2.5f-%03d-%1.5f.ckpt" % (error, checkpoint["epoch"], loss)
-            mname = self.model.name
-            fname = f"trains/{mname}/best-{record}"
-            os.makedirs(f"trains/{mname}", exist_ok=True)
-            with open(fname, "bw") as f:
-                th.save(checkpoint, f)
-            for ix, ckpt in enumerate(
-                sorted(glob.glob(f"trains/{mname}/best-*.ckpt"), reverse=False)
-            ):
-                if ix > 5:
-                    os.unlink(ckpt)
-
-        self.counter = 0
-        self.labeled_loss = 0
         self.labeled_mse_numerator = 0
         self.labeled_mse_denominator = 0
         self.labeled_acc_prod_term = 0
@@ -553,8 +517,9 @@ class GANModel(LightningModel):
         self.log("judgement", judgement_loss, prog_bar=True, sync_dist=True)
         self.untoggle_optimizer(d_optimizer)
 
-        if batch_idx % 10 == 0:
-            self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
+        if self.opt.plot == "true":
+            if batch_idx % 10 == 0:
+                self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
 
     def validation_step(self, batch, batch_idx):
         # Skip validation for some batches in CI mode or if batch_idx > 2 in any mode
@@ -570,11 +535,13 @@ class GANModel(LightningModel):
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
+        crps = self.forecast_error(crps)
 
         mse_numerator, mse_denominator = self.compute_mse(targets, forecast)
         self.labeled_mse_numerator += mse_numerator
         self.labeled_mse_denominator += mse_denominator
         rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
+        rmse = self.forecast_error(rmse)
 
         prod, fsum, osum = self.calculate_acc(
             forecast["data"], targets["data"], indexies=indexies, mode="eval"
@@ -597,12 +564,8 @@ class GANModel(LightningModel):
         self.log("val_forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
 
-        batch_len = inputs["data"].shape[0]
-        self.labeled_loss += forecast_loss.item() * batch_len
-        self.counter += batch_len
 
-        # Only plot for the first batch in CI mode
-        if not self.ci or batch_idx == 0:
+        if self.opt.plot == "true":
             self.plot(inputs, forecast, targets, indexies, batch_idx, mode="eval")
 
     def test_step(self, batch, batch_idx):
