@@ -192,34 +192,65 @@ class LightningModel(ltn.LightningModule):
             
         # Original implementation
         for bas, var in enumerate(self.model.setting.vars_in):
+            inp = inputs[var]
             for ix in range(self.model.setting.input_span):
-                dat = inputs[var][0, ix].detach().cpu().numpy().reshape(32, 64)
-                plot(var, open("%s_inp_%d.png" % (var, ix), mode="wb"), dat)
+                if inp.dim == 4:
+                    dat = inp[0, ix].detach().cpu().numpy().reshape(32, 64)
+                    plot(var, open("%s_inp_%d.png" % (var, ix), mode="wb"), dat)
+                if inp.dim == 5:
+                    dat = inp[0, bas, ix].detach().cpu().numpy().reshape(32, 64)
+                    plot(var, open("%s_inp_%d.png" % (var, ix), mode="wb"), dat)
 
         for bas, var in enumerate(self.model.vars_out):
+            fcst = results[var]
+            tgrt = targets[var]
             for ix in range(self.model.setting.pred_span):
-                fcst = results[var][0, ix].detach().cpu().numpy().reshape(32, 64)
-                tgrt = targets[var][0, ix].detach().cpu().numpy().reshape(32, 64)
-                plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst)
-                plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt)
+                if fcst.dim == 4:
+                    fcst_img = fcst[0, ix].detach().cpu().numpy().reshape(32, 64)
+                    tgrt_img = tgrt[0, ix].detach().cpu().numpy().reshape(32, 64)
+                    plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst_img)
+                    plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt_img)
+                if fcst.dim == 5:
+                    fcst_img = fcst[0, bas, ix].detach().cpu().numpy().reshape(32, 64)
+                    tgrt_img = tgrt[0, bas, ix].detach().cpu().numpy().reshape(32, 64)
+                    plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst_img)
+                    plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt_img)
 
         for bas, var in enumerate(self.model.vars_out):
-            input_data = inputs[var][0, 0].detach().cpu().numpy()
-            truth = targets[var][0, 0].detach().cpu().numpy()
-            forecast = results[var][0, 0].detach().cpu().numpy()
-            input_data = denormalizors[var](input_data)
-            forecast = denormalizors[var](forecast)
-            truth = denormalizors[var](truth)
-            plot_image(
-                var,
-                input_data=input_data,
-                truth=truth,
-                forecast=forecast,
-                title="%s" % var,
-                year=self.climatology_accessors[mode].yr_indexer[indexies[0]],
-                doy=self.climatology_accessors[mode].doy_indexer[indexies[0]],
-                save_path="%s_%02d.png" % (var, batch_idx),
-            )
+            if inputs[var].dim == 4:
+                input_data = inputs[var][0, 0].detach().cpu().numpy()
+                truth = targets[var][0, 0].detach().cpu().numpy()
+                forecast = results[var][0, 0].detach().cpu().numpy()
+                input_data = denormalizors[var](input_data)
+                forecast = denormalizors[var](forecast)
+                truth = denormalizors[var](truth)
+                plot_image(
+                    var,
+                    input_data=input_data,
+                    truth=truth,
+                    forecast=forecast,
+                    title="%s" % var,
+                    year=self.climatology_accessors[mode].yr_indexer[indexies[0]],
+                    doy=self.climatology_accessors[mode].doy_indexer[indexies[0]],
+                    save_path="%s_%02d.png" % (var, batch_idx),
+                )
+                if inputs[var].dim == 5:
+                    input_data = inputs[var][0, bas, 0].detach().cpu().numpy()
+                    truth = targets[var][0, bas, 0].detach().cpu().numpy()
+                    forecast = results[var][0, bas, 0].detach().cpu().numpy()
+                    input_data = denormalizors[var](input_data)
+                    forecast = denormalizors[var](forecast)
+                    truth = denormalizors[var](truth)
+                    plot_image(
+                        var,
+                        input_data=input_data,
+                        truth=truth,
+                        forecast=forecast,
+                        title="%s" % var,
+                        year=self.climatology_accessors[mode].yr_indexer[indexies[0]],
+                        doy=self.climatology_accessors[mode].doy_indexer[indexies[0]],
+                        save_path="%s_%02d.png" % (var, batch_idx),
+                    )
 
     def training_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
