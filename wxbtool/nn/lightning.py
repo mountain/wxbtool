@@ -193,7 +193,8 @@ class LightningModel(ltn.LightningModule):
         # Original implementation
         for bas, var in enumerate(self.model.setting.vars_in):
             inp = inputs[var]
-            for ix in range(self.model.setting.input_span):
+            span = self.model.setting.input_span + self.model.setting.pred_span if self.opt.rnn else self.model.setting.input_span
+            for ix in range(span):
                 if inp.dim() == 4:
                     dat = inp[0, ix].detach().cpu().numpy().reshape(32, 64)
                     plot(var, open("%s_inp_%d.png" % (var, ix), mode="wb"), dat)
@@ -201,10 +202,11 @@ class LightningModel(ltn.LightningModule):
                     dat = inp[0, 0, ix].detach().cpu().numpy().reshape(32, 64)
                     plot(var, open("%s_inp_%d.png" % (var, ix), mode="wb"), dat)
 
-        for bas, var in enumerate(self.model.vars_out):
+        for bas, var in enumerate(self.model.setting.vars_out):
             fcst = results[var]
             tgrt = targets[var]
-            for ix in range(self.model.setting.pred_span):
+            span = self.model.setting.input_span + self.model.setting.pred_span if self.opt.rnn else self.model.setting.pred_span
+            for ix in range(span):
                 if fcst.dim() == 4:
                     fcst_img = fcst[0, ix].detach().cpu().numpy().reshape(32, 64)
                     tgrt_img = tgrt[0, ix].detach().cpu().numpy().reshape(32, 64)
@@ -216,7 +218,7 @@ class LightningModel(ltn.LightningModule):
                     plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst_img)
                     plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt_img)
 
-        for bas, var in enumerate(self.model.vars_out):
+        for bas, var in enumerate(self.model.setting.vars_out):
             if inputs[var].dim() == 4:
                 input_data = inputs[var][0, 0].detach().cpu().numpy()
                 truth = targets[var][0, 0].detach().cpu().numpy()
