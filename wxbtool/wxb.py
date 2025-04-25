@@ -23,10 +23,7 @@ def dserve(parser, context, args):
         help="binding address (ip:port or unix:/path/to/your.sock)",
     )
     parser.add_argument(
-        "-i", "--ip", type=str, default="127.0.0.1", help="the ip of the dataset serevr"
-    )
-    parser.add_argument(
-        "-p", "--port", type=int, default=8088, help="the port of the dataset serevr"
+        "-p", "--port", type=int, default=8088, help="the port of the dataset server"
     )
     parser.add_argument(
         "-w", "--workers", type=int, default=4, help="the number of workers"
@@ -142,7 +139,10 @@ def train(parser, context, args):
         "-O", "--optimize", action="store_true", help="use optimized training for CI"
     )
     parser.add_argument(
-        "-p", "--plot", type=str, default="false", help="plot training reuslt" 
+        "-p", "--plot", type=str, default="false", help="plot training result" 
+    )
+    parser.add_argument(
+        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
     )
 
     opt = parser.parse_args(args)

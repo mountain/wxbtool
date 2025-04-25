@@ -346,10 +346,13 @@ class LightningModel(ltn.LightningModule):
 
     def train_dataloader(self):
         if self.model.dataset_train is None:
+            # Check if RNN mode is enabled
+            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data)
+                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
             else:
-                self.model.load_dataset("train", "server")
+                self.model.load_dataset("train", "server", rnn_mode=rnn_mode)
                 
         # Use a smaller batch size and fewer workers in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size
@@ -364,10 +367,13 @@ class LightningModel(ltn.LightningModule):
 
     def val_dataloader(self):
         if self.model.dataset_eval is None:
+            # Check if RNN mode is enabled
+            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data)
+                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
             else:
-                self.model.load_dataset("train", "server")
+                self.model.load_dataset("train", "server", rnn_mode=rnn_mode)
                 
         # Use a smaller batch size and fewer workers in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size
@@ -382,10 +388,13 @@ class LightningModel(ltn.LightningModule):
 
     def test_dataloader(self):
         if self.model.dataset_test is None:
+            # Check if RNN mode is enabled
+            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data)
+                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
             else:
-                self.model.load_dataset("train", "server")
+                self.model.load_dataset("train", "server", rnn_mode=rnn_mode)
                 
         # Use a smaller batch size and fewer workers in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size
@@ -651,10 +660,13 @@ class GANModel(LightningModel):
 
     def val_dataloader(self):
         if self.model.dataset_eval is None:
+            # Check if RNN mode is enabled
+            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data)
+                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
             else:
-                self.model.load_dataset("train", "server")
+                self.model.load_dataset("train", "server", rnn_mode=rnn_mode)
                 
         # Use a smaller batch size in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size
@@ -667,10 +679,13 @@ class GANModel(LightningModel):
 
     def test_dataloader(self):
         if self.model.dataset_test is None:
+            # Check if RNN mode is enabled
+            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data)
+                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
             else:
-                self.model.load_dataset("train", "server")
+                self.model.load_dataset("train", "server", rnn_mode=rnn_mode)
                 
         # Use a smaller batch size in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size
