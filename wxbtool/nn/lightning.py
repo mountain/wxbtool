@@ -33,6 +33,10 @@ class LightningModel(ltn.LightningModule):
         # CI flag
         self.ci = True if (opt and opt.test == "true" and hasattr(opt, "ci") and opt.ci) else False
 
+    def is_rnn_mode(self):
+        # Check if RNN mode is enabled
+        return hasattr(self.opt, "rnn") and self.opt.rnn
+
     def configure_optimizers(self):
         optimizer = th.optim.Adam(self.parameters(), lr=self.learning_rate)
         scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 53)
@@ -40,27 +44,6 @@ class LightningModel(ltn.LightningModule):
 
     def loss_fn(self, input, result, target, indexies=None, mode="train"):
         loss = self.model.lossfun(input, result, target)
-        
-        # forecast = result["data"].to(loss.device)
-        # observation = target["data"].to(loss.device)
-        # climatology = self.get_climatology(indexies, mode)
-        # climatology = th.tensor(climatology, dtype=th.float32).to(loss.device)
-        # weight = self.model.weight.view(1, 1, 32, 64).to(loss.device)
-
-        # f_anomaly = forecast - climatology
-        # o_anomaly = observation - climatology
-
-        # f_anomaly_bar = th.sum(weight * f_anomaly) / th.sum(weight)
-        # o_anomaly_bar = th.sum(weight * o_anomaly) / th.sum(weight)
-        # f_anomaly = f_anomaly - f_anomaly_bar
-        # o_anomaly = o_anomaly - o_anomaly_bar
-
-        # prod = th.sum(weight * f_anomaly * o_anomaly)
-        # fsum = th.sum(weight * f_anomaly**2)
-        # osum = th.sum(weight * o_anomaly**2)
-        # acc = prod / th.sqrt(fsum * osum + 1e-7)
-        # loss = loss + 0.01 * (1 - acc)
-
         return loss
 
     def compute_mse(self, targets, results):
@@ -74,17 +57,22 @@ class LightningModel(ltn.LightningModule):
         # Original MSE computation
         tgt = targets["data"]
         rst = results["data"]
-        weight = self.model.weight.cpu().numpy()
-        tgt = (
-            tgt.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
-        )
-        rst = (
-            rst.detach().cpu().numpy().reshape(-1, self.model.setting.pred_span, 32, 64)
-        )
-        weight = weight.reshape(1, 1, 32, 64)
+        channels = len(self.model.setting.vars_out)
+        if self.is_rnn_mode():
+            seq_length = tgt.size(2)
+            start_pos = self.model.setting.input_span
+            tgt = tgt[:, 0:channels, start_pos:seq_length, :, :]
+            rst = rst[:, 0:channels, start_pos:seq_length, :, :]
+        else:
+            tgt = tgt.reshape(-1, channels, self.model.setting.pred_span, 32, 64)
+            rst = rst.reshape(-1, channels, self.model.setting.pred_span, 32, 64)
+
+        weight = self.model.weight.cpu().numpy().reshape(1, 1, 1, 32, 64)
+        tgt = tgt.detach().cpu().numpy()
+        rst = rst.detach().cpu().numpy()
         se_sum, weight_sum = (
-            np.sum(weight * (rst - tgt) ** 2, axis=(2, 3)),
-            np.sum(weight, axis=(2, 3)),
+            np.sum(weight * (rst - tgt) ** 2, axis=(2, 3, 4)),
+            np.sum(weight, axis=(2, 3, 4)),
         )
         return se_sum.sum(), (weight_sum * np.ones_like(se_sum)).sum()
 
@@ -193,7 +181,7 @@ class LightningModel(ltn.LightningModule):
         # Original implementation
         for bas, var in enumerate(self.model.setting.vars_in):
             inp = inputs[var]
-            span = self.model.setting.input_span + self.model.setting.pred_span if self.opt.rnn else self.model.setting.input_span
+            span = self.model.setting.input_span + self.model.setting.pred_span if self.is_rnn_mode() else self.model.setting.input_span
             for ix in range(span):
                 if inp.dim() == 4:
                     dat = inp[0, ix].detach().cpu().numpy().reshape(32, 64)
@@ -205,7 +193,7 @@ class LightningModel(ltn.LightningModule):
         for bas, var in enumerate(self.model.setting.vars_out):
             fcst = results[var]
             tgrt = targets[var]
-            span = self.model.setting.input_span + self.model.setting.pred_span if self.opt.rnn else self.model.setting.pred_span
+            span = self.model.setting.input_span + self.model.setting.pred_span if self.is_rnn_mode() else self.model.setting.pred_span
             for ix in range(span):
                 if fcst.dim() == 4:
                     fcst_img = fcst[0, ix].detach().cpu().numpy().reshape(32, 64)
@@ -285,19 +273,19 @@ class LightningModel(ltn.LightningModule):
         self.labeled_mse_denominator += mse_denominator
         rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
 
-        prod, fsum, osum = self.calculate_acc(
-            results["data"], targets["data"], indexies=indexies, mode="eval"
-        )
-        self.labeled_acc_prod_term += prod
-        self.labeled_acc_fsum_term += fsum
-        self.labeled_acc_osum_term += osum
-        acc = self.labeled_acc_prod_term / np.sqrt(
-            self.labeled_acc_fsum_term * self.labeled_acc_osum_term
-        )
+        # prod, fsum, osum = self.calculate_acc(
+        #     results["data"], targets["data"], indexies=indexies, mode="eval"
+        # )
+        # self.labeled_acc_prod_term += prod
+        # self.labeled_acc_fsum_term += fsum
+        # self.labeled_acc_osum_term += osum
+        # acc = self.labeled_acc_prod_term / np.sqrt(
+        #     self.labeled_acc_fsum_term * self.labeled_acc_osum_term
+        # )
 
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
         self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
-        self.log("val_acc", acc, prog_bar=True, sync_dist=True)
+        # self.log("val_acc", acc, prog_bar=True, sync_dist=True)
         
         # Only plot for the first batch in CI mode
         if not self.ci or batch_idx == 0 and self.opt.plot == "true":
@@ -340,16 +328,16 @@ class LightningModel(ltn.LightningModule):
 
         self.labeled_mse_numerator = 0
         self.labeled_mse_denominator = 0
-        self.labeled_acc_prod_term = 0
-        self.labeled_acc_fsum_term = 0
-        self.labeled_acc_osum_term = 0
+        # self.labeled_acc_prod_term = 0
+        # self.labeled_acc_fsum_term = 0
+        # self.labeled_acc_osum_term = 0
 
         return checkpoint
 
     def train_dataloader(self):
         if self.model.dataset_train is None:
             # Check if RNN mode is enabled
-            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            rnn_mode = self.is_rnn_mode()
             
             if self.opt.data != "":
                 self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
@@ -370,7 +358,7 @@ class LightningModel(ltn.LightningModule):
     def val_dataloader(self):
         if self.model.dataset_eval is None:
             # Check if RNN mode is enabled
-            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            rnn_mode = self.is_rnn_mode()
             
             if self.opt.data != "":
                 self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
@@ -391,7 +379,7 @@ class LightningModel(ltn.LightningModule):
     def test_dataloader(self):
         if self.model.dataset_test is None:
             # Check if RNN mode is enabled
-            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            rnn_mode = self.is_rnn_mode()
             
             if self.opt.data != "":
                 self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
@@ -663,7 +651,7 @@ class GANModel(LightningModel):
     def val_dataloader(self):
         if self.model.dataset_eval is None:
             # Check if RNN mode is enabled
-            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            rnn_mode = self.is_rnn_mode()
             
             if self.opt.data != "":
                 self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
@@ -682,7 +670,7 @@ class GANModel(LightningModel):
     def test_dataloader(self):
         if self.model.dataset_test is None:
             # Check if RNN mode is enabled
-            rnn_mode = hasattr(self.opt, "rnn") and self.opt.rnn
+            rnn_mode = self.is_rnn_mode()
             
             if self.opt.data != "":
                 self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
