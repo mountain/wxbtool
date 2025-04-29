@@ -149,10 +149,8 @@ class LightningModel(ltn.LightningModule):
 
         batch = forecast.shape[0]
         pred_length = self.model.setting.pred_span
-        var_idx = self.model.setting.vars_out.index(variable)
         climatology = self.get_climatology(indexies, mode)
-        print(climatology.shape)
-        climatology = climatology[:, var_idx:var_idx + 1, :, :, :]
+        climatology = climatology[:, :, :, :, :]
         if self.rnn:
             seq_length = forecast.size(2) # Assuming time dimension is 2
             start_pos = self.model.setting.input_span
@@ -294,17 +292,17 @@ class LightningModel(ltn.LightningModule):
             self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
                      batch_size=current_batch_size, sync_dist=True)
 
-            prod, fsum, osum = self.calculate_acc(
-                 results[variable], targets[variable], indexies=indexies, variable=variable, mode="eval"
-            )
-            self.labeled_acc_prod_term[variable] += prod
-            self.labeled_acc_fsum_term[variable] += fsum
-            self.labeled_acc_osum_term[variable] += osum
-            acc = self.labeled_acc_prod_term[variable] / np.sqrt(
-                self.labeled_acc_fsum_term[variable] * self.labeled_acc_osum_term[variable]
-            )
-            self.log(f"val_acc_{variable}", acc, on_step=False, on_epoch=True,
-                     batch_size=current_batch_size, sync_dist=True)
+            # prod, fsum, osum = self.calculate_acc(
+            #      results[variable], targets[variable], indexies=indexies, variable=variable, mode="eval"
+            # )
+            # self.labeled_acc_prod_term[variable] += prod
+            # self.labeled_acc_fsum_term[variable] += fsum
+            # self.labeled_acc_osum_term[variable] += osum
+            # acc = self.labeled_acc_prod_term[variable] / np.sqrt(
+            #     self.labeled_acc_fsum_term[variable] * self.labeled_acc_osum_term[variable]
+            # )
+            # self.log(f"val_acc_{variable}", acc, on_step=False, on_epoch=True,
+            #          batch_size=current_batch_size, sync_dist=True)
 
         # Only plot for the first batch in CI mode
         if not self.ci or batch_idx == 0 and self.opt.plot == "true":
