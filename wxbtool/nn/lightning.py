@@ -47,34 +47,77 @@ class LightningModel(ltn.LightningModule):
         return loss
 
     def compute_mse(self, targets, results):
-        # Fast MSE computation for CI
-        if self.ci:
-            tgt = targets["data"]
-            rst = results["data"]
-            se = ((rst - tgt) ** 2).mean().item()
-            return se, 1.0
-            
-        # Original MSE computation
-        tgt = targets["data"]
-        rst = results["data"]
-        channels = len(self.model.setting.vars_out)
-        if self.is_rnn_mode():
-            seq_length = tgt.size(2)
-            start_pos = self.model.setting.input_span
-            tgt = tgt[:, 0:channels, start_pos:seq_length, :, :]
-            rst = rst[:, 0:channels, start_pos:seq_length, :, :]
-        else:
-            tgt = tgt.reshape(-1, channels, self.model.setting.pred_span, 32, 64)
-            rst = rst.reshape(-1, channels, self.model.setting.pred_span, 32, 64)
+        # Assume input data is already on self.device
+        tgt_data = targets["data"]
+        rst_data = results["data"]
 
-        weight = self.model.weight.cpu().numpy().reshape(1, 1, 1, 32, 64)
-        tgt = tgt.detach().cpu().numpy()
-        rst = rst.detach().cpu().numpy()
-        se_sum, weight_sum = (
-            np.sum(weight * (rst - tgt) ** 2, axis=(2, 3, 4)),
-            np.sum(weight, axis=(2, 3, 4)),
-        )
-        return se_sum.sum(), (weight_sum * np.ones_like(se_sum)).sum()
+        # Ensure type matching, in case of mixed precision etc.
+        rst_data = rst_data.to(dtype=tgt_data.dtype)
+
+        # --- CI Branch (Fast, unweighted) ---
+        if self.ci:
+            squared_error = (rst_data - tgt_data) ** 2
+            # Numerator: Sum of squared errors
+            total_se_sum = th.sum(squared_error)
+            # Denominator: Total number of elements (equivalent to weight=1 for each element)
+            total_weight_sum = th.tensor(float(rst_data.numel()), device=self.device, dtype=total_se_sum.dtype)
+            return total_se_sum, total_weight_sum
+
+        # --- Main Calculation Branch (Weighted) ---
+        channels = len(self.model.setting.vars_out)
+
+        # Get weights (assumed to be on self.device)
+        height, width = rst_data.size(-2), rst_data.size(-1)
+        try:
+            weight = self.model.weight # Assuming shape is [H, W] or compatible
+            # Adjust weight shape for broadcasting: [1, 1, 1, H, W]
+            weight = weight.reshape(1, 1, 1, height, width)
+        except AttributeError:
+             print("Error: 'weight' attribute not found in self.model.")
+             raise
+        except Exception as e:
+            print(f"Error: Failed to reshape weight. Original weight shape: {self.model.weight.shape}, Target shape: (1, 1, 1, {height}, {width})")
+            raise e
+
+        # Ensure weight dtype matches data dtype
+        weight = weight.to(dtype=tgt_data.dtype)
+
+        # Handle data shape based on RNN mode or non-RNN mode
+        if self.is_rnn_mode():
+            seq_length = tgt_data.size(2) # Assuming time dimension is 2
+            start_pos = self.model.setting.input_span
+            # Slice, assuming dimensions are [B, C, T, H, W]
+            tgt = tgt_data[:, 0:channels, start_pos:seq_length, :, :]
+            rst = rst_data[:, 0:channels, start_pos:seq_length, :, :]
+        else:
+            pred_span = self.model.setting.pred_span
+            try:
+                # Reshape, assuming the final required shape is [B, C, P, H, W]
+                tgt = tgt_data.reshape(-1, channels, pred_span, height, width)
+                rst = rst_data.reshape(-1, channels, pred_span, height, width)
+            except RuntimeError as e:
+                print(f"Error: Failed to reshape input tensors.")
+                print(f"  Target shape: (-1, {channels}, {pred_span}, {height}, {width})")
+                print(f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}")
+                raise e
+
+        # --- Calculate Numerator and Denominator for Weighted MSE ---
+
+        # 1. Calculate weighted squared error
+        squared_error = (rst - tgt) ** 2
+        weighted_se = weight * squared_error # PyTorch handles broadcasting automatically
+
+        # 2. Calculate total weighted sum of squared errors (Numerator)
+        #    Sum over all elements directly
+        total_se_sum = th.sum(weighted_se)
+
+        # 3. Calculate total sum of weights (Denominator)
+        #    To ensure correspondence with the numerator, calculate the sum of weights after broadcasting.
+        #    Create a tensor of ones with the same shape as the data, multiply by the (broadcasted) weight, then sum.
+        ones_like_data = th.ones_like(rst, device=self.device)
+        total_weight_sum = th.sum(weight * ones_like_data)
+
+        return total_se_sum, total_weight_sum
 
     def get_climatology_accessor(self, mode):
         # Skip climatology in CI mode
@@ -261,7 +304,6 @@ class LightningModel(ltn.LightningModule):
             return
             
         inputs, targets, indexies = batch
-        batch_len = inputs[self.model.setting.vars[0]].shape[0]
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)

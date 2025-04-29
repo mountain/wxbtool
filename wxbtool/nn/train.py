@@ -32,7 +32,7 @@ def main(context, opt):
         is_optimized = hasattr(opt, "optimize") and opt.optimize
 
         if opt.gpu is not None and opt.gpu != "" and opt.gpu != "-1":
-            devices = [int(idx) for idx in opt.gpu.split(",")]
+            devices = [1]
         else:
             devices = 1
 
@@ -56,7 +56,7 @@ def main(context, opt):
                 strategy="ddp_find_unused_parameters_true",
                 devices=devices,
                 accelerator=accelerator,
-                # precision=16,f
+                precision="bf16-mixed",
                 max_epochs=n_epochs,
                 callbacks=callbacks,
             )
@@ -78,7 +78,7 @@ def main(context, opt):
                 strategy="ddp_find_unused_parameters_true",
                 devices=devices,
                 accelerator=accelerator,
-                # precision="16-mixed",
+                precision="bf16-mixed",
                 max_epochs=n_epochs,
                 callbacks=callbacks,
             )
