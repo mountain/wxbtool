@@ -284,7 +284,7 @@ class LightningModel(ltn.LightningModule):
                      batch_size=current_batch_size, sync_dist=True)
 
             prod, fsum, osum = self.calculate_acc(
-                 results[variable], targets[variable], indexies=indexies, mode="eval"
+                 results[variable], targets[variable], indexies=indexies, variable=variable, mode="eval"
             )
             self.labeled_acc_prod_term[variable] += prod
             self.labeled_acc_fsum_term[variable] += fsum
@@ -319,7 +319,7 @@ class LightningModel(ltn.LightningModule):
                      batch_size=current_batch_size, sync_dist=True, prog_bar=True)
 
             prod, fsum, osum = self.calculate_acc(
-                 results[variable], targets[variable], indexies=indexies, mode="test"
+                 results[variable], targets[variable], indexies=indexies, variable=variable, mode="test"
             )
             self.labeled_acc_prod_term[variable] += prod
             self.labeled_acc_fsum_term[variable] += fsum
