@@ -158,7 +158,7 @@ class LightningModel(ltn.LightningModule):
             seq_length = forecast.size(2) # Assuming time dimension is 2
             start_pos = self.model.setting.input_span
             forecast = forecast[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
-            observation = observation.cpu().numpy()
+            observation = observation[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
             climatology = climatology.reshape(-1, 1, pred_length, 32, 64)
         else:
             forecast = forecast.cpu().numpy()
