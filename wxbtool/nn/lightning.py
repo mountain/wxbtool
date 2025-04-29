@@ -262,7 +262,7 @@ class LightningModel(ltn.LightningModule):
 
     def training_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
-        self.get_climatology(indexies, "train")
+        # self.get_climatology(indexies, "train")
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
