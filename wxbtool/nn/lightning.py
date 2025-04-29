@@ -47,30 +47,14 @@ class LightningModel(ltn.LightningModule):
         return loss
 
     def compute_mse(self, targets, results):
-        # Assume input data is already on self.device
         tgt_data = targets["data"]
         rst_data = results["data"]
+        tgt_data = tgt_data.to(dtype=rst_data.dtype)
 
-        # Ensure type matching, in case of mixed precision etc.
-        rst_data = rst_data.to(dtype=tgt_data.dtype)
-
-        # --- CI Branch (Fast, unweighted) ---
-        if self.ci:
-            squared_error = (rst_data - tgt_data) ** 2
-            # Numerator: Sum of squared errors
-            total_se_sum = th.sum(squared_error)
-            # Denominator: Total number of elements (equivalent to weight=1 for each element)
-            total_weight_sum = th.tensor(float(rst_data.numel()), device=self.device, dtype=total_se_sum.dtype)
-            return total_se_sum, total_weight_sum
-
-        # --- Main Calculation Branch (Weighted) ---
         channels = len(self.model.setting.vars_out)
-
-        # Get weights (assumed to be on self.device)
         height, width = rst_data.size(-2), rst_data.size(-1)
         try:
             weight = self.model.weight # Assuming shape is [H, W] or compatible
-            # Adjust weight shape for broadcasting: [1, 1, 1, H, W]
             weight = weight.reshape(1, 1, 1, height, width)
         except AttributeError:
              print("Error: 'weight' attribute not found in self.model.")
@@ -79,8 +63,7 @@ class LightningModel(ltn.LightningModule):
             print(f"Error: Failed to reshape weight. Original weight shape: {self.model.weight.shape}, Target shape: (1, 1, 1, {height}, {width})")
             raise e
 
-        # Ensure weight dtype matches data dtype
-        weight = weight.to(dtype=tgt_data.dtype)
+        weight = weight.to(dtype=rst_data.dtype)
 
         # Handle data shape based on RNN mode or non-RNN mode
         if self.is_rnn_mode():
@@ -101,20 +84,11 @@ class LightningModel(ltn.LightningModule):
                 print(f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}")
                 raise e
 
-        # --- Calculate Numerator and Denominator for Weighted MSE ---
-
-        # 1. Calculate weighted squared error
         squared_error = (rst - tgt) ** 2
         weighted_se = weight * squared_error # PyTorch handles broadcasting automatically
 
-        # 2. Calculate total weighted sum of squared errors (Numerator)
-        #    Sum over all elements directly
         total_se_sum = th.sum(weighted_se)
-
-        # 3. Calculate total sum of weights (Denominator)
-        #    To ensure correspondence with the numerator, calculate the sum of weights after broadcasting.
-        #    Create a tensor of ones with the same shape as the data, multiply by the (broadcasted) weight, then sum.
-        ones_like_data = th.ones_like(rst, device=self.device)
+        ones_like_data = th.ones_like(rst)
         total_weight_sum = th.sum(weight * ones_like_data)
 
         return total_se_sum, total_weight_sum
