@@ -32,9 +32,12 @@ def main(context, opt):
         is_optimized = hasattr(opt, "optimize") and opt.optimize
 
         if opt.gpu is not None and opt.gpu != "" and opt.gpu != "-1":
-            devices = [1]
+            devices = [int(gpu) for gpu in opt.gpu.split(",")]
+
         else:
             devices = 1
+
+        precision = "bf16-mixed" if accelerator == "gpu" else "16-mixed"
 
         if opt.gan == "true":
             learning_rate = float(opt.rate)
@@ -56,7 +59,7 @@ def main(context, opt):
                 strategy="ddp_find_unused_parameters_true",
                 devices=devices,
                 accelerator=accelerator,
-                precision="bf16-mixed",
+                precision=precision,
                 max_epochs=n_epochs,
                 callbacks=callbacks,
             )
@@ -78,7 +81,7 @@ def main(context, opt):
                 strategy="ddp_find_unused_parameters_true",
                 devices=devices,
                 accelerator=accelerator,
-                precision="bf16-mixed",
+                precision=precision,
                 max_epochs=n_epochs,
                 callbacks=callbacks,
             )
