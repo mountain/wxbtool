@@ -150,7 +150,8 @@ class LightningModel(ltn.LightningModule):
             return 1.0, 1.0, 1.0
 
         var_idx = self.model.setting.vars_out.index(variable)
-        climatology = self.get_climatology(indexies, mode)[:, var_idx:var_idx+1, :, :]
+        pred_length = self.model.setting.pred_span
+        climatology = self.get_climatology(indexies, mode)[:, var_idx:var_idx+1]
         weight = self.model.weight.reshape(1, 1, 32, 64).cpu().numpy()
 
         if self.rnn:
@@ -158,9 +159,11 @@ class LightningModel(ltn.LightningModule):
             start_pos = self.model.setting.input_span
             forecast = forecast[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
             observation = observation.cpu().numpy()
+            climatology = climatology.reshape(-1, 1, pred_length, 32, 64)
         else:
             forecast = forecast.cpu().numpy()
             observation = observation.cpu().numpy()
+            climatology = climatology.reshape(-1, pred_length, 32, 64)
 
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
