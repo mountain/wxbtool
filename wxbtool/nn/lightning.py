@@ -105,6 +105,7 @@ class LightningModel(ltn.LightningModule):
             self.climatology_accessors[mode] = ClimatologyAccessor(
                 home=f"{self.data_home}/climatology"
             )
+            years = None
             if mode == "train":
                 years = tuple(self.model.setting.years_train)
             if mode == "eval":
@@ -149,19 +150,21 @@ class LightningModel(ltn.LightningModule):
         batch = forecast.shape[0]
         pred_length = self.model.setting.pred_span
         var_idx = self.model.setting.vars_out.index(variable)
-        climatology = self.get_climatology(indexies, mode)[:, var_idx:var_idx+1]
-        weight = self.model.weight.reshape(1, 1, 32, 64).cpu().numpy()
-
+        climatology = self.get_climatology(indexies, mode)
+        print(climatology.shape)
+        climatology = climatology[:, var_idx:var_idx + 1, :, :, :]
         if self.rnn:
             seq_length = forecast.size(2) # Assuming time dimension is 2
             start_pos = self.model.setting.input_span
             forecast = forecast[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
             observation = observation[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
             climatology = climatology.reshape(batch, 1, pred_length, 32, 64)
+            weight = self.model.weight.reshape(1, 1, 1, 32, 64).cpu().numpy()
         else:
             forecast = forecast.cpu().numpy()
             observation = observation.cpu().numpy()
             climatology = climatology.reshape(batch, pred_length, 32, 64)
+            weight = self.model.weight.reshape(1, 1, 32, 64).cpu().numpy()
 
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
