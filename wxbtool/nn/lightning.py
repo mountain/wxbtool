@@ -287,10 +287,12 @@ class LightningModel(ltn.LightningModule):
         loss = self.loss_fn(inputs, results, targets, indexies=indexies, mode="eval")
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
 
+        total_rmse = 0
         for variable in self.model.setting.vars_out:
             rmse = self.compute_rmse(targets, results, variable)
             self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
                      batch_size=current_batch_size, sync_dist=True)
+            total_rmse += rmse
 
             # prod, fsum, osum = self.calculate_acc(
             #      results[variable], targets[variable], indexies=indexies, variable=variable, mode="eval"
@@ -303,6 +305,11 @@ class LightningModel(ltn.LightningModule):
             # )
             # self.log(f"val_acc_{variable}", acc, on_step=False, on_epoch=True,
             #          batch_size=current_batch_size, sync_dist=True)
+
+        # Calculate the average RMSE across all variables
+        avg_rmse = total_rmse / len(self.model.setting.vars_out)
+        self.log("val_rmse", avg_rmse, on_step=False, on_epoch=True,
+                    batch_size=current_batch_size, sync_dist=True, prog_bar=True)
 
         # Only plot for the first batch in CI mode
         if not self.ci or batch_idx == 0 and self.opt.plot == "true":
