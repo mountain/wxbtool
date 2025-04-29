@@ -151,9 +151,9 @@ class LightningModel(ltn.LightningModule):
 
         var_idx = self.model.setting.vars_out.index(variable)
         climatology = self.get_climatology(indexies, mode)[:, var_idx:var_idx+1, :, :]
-        weight = self.model.weight.reshape(1, 1, 32, 64)
-        forecast = forecast.reshape(-1, 1, 32, 64)
-        observation = observation.reshape(-1, 1, 32, 64)
+        weight = self.model.weight.reshape(1, 1, 32, 64).cpu().numpy()
+        forecast = forecast.reshape(-1, 1, 32, 64).cpu().numpy()
+        observation = observation.reshape(-1, 1, 32, 64).cpu().numpy()
 
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
