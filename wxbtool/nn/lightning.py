@@ -49,7 +49,10 @@ class LightningModel(ltn.LightningModule):
     def compute_mse(self, targets, results):
         tgt_data = targets["data"]
         rst_data = results["data"]
-        tgt_data = tgt_data.to(dtype=rst_data.dtype)
+        target_type = tgt_data.dtype
+        target_device = rst_data.device
+        tgt_data = tgt_data.to(device=target_device)
+        rst_data = rst_data.to(device=target_device, dtype=target_type)
 
         channels = len(self.model.setting.vars_out)
         height, width = rst_data.size(-2), rst_data.size(-1)
@@ -63,7 +66,7 @@ class LightningModel(ltn.LightningModule):
             print(f"Error: Failed to reshape weight. Original weight shape: {self.model.weight.shape}, Target shape: (1, 1, 1, {height}, {width})")
             raise e
 
-        weight = weight.to(dtype=rst_data.dtype)
+        weight = weight.to(device=target_device, dtype=target_type)
 
         # Handle data shape based on RNN mode or non-RNN mode
         if self.is_rnn_mode():
