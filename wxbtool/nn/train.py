@@ -37,7 +37,7 @@ def main(context, opt):
         else:
             devices = 1
 
-        precision = "bf16-mixed" if accelerator == "gpu" else "16-mixed"
+        precision = "bf16-mixed" if accelerator == "gpu" else "32"
 
         if opt.gan == "true":
             learning_rate = float(opt.rate)

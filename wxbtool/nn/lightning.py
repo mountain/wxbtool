@@ -290,7 +290,7 @@ class LightningModel(ltn.LightningModule):
         mse_numerator, mse_denominator = self.compute_mse(targets, results)
         self.labeled_mse_numerator += mse_numerator
         self.labeled_mse_denominator += mse_denominator
-        rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
+        rmse = th.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
 
         # prod, fsum, osum = self.calculate_acc(
         #     results["data"], targets["data"], indexies=indexies, mode="eval"
