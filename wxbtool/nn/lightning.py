@@ -116,20 +116,17 @@ class LightningModel(ltn.LightningModule):
         return self.climatology_accessors[mode]
 
     def get_climatology(self, indexies, mode):
-        # Skip or simplify climatology in CI mode
-        if self.ci:
-            # Return dummy data of the right shape
-            batch_size = len(indexies)
-            vars_out = self.model.vars_out
-            span = self.model.setting.pred_span
-            return np.zeros((batch_size * span, len(vars_out), 32, 64))
-            
-        # Original implementation
-        accessor = self.get_climatology_accessor(mode)
+        batch_size = len(indexies)
         vars_out = self.model.vars_out
         step = self.model.setting.step
         span = self.model.setting.pred_span
         shift = self.model.setting.pred_shift
+
+        if self.ci:
+            return np.zeros((batch_size, len(vars_out), span, 32, 64))
+
+        # Original implementation
+        accessor = self.get_climatology_accessor(mode)
         indexies = indexies.cpu().numpy()
 
         result = []
@@ -139,10 +136,10 @@ class LightningModel(ltn.LightningModule):
                 [idx + delta + shift for idx in indexies]
             )  # shift to the forecast time
             data = accessor.get_climatology(vars_out, shifts).reshape(
-                -1, len(vars_out), 32, 64
+                batch_size, len(vars_out), 1, 32, 64
             )
             result.append(data)
-        return np.concatenate(result, axis=0)
+        return np.concatenate(result, axis=2)
 
     def calculate_acc(self, forecast, observation, indexies, variable, mode):
         # Skip plotting and simplify calculations in CI mode

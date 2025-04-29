@@ -168,15 +168,18 @@ class ClimatologyAccessor:
 
         # Map batch_idx to DOY indices using the doy indexer
         doy_indices = [self.doy_indexer[idx] for idx in indexes]
+        batch = len(doy_indices)
+        seq_len = len(doy_indices[0])
 
         climatology_dict = {}
-
         for var in vars:
             # Load and cache climatology data if not already loaded
             self.load_climatology_var(var)
             climatology_var = self.climatology_data[var]
             selected_data = climatology_var[doy_indices]
-            climatology_dict[var] = normalizors[var](selected_data)
+            h = selected_data.shape[2]
+            w = selected_data.shape[3]
+            climatology_dict[var] = normalizors[var](selected_data).reshape(batch, 1, seq_len, h, w)
 
         return np.concatenate([climatology_dict[v] for v in vars], axis=1)
 
