@@ -195,11 +195,11 @@ class LightningModel(ltn.LightningModule):
         # Skip plotting in CI mode or test mode
         if self.ci or mode == "test":
             return
-            
+
         # Original implementation
         for bas, var in enumerate(self.model.setting.vars_in):
             inp = inputs[var]
-            span = self.model.setting.input_span + self.model.setting.pred_span if self.rnn else self.model.setting.input_span
+            span = self.model.setting.input_span
             for ix in range(span):
                 if inp.dim() == 4:
                     dat = inp[0, ix].detach().cpu().numpy().reshape(32, 64)
