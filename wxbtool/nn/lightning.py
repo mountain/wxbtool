@@ -2,6 +2,7 @@ import os
 import numpy as np
 import torch as th
 import lightning as ltn
+import torch.optim as optim
 
 from torch.utils.data import DataLoader
 from wxbtool.data.climatology import ClimatologyAccessor
@@ -32,7 +33,9 @@ class LightningModel(ltn.LightningModule):
         self.labeled_acc_osum_term = {var: 0 for var in self.model.setting.vars_out}
 
     def configure_optimizers(self):
-        optimizer = th.optim.Adam(self.parameters(), lr=self.learning_rate)
+        optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate,
+                    weight_decay=0.1,
+                    betas=(0.9, 0.95))
         scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 53)
         return [optimizer], [scheduler]
 
@@ -199,7 +202,7 @@ class LightningModel(ltn.LightningModule):
         # Original implementation
         for bas, var in enumerate(self.model.setting.vars_in):
             inp = inputs[var]
-            span = self.model.setting.input_span + self.model.setting.pred_span if self.rnn else self.model.setting.input_span
+            span = self.model.setting.input_span
             for ix in range(span):
                 if inp.dim() == 4:
                     dat = inp[0, ix].detach().cpu().numpy().reshape(32, 64)
@@ -454,18 +457,18 @@ class GANModel(LightningModel):
 
     def generator_loss(self, fake_judgement):
         # Loss for generator (we want the discriminator to predict all generated images as real)
-        return th.nn.functional.binary_cross_entropy(
+        return th.nn.functional.binary_cross_entropy_with_logits(
             fake_judgement["data"],
             th.ones_like(fake_judgement["data"], dtype=th.float32),
         )
 
     def discriminator_loss(self, real_judgement, fake_judgement):
         # Loss for discriminator (real images should be classified as real, fake images as fake)
-        real_loss = th.nn.functional.binary_cross_entropy(
+        real_loss = th.nn.functional.binary_cross_entropy_with_logits(
             real_judgement["data"],
             th.ones_like(real_judgement["data"], dtype=th.float32),
         )
-        fake_loss = th.nn.functional.binary_cross_entropy(
+        fake_loss = th.nn.functional.binary_cross_entropy_with_logits(
             fake_judgement["data"],
             th.zeros_like(fake_judgement["data"], dtype=th.float32),
         )
@@ -520,7 +523,7 @@ class GANModel(LightningModel):
 
     def training_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
-        self.get_climatology(indexies, "train")
+        # self.get_climatology(indexies, "train")
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
@@ -585,36 +588,48 @@ class GANModel(LightningModel):
         forecast_loss = self.loss_fn(inputs, forecast, targets, indexies=indexies, mode="eval")
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
-        crps, absb = self.compute_crps(forecast["data"], targets["data"])
-        crps = self.forecast_error(crps)
+        # crps, absb = self.compute_crps(forecast["data"], targets["data"])
+        # crps = self.forecast_error(crps)
 
-        mse_numerator, mse_denominator = self.compute_mse(targets, forecast)
-        self.labeled_mse_numerator += mse_numerator
-        self.labeled_mse_denominator += mse_denominator
-        rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
-        rmse = self.forecast_error(rmse)
+        # mse_numerator, mse_denominator = self.compute_mse(targets, forecast)
+        # self.labeled_mse_numerator += mse_numerator
+        # self.labeled_mse_denominator += mse_denominator
+        # rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
+        # rmse = self.forecast_error(rmse)
 
-        prod, fsum, osum = self.calculate_acc(
-            forecast["data"], targets["data"], indexies=indexies, mode="eval"
-        )
-        self.labeled_acc_prod_term += prod
-        self.labeled_acc_fsum_term += fsum
-        self.labeled_acc_osum_term += osum
-        acc = self.labeled_acc_prod_term / np.sqrt(
-            self.labeled_acc_fsum_term * self.labeled_acc_osum_term
-        )
+        current_batch_size = forecast['data'].shape[0] 
+        total_rmse = 0
+        for variable in self.model.setting.vars_out:
+            rmse = self.compute_rmse(targets, forecast, variable)
+            self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
+                batch_size=current_batch_size, sync_dist=True)
+            total_rmse += rmse
+
+            # Calculate the average RMSE across all variables
+            avg_rmse = total_rmse / len(self.model.setting.vars_out)
+            self.log("val_rmse", avg_rmse, on_step=False, on_epoch=True,
+                batch_size=current_batch_size, sync_dist=True, prog_bar=True)
+
+        # prod, fsum, osum = self.calculate_acc(
+        #     forecast["data"], targets["data"], indexies=indexies, mode="eval"
+        # )
+        # self.labeled_acc_prod_term += prod
+        # self.labeled_acc_fsum_term += fsum
+        # self.labeled_acc_osum_term += osum
+        # acc = self.labeled_acc_prod_term / np.sqrt(
+        #     self.labeled_acc_fsum_term * self.labeled_acc_osum_term
+        # )
 
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
         self.log("realness", self.realness, prog_bar=True, sync_dist=True)
         self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
-        self.log("crps", crps, prog_bar=True, sync_dist=True)
-        self.log("absb", absb, prog_bar=True, sync_dist=True)
-        self.log("acc", acc, prog_bar=True, sync_dist=True)
+        # self.log("crps", crps, prog_bar=True, sync_dist=True)
+        # self.log("absb", absb, prog_bar=True, sync_dist=True)
+        # self.log("acc", acc, prog_bar=True, sync_dist=True)
         self.log("rmse", rmse, prog_bar=True, sync_dist=True)
         self.log("val_forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
-
 
         if self.opt.plot == "true":
             self.plot(inputs, forecast, targets, indexies, batch_idx, mode="eval")

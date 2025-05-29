@@ -46,22 +46,22 @@ def main(context, opt):
             model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
             model.generator.learning_rate = generator_lr
             model.discriminator.learning_rate = discriminator_lr
-            checkpoint_callback = ModelCheckpoint(
-                                        monitor='crps',
-                                        filename='best-{epoch:03d}-{crps:.3f}-{rmse:.3f}',
-                                        save_top_k=5,
-                                        mode='min',
-                                        dirpath=f'trains/{model.model.name}',
-                                        save_weights_only=False
-                                    )
-            callbacks = [checkpoint_callback]
+            # checkpoint_callback = ModelCheckpoint(
+            #                             monitor='crps',
+            #                             filename='best-{epoch:03d}-{crps:.3f}-{rmse:.3f}',
+            #                             save_top_k=5,
+            #                             mode='min',
+            #                             dirpath=f'trains/{model.model.name}',
+            #                             save_weights_only=False
+            #                         )
+            # callbacks = [checkpoint_callback]
             trainer = pl.Trainer(
                 strategy="ddp_find_unused_parameters_true",
                 devices=devices,
                 accelerator=accelerator,
                 precision=precision,
                 max_epochs=n_epochs,
-                callbacks=callbacks,
+            #     callbacks=callbacks,
             )
         else:
             learning_rate = float(opt.rate)
