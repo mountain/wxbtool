@@ -197,6 +197,9 @@ def test(parser, context, args):
     parser.add_argument(
         "-O", "--optimize", action="store_true", help="use optimized testing for CI"
     )
+    parser.add_argument(
+        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
+    )
     opt = parser.parse_args(args)
 
     ttmain(context, opt)
@@ -251,6 +254,9 @@ def infer(parser, context, args):
         required=True,
         help="output file format, either png or nc",
     )
+    parser.add_argument(
+        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
+    )
     opt = parser.parse_args(args)
 
     infer_main(context, opt)
@@ -303,6 +309,9 @@ def inferg(parser, context, args):
         type=str,
         required=True,
         help="output file format, either png or nc",
+    )
+    parser.add_argument(
+        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
     )
     opt = parser.parse_args(args)
 

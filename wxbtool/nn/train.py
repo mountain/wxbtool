@@ -43,7 +43,12 @@ def main(context, opt):
             learning_rate = float(opt.rate)
             ratio = float(opt.ratio)
             generator_lr, discriminator_lr = learning_rate, learning_rate / ratio
-            model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
+            
+            if opt.load:
+                model = GANModel.load_from_checkpoint(opt.load, mdm.generator, mdm.discriminator, opt=opt)
+            else:
+                model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
+            
             model.generator.learning_rate = generator_lr
             model.discriminator.learning_rate = discriminator_lr
             # checkpoint_callback = ModelCheckpoint(
@@ -65,7 +70,12 @@ def main(context, opt):
             )
         else:
             learning_rate = float(opt.rate)
-            model = LightningModel(mdm.model, opt=opt)
+            
+            if opt.load:
+                model = LightningModel.load_from_checkpoint(opt.load, model=mdm.model, opt=opt)
+            else:
+                model = LightningModel(mdm.model, opt=opt)
+                
             model.learning_rate = learning_rate
             checkpoint_callback = ModelCheckpoint(
                                         monitor='val_rmse',
@@ -85,9 +95,6 @@ def main(context, opt):
                 max_epochs=n_epochs,
                 callbacks=callbacks,
             )
-
-        if opt.load:
-            model.load_from_checkpoint(opt.load)
 
         trainer.fit(model)
         trainer.test(model=model, dataloaders=model.test_dataloader())

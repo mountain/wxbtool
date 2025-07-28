@@ -154,11 +154,16 @@ class LightningModel(ltn.LightningModule):
         pred_length = self.model.setting.pred_span
         climatology = self.get_climatology(indexies, mode)
         climatology = climatology[:, :, :, :, :]
+        # print("climatology shape",climatology.shape)
+        # print("forecast shape",forecast.shape)
+        # print("observation shape",observation.shape)
+        # print("pred len",pred_length)
         if self.rnn:
             seq_length = forecast.size(2) # Assuming time dimension is 2
             start_pos = self.model.setting.input_span
             forecast = forecast[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
             observation = observation[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
+            climatology = climatology[:,self.model.setting.height, :, :]
             climatology = climatology.reshape(batch, 1, pred_length, 32, 64)
             weight = self.model.weight.reshape(1, 1, 1, 32, 64).cpu().numpy()
         else:
