@@ -9,7 +9,8 @@ from wxbtool.data.climatology import ClimatologyAccessor
 from wxbtool.data.dataset import ensemble_loader
 from wxbtool.util.plotter import plot, plot_image
 from wxbtool.norms.meanstd import denormalizors
-
+from collections import defaultdict
+import json
 
 class LightningModel(ltn.LightningModule):
     def __init__(self, model, opt=None):
@@ -19,7 +20,7 @@ class LightningModel(ltn.LightningModule):
 
         self.opt = opt
         # CI flag
-        self.ci = True if (opt and opt.test == "true" and hasattr(opt, "ci") and opt.ci) else False
+        self.ci = True if (opt and hasattr(opt, "test") and opt.test == "true" and hasattr(opt, "ci") and opt.ci) else False
         self.rnn = hasattr(self.opt, "rnn") and self.opt.rnn
 
         if opt and hasattr(opt, "rate"):
@@ -31,6 +32,8 @@ class LightningModel(ltn.LightningModule):
         self.labeled_acc_prod_term = {var: 0 for var in self.model.setting.vars_out}
         self.labeled_acc_fsum_term = {var: 0 for var in self.model.setting.vars_out}
         self.labeled_acc_osum_term = {var: 0 for var in self.model.setting.vars_out}
+
+        self.var_dayMse = defaultdict()
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate,
@@ -86,12 +89,75 @@ class LightningModel(ltn.LightningModule):
 
         squared_error = (rst - tgt) ** 2
         weighted_se = weight * squared_error # PyTorch handles broadcasting automatically
-
         total_se_sum = th.sum(weighted_se)
         ones_like_data = th.ones_like(rst)
         total_weight_sum = th.sum(weight * ones_like_data)
         mse = total_se_sum / total_weight_sum
 
+        return th.sqrt(mse)
+    
+    def compute_drmse(self, targets, results, variable):
+        tgt_data = targets[variable]
+        rst_data = results[variable]
+        target_type = tgt_data.dtype
+        target_device = rst_data.device
+        tgt_data = tgt_data.to(device=target_device)
+        rst_data = rst_data.to(device=target_device, dtype=target_type)
+
+        channels = len(self.model.setting.vars_out)
+        height, width = rst_data.size(-2), rst_data.size(-1)
+        try:
+            weight = self.model.weight # Assuming shape is [H, W] or compatible
+            weight = weight.reshape(1, 1, 1, height, width)
+        except AttributeError:
+             print("Error: 'weight' attribute not found in self.model.")
+             raise
+        except Exception as e:
+            print(f"Error: Failed to reshape weight. Original weight shape: {self.model.weight.shape}, Target shape: (1, 1, 1, {height}, {width})")
+            raise e
+
+        weight = weight.to(device=target_device, dtype=target_type)
+
+        # Handle data shape based on RNN mode or non-RNN mode
+        if self.rnn:
+            seq_length = tgt_data.size(2) # Assuming time dimension is 2
+            start_pos = self.model.setting.input_span
+            # Slice, assuming dimensions are [B, C, T, H, W]
+            tgt = tgt_data[:, 0:channels, start_pos:seq_length, :, :]
+            rst = rst_data[:, 0:channels, start_pos:seq_length, :, :]
+        else:
+            pred_span = self.model.setting.pred_span
+            try:
+                # Reshape, assuming the final required shape is [B, C, P, H, W]
+                tgt = tgt_data.reshape(-1, channels, pred_span, height, width)
+                rst = rst_data.reshape(-1, channels, pred_span, height, width)
+            except RuntimeError as e:
+                print(f"Error: Failed to reshape input tensors.")
+                print(f"  Target shape: (-1, {channels}, {pred_span}, {height}, {width})")
+                print(f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}")
+                raise e
+
+        batch_size, days = tgt.size(0), tgt.size(2)
+        epoch = self.current_epoch
+        rst, tgt = denormalizors[variable](rst), denormalizors[variable](tgt)
+        squared_error = (rst - tgt) ** 2
+        weighted_se = weight * squared_error # PyTorch handles broadcasting automatically
+        for day in range(days):
+            self.var_dayMse[variable].setdefault(epoch, {}).setdefault(day + 1, 0.0)
+            cur_weighted_se = weighted_se[:, :, day, :, :] 
+            total_se_sum = th.sum(cur_weighted_se)
+            ones_like_data = th.ones_like(cur_weighted_se)
+            total_weight_sum = th.sum(weight * ones_like_data)
+            mse = total_se_sum / total_weight_sum
+            rmse = (mse.item())**0.5
+
+            self.var_dayMse[variable][epoch][day+1] = rmse
+        else:
+            total_se_sum = th.sum(weighted_se)
+            ones_like_data = th.ones_like(rst)
+            total_weight_sum = th.sum(weight * ones_like_data)
+            mse = total_se_sum / total_weight_sum
+           
         return th.sqrt(mse)
 
     def get_climatology_accessor(self, mode):
@@ -159,6 +225,7 @@ class LightningModel(ltn.LightningModule):
             start_pos = self.model.setting.input_span
             forecast = forecast[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
             observation = observation[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
+            climatology = climatology[:,self.model.setting.height, :, :]
             climatology = climatology.reshape(batch, 1, pred_length, 32, 64)
             weight = self.model.weight.reshape(1, 1, 1, 32, 64).cpu().numpy()
         else:
@@ -292,9 +359,10 @@ class LightningModel(ltn.LightningModule):
 
         total_rmse = 0
         for variable in self.model.setting.vars_out:
-            rmse = self.compute_rmse(targets, results, variable)
-            self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
-                     batch_size=current_batch_size, sync_dist=True)
+            self.var_dayMse[variable] = dict()
+            rmse = self.compute_drmse(targets, results, variable)
+            # self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
+            #         batch_size=current_batch_size, sync_dist=True)
             total_rmse += rmse
 
             # prod, fsum, osum = self.calculate_acc(
@@ -313,7 +381,9 @@ class LightningModel(ltn.LightningModule):
         avg_rmse = total_rmse / len(self.model.setting.vars_out)
         self.log("val_rmse", avg_rmse, on_step=False, on_epoch=True,
                     batch_size=current_batch_size, sync_dist=True, prog_bar=True)
-
+        with open (os.path.join(self.logger.log_dir, "var_day_mse.json"),'w') as f:
+                json.dump(self.var_dayMse, f)
+        
         # Only plot for the first batch in CI mode
         if not self.ci or batch_idx == 0 and self.opt.plot == "true":
             self.plot(inputs, results, targets, indexies, batch_idx, mode="eval")
@@ -651,27 +721,39 @@ class GANModel(LightningModel):
         self.fakeness = fake_judgement["data"].mean().item()
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
 
-        mse_numerator, mse_denominator = self.compute_mse(targets, forecast)
-        self.labeled_mse_numerator += mse_numerator
-        self.labeled_mse_denominator += mse_denominator
-        rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
+        total_rmse = 0
+        current_batch_size = forecast['data'].shape[0] 
+        for variable in self.model.setting.vars_out:
+            rmse = self.compute_rmse(targets, forecast, variable)
+            self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
+                batch_size=current_batch_size, sync_dist=True)
+            total_rmse += rmse
 
-        prod, fsum, osum = self.calculate_acc(
-            forecast["data"], targets["data"], indexies, mode="test"
-        )
-        self.labeled_acc_prod_term += prod
-        self.labeled_acc_fsum_term += fsum
-        self.labeled_acc_osum_term += osum
-        acc = self.labeled_acc_prod_term / np.sqrt(
-            self.labeled_acc_fsum_term * self.labeled_acc_osum_term
-        )
+            # Calculate the average RMSE across all variables
+            avg_rmse = total_rmse / len(self.model.setting.vars_out)
+            self.log("val_rmse", avg_rmse, on_step=False, on_epoch=True,
+                batch_size=current_batch_size, sync_dist=True, prog_bar=True)
+
+        # self.labeled_mse_numerator += mse_numerator
+        # self.labeled_mse_denominator += mse_denominator
+        # rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
+
+        # prod, fsum, osum = self.calculate_acc(
+        #     forecast["data"], targets["data"], indexies, mode="test"
+        # )
+        # self.labeled_acc_prod_term += prod
+        # self.labeled_acc_fsum_term += fsum
+        # self.labeled_acc_osum_term += osum
+        # acc = self.labeled_acc_prod_term / np.sqrt(
+        #     self.labeled_acc_fsum_term * self.labeled_acc_osum_term
+        # )
 
         self.log("realness", self.realness, prog_bar=True, sync_dist=True)
         self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
         self.log("forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("crps", crps, prog_bar=True, sync_dist=True)
         self.log("absb", absb, prog_bar=True, sync_dist=True)
-        self.log("acc", acc, prog_bar=True, sync_dist=True)
+        # self.log("acc", acc, prog_bar=True, sync_dist=True)
         self.log("rmse", rmse, prog_bar=True, sync_dist=True)
         
         # Only plot for the first batch in CI mode
