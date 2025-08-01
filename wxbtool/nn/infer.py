@@ -10,6 +10,7 @@ from wxbtool.data.dataset import WxDataset
 from wxbtool.util.plotter import plot
 from datetime import datetime
 import wxbtool.config as config
+import pandas as pd
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -25,7 +26,7 @@ def main(context, opt):
         os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
         sys.path.insert(0, os.getcwd())
         mdm = importlib.import_module(opt.module, package=None)
-        model = LightningModel(mdm.model)
+        model = LightningModel(mdm.model, opt=opt)
 
         # Load the model checkpoint if provided
         if opt.load:
@@ -48,6 +49,7 @@ def main(context, opt):
             pred_shift=model.model.setting.pred_shift,
             pred_span=model.model.setting.pred_span,
             step=model.model.setting.step,
+            rnn_mode=opt.rnn
         )
 
         # Find the index of the specific datetime
@@ -82,7 +84,14 @@ def main(context, opt):
                 if var == "t2m":
                     plot(var, open(output_path, mode="wb"), data.squeeze().cpu().numpy())
         elif opt.output.endswith('nc'):
-            ds = xr.DataArray(results["t2m"].reshape(32,64), coords={'lat': np.linspace(-87.1875, 87.1875, 32), 'lon':np.linspace(0, 354.375, 64)}, dims=['lat', 'lon'])
+            if opt.rnn:
+                ds = xr.DataArray(results["t2m"].reshape(-1,32,64), 
+                                  coords={'time': pd.date_range(start=opt.datetime, periods=model.model.setting.input_span + model.model.setting.pred_span, freq='D'),
+                                          'lat': np.linspace(-87.1875, 87.1875, 32), 
+                                          'lon':np.linspace(0, 354.375, 64)}, 
+                                  dims=['time', 'lat', 'lon'])
+            else:    
+                ds = xr.DataArray(results["t2m"].reshape(32,64), coords={'lat': np.linspace(-87.1875, 87.1875, 32), 'lon':np.linspace(0, 354.375, 64)}, dims=['lat', 'lon'])
             ds.to_netcdf(output_path)
         else:
             raise ValueError("Unsupported output format. Use either png or nc.")

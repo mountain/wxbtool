@@ -197,6 +197,9 @@ def test(parser, context, args):
     parser.add_argument(
         "-O", "--optimize", action="store_true", help="use optimized testing for CI"
     )
+    parser.add_argument(
+        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
+    )
     opt = parser.parse_args(args)
 
     ttmain(context, opt)
@@ -251,6 +254,9 @@ def infer(parser, context, args):
         required=True,
         help="output file format, either png or nc",
     )
+    parser.add_argument(
+        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
+    )
     opt = parser.parse_args(args)
 
     infer_main(context, opt)
@@ -304,6 +310,9 @@ def inferg(parser, context, args):
         required=True,
         help="output file format, either png or nc",
     )
+    parser.add_argument(
+        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
+    )
     opt = parser.parse_args(args)
 
     inferg_main(context, opt)
@@ -328,17 +337,17 @@ def download(parser, context, args):
     parser.add_argument(
         "--coverage",
         type=str,
-        choices=["daily", "weekly", "monthly"],
+        # choices=["daily", "weekly", "monthly", "int"],
         default="weekly",
-        help="specify the period for which data coverage is required",
+        help="specify the period for which data coverage is required, counld be daily, weekly, monthly or any integer days",
     )
-    parser.add_argument(
-        "--retention",
-        type=str,
-        choices=["daily", "weekly", "monthly"],
-        default="weekly",
-        help="specify the retention period for keeping the latest data",
-    )
+    # parser.add_argument(
+    #     "--retention",
+    #     type=str,
+    #     choices=["daily", "weekly", "monthly"],
+    #     default="weekly",
+    #     help="specify the retention period for keeping the latest data",
+    # )
     opt = parser.parse_args(args)
 
     dnmain(context, opt)

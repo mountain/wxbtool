@@ -69,6 +69,9 @@ class ERA5Downloader:
             start_date = end_date - datetime.timedelta(
                 days=30
             )  # Approximate month as 30 days
+        elif self.config.coverage.isdigit():
+            self.config.coverage = int(self.config.coverage)
+            start_date = end_date - datetime.timedelta(days=self.config.coverage)
         else:
             raise ValueError(
                 "Unsupported coverage type. Use 'daily', 'weekly', or 'monthly'."
@@ -202,7 +205,7 @@ class ERA5Downloader:
                     logging.info(f"File already exists: {abs_filename}")
 
         # After downloading, manage retention
-        self.manage_retention()
+        # self.manage_retention() # Commented out to avoid deletion
 
 
 def main(context, opt):

@@ -41,3 +41,7 @@ wxb = "wxbtool.wxb:main"
 dev = [
     "ruff>=0.8.3",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["wxbtool"]
