@@ -67,7 +67,7 @@ class TestTrain(unittest.TestCase):
             "-t",
             "true",
             "-c",
-            "4",  # Reduced CPU threads
+            "1",  # Reduced CPU threads
             "-g",
             "-1",  # force CPU
         ]
@@ -92,6 +92,32 @@ class TestTrain(unittest.TestCase):
             "1",  # Reduced epochs
             "-G",
             "true",
+            "-c",
+            "4",  # Reduced CPU threads
+            "-t",
+            "true",  # Test mode
+            "-g",
+            "-1",  # force CPU
+        ]
+        with patch.object(sys, "argv", testargs):
+            wxb.main()
+
+    @mock.patch.dict(
+        os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
+    )
+    def test_train_rnn(self):
+        """Test training a RNN model with minimal settings."""
+        import wxbtool.wxb as wxb
+
+        testargs = [
+            "wxb",
+            "train",
+            "-m",
+            "models.climate_rnn",
+            "-b",
+            "16",  # Reduced batch size
+            "-n",
+            "1",  # Reduced epochs
             "-c",
             "4",  # Reduced CPU threads
             "-t",

@@ -21,7 +21,6 @@ class LightningModel(ltn.LightningModule):
         self.opt = opt
         # CI flag
         self.ci = True if (opt and hasattr(opt, "test") and opt.test == "true" and hasattr(opt, "ci") and opt.ci) else False
-        self.rnn = hasattr(self.opt, "rnn") and self.opt.rnn
 
         if opt and hasattr(opt, "rate"):
             self.learning_rate = float(opt.rate)
@@ -34,6 +33,7 @@ class LightningModel(ltn.LightningModule):
         self.labeled_acc_osum_term = {var: 0 for var in self.model.setting.vars_out}
 
         self.var_dayMse = defaultdict()
+        self.var_dayAcc = defaultdict()
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=self.learning_rate,
@@ -54,7 +54,6 @@ class LightningModel(ltn.LightningModule):
         tgt_data = tgt_data.to(device=target_device)
         rst_data = rst_data.to(device=target_device, dtype=target_type)
 
-        channels = len(self.model.setting.vars_out)
         height, width = rst_data.size(-2), rst_data.size(-1)
         try:
             weight = self.model.weight # Assuming shape is [H, W] or compatible
@@ -69,23 +68,16 @@ class LightningModel(ltn.LightningModule):
         weight = weight.to(device=target_device, dtype=target_type)
 
         # Handle data shape based on RNN mode or non-RNN mode
-        if self.rnn:
-            seq_length = tgt_data.size(2) # Assuming time dimension is 2
-            start_pos = self.model.setting.input_span
-            # Slice, assuming dimensions are [B, C, T, H, W]
-            tgt = tgt_data[:, 0:channels, start_pos:seq_length, :, :]
-            rst = rst_data[:, 0:channels, start_pos:seq_length, :, :]
-        else:
-            pred_span = self.model.setting.pred_span
-            try:
-                # Reshape, assuming the final required shape is [B, C, P, H, W]
-                tgt = tgt_data.reshape(-1, channels, pred_span, height, width)
-                rst = rst_data.reshape(-1, channels, pred_span, height, width)
-            except RuntimeError as e:
-                print(f"Error: Failed to reshape input tensors.")
-                print(f"  Target shape: (-1, {channels}, {pred_span}, {height}, {width})")
-                print(f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}")
-                raise e
+        pred_span = self.model.setting.pred_span
+        try:
+            # Reshape, assuming the final required shape is [B, C, P, H, W]
+            tgt = tgt_data.reshape(-1, 1, pred_span, height, width)
+            rst = rst_data.reshape(-1, 1, pred_span, height, width)
+        except RuntimeError as e:
+            print(f"Error: Failed to reshape input tensors.")
+            print(f"  Target shape: (-1, {1}, {pred_span}, {height}, {width})")
+            print(f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}")
+            raise e
 
         squared_error = (rst - tgt) ** 2
         weighted_se = weight * squared_error # PyTorch handles broadcasting automatically
@@ -104,7 +96,6 @@ class LightningModel(ltn.LightningModule):
         tgt_data = tgt_data.to(device=target_device)
         rst_data = rst_data.to(device=target_device, dtype=target_type)
 
-        channels = len(self.model.setting.vars_out)
         height, width = rst_data.size(-2), rst_data.size(-1)
         try:
             weight = self.model.weight # Assuming shape is [H, W] or compatible
@@ -118,24 +109,16 @@ class LightningModel(ltn.LightningModule):
 
         weight = weight.to(device=target_device, dtype=target_type)
 
-        # Handle data shape based on RNN mode or non-RNN mode
-        if self.rnn:
-            seq_length = tgt_data.size(2) # Assuming time dimension is 2
-            start_pos = self.model.setting.input_span
-            # Slice, assuming dimensions are [B, C, T, H, W]
-            tgt = tgt_data[:, 0:channels, start_pos:seq_length, :, :]
-            rst = rst_data[:, 0:channels, start_pos:seq_length, :, :]
-        else:
-            pred_span = self.model.setting.pred_span
-            try:
-                # Reshape, assuming the final required shape is [B, C, P, H, W]
-                tgt = tgt_data.reshape(-1, channels, pred_span, height, width)
-                rst = rst_data.reshape(-1, channels, pred_span, height, width)
-            except RuntimeError as e:
-                print(f"Error: Failed to reshape input tensors.")
-                print(f"  Target shape: (-1, {channels}, {pred_span}, {height}, {width})")
-                print(f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}")
-                raise e
+        pred_span = self.model.setting.pred_span
+        try:
+            # Reshape, assuming the final required shape is [B, C, P, H, W]
+            tgt = tgt_data.reshape(-1, 1, pred_span, height, width)
+            rst = rst_data.reshape(-1, 1, pred_span, height, width)
+        except RuntimeError as e:
+            print(f"Error: Failed to reshape input tensors.")
+            print(f"  Target shape: (-1, {1}, {pred_span}, {height}, {width})")
+            print(f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}")
+            raise e
 
         batch_size, days = tgt.size(0), tgt.size(2)
         epoch = self.current_epoch
@@ -143,7 +126,7 @@ class LightningModel(ltn.LightningModule):
         squared_error = (rst - tgt) ** 2
         weighted_se = weight * squared_error # PyTorch handles broadcasting automatically
         for day in range(days):
-            self.var_dayMse[variable].setdefault(epoch, {}).setdefault(day + 1, 0.0)
+            self.var_dayMse[variable].setdefault(epoch, {}).setdefault(day, 0.0)
             cur_weighted_se = weighted_se[:, :, day, :, :] 
             total_se_sum = th.sum(cur_weighted_se)
             ones_like_data = th.ones_like(cur_weighted_se)
@@ -219,20 +202,12 @@ class LightningModel(ltn.LightningModule):
         batch = forecast.shape[0]
         pred_length = self.model.setting.pred_span
         climatology = self.get_climatology(indexies, mode)
-        climatology = climatology[:, :, :, :, :]
-        if self.rnn:
-            seq_length = forecast.size(2) # Assuming time dimension is 2
-            start_pos = self.model.setting.input_span
-            forecast = forecast[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
-            observation = observation[:, 0:1, start_pos:seq_length, :, :].cpu().numpy()
-            climatology = climatology[:,self.model.setting.height, :, :]
-            climatology = climatology.reshape(batch, 1, pred_length, 32, 64)
-            weight = self.model.weight.reshape(1, 1, 1, 32, 64).cpu().numpy()
-        else:
-            forecast = forecast.cpu().numpy()
-            observation = observation.cpu().numpy()
-            climatology = climatology.reshape(batch, pred_length, 32, 64)
-            weight = self.model.weight.reshape(1, 1, 32, 64).cpu().numpy()
+        var_ind = self.model.setting.vars_out.index(variable)
+        climatology = climatology[:, var_ind:var_ind+1, :, :, :]
+        forecast = forecast.reshape(batch, 1, pred_length, 32, 64).cpu().numpy()
+        observation = observation.reshape(batch, 1, pred_length, 32, 64).cpu().numpy()
+        climatology = climatology.reshape(batch, 1, pred_length, 32, 64)
+        weight = self.model.weight.reshape(1, 1, 1, 32, 64).cpu().numpy()
 
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
@@ -249,6 +224,16 @@ class LightningModel(ltn.LightningModule):
         #     o_anomaly[0],
         # )
 
+        batch_size, days = climatology.shape[0], climatology.shape[2]
+        epoch = self.current_epoch
+        for day in range(days):
+            self.var_dayAcc[variable].setdefault(epoch, {}).setdefault(day, 0.0)
+            prod = np.sum(weight * f_anomaly[:, :, day, :, :] * o_anomaly[:, :, day, :, :])
+            fsum = np.sum(weight * f_anomaly[:, :, day, :, :]**2)
+            osum = np.sum(weight * o_anomaly[:, :, day, :, :]**2)
+            acc = prod / np.sqrt(fsum * osum)
+            self.var_dayAcc[variable][epoch][day+1] = float(acc)
+            
         prod = np.sum(weight * f_anomaly * o_anomaly)
         fsum = np.sum(weight * f_anomaly**2)
         osum = np.sum(weight * o_anomaly**2)
@@ -281,7 +266,8 @@ class LightningModel(ltn.LightningModule):
         for bas, var in enumerate(self.model.setting.vars_out):
             fcst = results[var]
             tgrt = targets[var]
-            span = self.model.setting.input_span + self.model.setting.pred_span if self.rnn else self.model.setting.pred_span
+            # span = self.model.setting.input_span + self.model.setting.pred_span if self.rnn else self.model.setting.pred_span
+            span = self.model.setting.pred_span
             for ix in range(span):
                 if fcst.dim() == 4:
                     fcst_img = fcst[0, ix].detach().cpu().numpy().reshape(32, 64)
@@ -365,25 +351,28 @@ class LightningModel(ltn.LightningModule):
             #         batch_size=current_batch_size, sync_dist=True)
             total_rmse += rmse
 
-            # prod, fsum, osum = self.calculate_acc(
-            #      results[variable], targets[variable], indexies=indexies, variable=variable, mode="eval"
-            # )
-            # self.labeled_acc_prod_term[variable] += prod
-            # self.labeled_acc_fsum_term[variable] += fsum
-            # self.labeled_acc_osum_term[variable] += osum
-            # acc = self.labeled_acc_prod_term[variable] / np.sqrt(
-            #     self.labeled_acc_fsum_term[variable] * self.labeled_acc_osum_term[variable]
-            # )
-            # self.log(f"val_acc_{variable}", acc, on_step=False, on_epoch=True,
-            #          batch_size=current_batch_size, sync_dist=True)
+            self.var_dayAcc[variable] = dict()
+            prod, fsum, osum = self.calculate_acc(
+                 results[variable], targets[variable], indexies=indexies, variable=variable, mode="eval"
+            )
+            self.labeled_acc_prod_term[variable] += prod
+            self.labeled_acc_fsum_term[variable] += fsum
+            self.labeled_acc_osum_term[variable] += osum
+            acc = self.labeled_acc_prod_term[variable] / np.sqrt(
+                self.labeled_acc_fsum_term[variable] * self.labeled_acc_osum_term[variable]
+            )
+            self.log(f"val_acc_{variable}", acc, on_step=False, on_epoch=True,
+                     batch_size=current_batch_size, sync_dist=True)
 
         # Calculate the average RMSE across all variables
         avg_rmse = total_rmse / len(self.model.setting.vars_out)
         self.log("val_rmse", avg_rmse, on_step=False, on_epoch=True,
                     batch_size=current_batch_size, sync_dist=True, prog_bar=True)
-        with open (os.path.join(self.logger.log_dir, "var_day_mse.json"),'w') as f:
-                json.dump(self.var_dayMse, f)
-        
+        with open (os.path.join(self.logger.log_dir, "val_rmse.json"),'w') as f:
+            json.dump(self.var_dayMse, f)
+        with open (os.path.join(self.logger.log_dir, "val_acc.json"),'w') as f:
+            json.dump(self.var_dayAcc, f)
+    
         # Only plot for the first batch in CI mode
         if not self.ci or batch_idx == 0 and self.opt.plot == "true":
             self.plot(inputs, results, targets, indexies, batch_idx, mode="eval")
@@ -402,11 +391,13 @@ class LightningModel(ltn.LightningModule):
         loss = self.loss_fn(inputs, results, targets, indexies=indexies, mode="test")
         self.log("test_loss", loss, sync_dist=True, prog_bar=True)
 
+        total_rmse = 0
         for variable in self.model.setting.vars_out:
-            rmse = self.compute_rmse(targets, results, variable)
-            self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
-                     batch_size=current_batch_size, sync_dist=True, prog_bar=True)
+            self.var_dayMse[variable] = dict()
+            rmse = self.compute_drmse(targets, results, variable)
+            total_rmse += rmse
 
+            self.var_dayAcc[variable] = dict()
             prod, fsum, osum = self.calculate_acc(
                  results[variable], targets[variable], indexies=indexies, variable=variable, mode="test"
             )
@@ -418,6 +409,15 @@ class LightningModel(ltn.LightningModule):
             )
             self.log(f"val_acc_{variable}", acc, on_step=False, on_epoch=True,
                      batch_size=current_batch_size, sync_dist=True, prog_bar=True)
+            
+        # Calculate the average RMSE across all variables
+        avg_rmse = total_rmse / len(self.model.setting.vars_out)
+        self.log("test_rmse", avg_rmse, on_step=False, on_epoch=True,
+                    batch_size=current_batch_size, sync_dist=True, prog_bar=True)
+        with open (os.path.join(self.logger.log_dir, "test_rmse.json"),'w') as f:
+                json.dump(self.var_dayMse, f)
+        with open (os.path.join(self.logger.log_dir, "test_acc.json"),'w') as f:
+            json.dump(self.var_dayAcc, f)
 
         self.plot(inputs, results, targets, indexies, batch_idx, mode="test")
 
@@ -429,14 +429,11 @@ class LightningModel(ltn.LightningModule):
         return checkpoint
 
     def train_dataloader(self):
-        if self.model.dataset_train is None:
-            # Check if RNN mode is enabled
-            rnn_mode = self.rnn
-            
+        if self.model.dataset_train is None:        
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
+                self.model.load_dataset("train", "client", url=self.opt.data)
             else:
-                self.model.load_dataset("train", "server", rnn_mode=rnn_mode)
+                self.model.load_dataset("train", "server")
                 
         # Use a smaller batch size and fewer workers in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size
@@ -450,14 +447,11 @@ class LightningModel(ltn.LightningModule):
         )
 
     def val_dataloader(self):
-        if self.model.dataset_eval is None:
-            # Check if RNN mode is enabled
-            rnn_mode = self.rnn
-            
+        if self.model.dataset_eval is None:    
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
+                self.model.load_dataset("train", "client", url=self.opt.data)
             else:
-                self.model.load_dataset("train", "server", rnn_mode=rnn_mode)
+                self.model.load_dataset("train", "server")
                 
         # Use a smaller batch size and fewer workers in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size
@@ -472,13 +466,10 @@ class LightningModel(ltn.LightningModule):
 
     def test_dataloader(self):
         if self.model.dataset_test is None:
-            # Check if RNN mode is enabled
-            rnn_mode = self.rnn
-            
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=rnn_mode)
+                self.model.load_dataset("train", "client", url=self.opt.data)
             else:
-                self.model.load_dataset("train", "server", rnn_mode=rnn_mode)
+                self.model.load_dataset("train", "server")
                 
         # Use a smaller batch size and fewer workers in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size
@@ -658,8 +649,8 @@ class GANModel(LightningModel):
         forecast_loss = self.loss_fn(inputs, forecast, targets, indexies=indexies, mode="eval")
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
-        # crps, absb = self.compute_crps(forecast["data"], targets["data"])
-        # crps = self.forecast_error(crps)
+        crps, absb = self.compute_crps(forecast["data"], targets["data"])
+        crps = self.forecast_error(crps)
 
         # mse_numerator, mse_denominator = self.compute_mse(targets, forecast)
         # self.labeled_mse_numerator += mse_numerator
@@ -670,33 +661,41 @@ class GANModel(LightningModel):
         current_batch_size = forecast['data'].shape[0] 
         total_rmse = 0
         for variable in self.model.setting.vars_out:
-            rmse = self.compute_rmse(targets, forecast, variable)
-            self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
-                batch_size=current_batch_size, sync_dist=True)
+            self.var_dayMse[variable] = dict()
+            rmse = self.compute_drmse(targets, forecast, variable)
+            # self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
+            #     batch_size=current_batch_size, sync_dist=True)
             total_rmse += rmse
 
             # Calculate the average RMSE across all variables
-            avg_rmse = total_rmse / len(self.model.setting.vars_out)
-            self.log("val_rmse", avg_rmse, on_step=False, on_epoch=True,
-                batch_size=current_batch_size, sync_dist=True, prog_bar=True)
-
-        # prod, fsum, osum = self.calculate_acc(
-        #     forecast["data"], targets["data"], indexies=indexies, mode="eval"
-        # )
-        # self.labeled_acc_prod_term += prod
-        # self.labeled_acc_fsum_term += fsum
-        # self.labeled_acc_osum_term += osum
-        # acc = self.labeled_acc_prod_term / np.sqrt(
-        #     self.labeled_acc_fsum_term * self.labeled_acc_osum_term
-        # )
-
+            
+            self.var_dayAcc[variable] = dict()
+            prod, fsum, osum = self.calculate_acc(
+                    forecast[variable], targets[variable], indexies=indexies, variable=variable, mode="eval"
+                )
+            self.labeled_acc_prod_term[variable] += prod
+            self.labeled_acc_fsum_term[variable] += fsum
+            self.labeled_acc_osum_term[variable] += osum
+            acc = self.labeled_acc_prod_term[variable] / np.sqrt(
+                self.labeled_acc_fsum_term[variable] * self.labeled_acc_osum_term[variable]
+            )
+            self.log(f"val_acc_{variable}", acc, on_step=False, on_epoch=True,
+                     batch_size=current_batch_size, sync_dist=True)
+            
+        avg_rmse = total_rmse / len(self.model.setting.vars_out)
+        self.log("val_rmse", avg_rmse, on_step=False, on_epoch=True,
+            batch_size=current_batch_size, sync_dist=True, prog_bar=True)
+        with open (os.path.join(self.logger.log_dir, "val_rmse.json"),'w') as f:
+            json.dump(self.var_dayMse, f)
+        with open (os.path.join(self.logger.log_dir, "val_acc.json"),'w') as f:
+            json.dump(self.var_dayAcc, f)
+    
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
         self.log("realness", self.realness, prog_bar=True, sync_dist=True)
         self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
-        # self.log("crps", crps, prog_bar=True, sync_dist=True)
-        # self.log("absb", absb, prog_bar=True, sync_dist=True)
-        # self.log("acc", acc, prog_bar=True, sync_dist=True)
+        self.log("crps", crps, prog_bar=True, sync_dist=True)
+        self.log("absb", absb, prog_bar=True, sync_dist=True)
         self.log("rmse", rmse, prog_bar=True, sync_dist=True)
         self.log("val_forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
@@ -769,9 +768,9 @@ class GANModel(LightningModel):
     def val_dataloader(self):
         if self.model.dataset_eval is None:
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=self.rnn)
+                self.model.load_dataset("train", "client", url=self.opt.data)
             else:
-                self.model.load_dataset("train", "server", rnn_mode=self.rnn)
+                self.model.load_dataset("train", "server")
 
         # Use a smaller batch size in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size
@@ -785,9 +784,9 @@ class GANModel(LightningModel):
     def test_dataloader(self):
         if self.model.dataset_test is None:
             if self.opt.data != "":
-                self.model.load_dataset("train", "client", url=self.opt.data, rnn_mode=self.rnn)
+                self.model.load_dataset("train", "client", url=self.opt.data)
             else:
-                self.model.load_dataset("train", "server", rnn_mode=self.rnn)
+                self.model.load_dataset("train", "server")
                 
         # Use a smaller batch size in CI mode
         batch_size = 5 if self.ci else self.opt.batch_size

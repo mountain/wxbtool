@@ -48,7 +48,6 @@ class WxDataset(Dataset):
         pred_shift=None,
         pred_span=None,
         setting=None,
-        rnn_mode=False,
     ):
         self.setting = setting if setting is not None else Setting()
         
@@ -62,7 +61,6 @@ class WxDataset(Dataset):
         self.years = years if years is not None else self.setting.years_train
         self.vars = vars if vars is not None else self.setting.vars
         self.levels = levels if levels is not None else self.setting.levels
-        self.rnn_mode = rnn_mode  # Whether to use RNN mode for returning combined inputs and targets
         self.inputs = {}
         self.targets = {}
         self.shapes = {
@@ -300,13 +298,13 @@ class WxDataset(Dataset):
                     )
 
         # In RNN mode, return combined inputs and targets as 'all'
-        if hasattr(self, 'rnn_mode') and self.rnn_mode:
-            all_data = {}
-            for var in self.vars:
-                if var in inputs and var in targets:
-                    # Combine inputs and targets for each variable
-                    all_data[var] = np.concatenate([inputs[var], targets[var]], axis=0)
-            return all_data, all_data, item
+        # if hasattr(self, 'rnn_mode') and self.rnn_mode:
+        #     all_data = {}
+        #     for var in self.vars:
+        #         if var in inputs and var in targets:
+        #             # Combine inputs and targets for each variable
+        #             all_data[var] = np.concatenate([inputs[var], targets[var]], axis=0)
+        #     return all_data, all_data, item
         
         return inputs, targets, item
 
@@ -325,12 +323,10 @@ class WxDatasetClient(Dataset):
         pred_shift=None,
         pred_span=None,
         setting=None,
-        rnn_mode=False,
     ):
         self.url = url
         self.phase = phase
         self.setting = setting if setting is not None else Setting()
-        self.rnn_mode = rnn_mode  # Whether to use RNN mode for returning combined inputs and targets
         
         # Use values from setting if not explicitly provided
         self.resolution = resolution if resolution is not None else self.setting.resolution
@@ -415,13 +411,13 @@ class WxDatasetClient(Dataset):
                 val[var] = np.array(np.copy(blk), dtype=np.float32)
 
         # In RNN mode, return combined inputs and targets as 'all'
-        if hasattr(self, 'rnn_mode') and self.rnn_mode:
-            all_data = {}
-            for var in data["inputs"].keys():
-                if var in data["inputs"] and var in data["targets"]:
-                    # Combine inputs and targets for each variable
-                    all_data[var] = np.concatenate([data["inputs"][var], data["targets"][var]], axis=0)
-            return all_data, all_data, item
+        # if hasattr(self, 'rnn_mode') and self.rnn_mode:
+        #     all_data = {}
+        #     for var in data["inputs"].keys():
+        #         if var in data["inputs"] and var in data["targets"]:
+        #             # Combine inputs and targets for each variable
+        #             all_data[var] = np.concatenate([data["inputs"][var], data["targets"][var]], axis=0)
+        #     return all_data, all_data, item
             
         return data["inputs"], data["targets"], item
 
