@@ -84,8 +84,6 @@ class Model2d(nn.Module):
         self.clipping_threshold = 3.0
 
     def load_dataset(self, phase, mode, **kwargs):
-        # Check if RNN mode is enabled from kwargs or opt
-        rnn_mode = kwargs.get("rnn_mode", False)
         
         if mode == "server":
             self.dataset_train, self.dataset_eval, self.dataset_test = (
@@ -99,7 +97,6 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
-                    rnn_mode=rnn_mode,
                 ),
                 WxDataset(
                     self.setting.root,
@@ -111,7 +108,6 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
-                    rnn_mode=rnn_mode,
                 ),
                 WxDataset(
                     self.setting.root,
@@ -119,7 +115,6 @@ class Model2d(nn.Module):
                     self.setting.years_test,
                     self.setting.vars,
                     self.setting.levels,
-                    rnn_mode=rnn_mode,
                     input_span=self.setting.input_span,
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
@@ -140,7 +135,6 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
-                    rnn_mode=rnn_mode,
                 ),
                 WxDatasetClient(
                     ds_url,
@@ -153,7 +147,6 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
-                    rnn_mode=rnn_mode,
                 ),
                 WxDatasetClient(
                     ds_url,
@@ -166,7 +159,6 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
-                    rnn_mode=rnn_mode,
                 ),
             )
 
