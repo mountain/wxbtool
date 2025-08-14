@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 from wxbtool.nn.lightning import LightningModel
 from wxbtool.data.dataset import WxDataset
 from wxbtool.util.plotter import plot
-from datetime import datetime
+from datetime import datetime, timedelta
 import wxbtool.config as config
 import pandas as pd
+import json
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -59,17 +60,30 @@ def main(context, opt):
         datetime_index = sample_data.time.values.tolist().index(float(day_of_year-1))
 
         # Get the input data for the specific datetime
-        inputs, _, _ = dataset[datetime_index]
+        inputs, targets, _ = dataset[datetime_index]
 
         # Convert inputs to torch tensors
         inputs = {k: th.tensor(v[:model.model.setting.input_span, :, :], dtype=th.float32).unsqueeze(0) for k, v in inputs.items()} # 只取input_span范围
+        targets = {k: th.tensor(v, dtype=th.float32).unsqueeze(0) for k, v in targets.items()}
 
         inputs = model.model.get_inputs(**inputs)
+        targets = model.model.get_targets(**targets) # targets必须也得get一次，norm后，才能和compute_drmse适配
 
         # Perform inference
         with th.no_grad():
             results = model(**inputs)
         
+        for variable in model.model.setting.vars_out:
+            model.var_dayMse[variable] = dict()
+            rmse = model.compute_drmse(targets, results, variable)
+
+        new_dict = {}
+        for var, epoch_dict in model.var_dayMse.items():
+            days_dict = epoch_dict.get(0, {})  # 取出 epoch=0 这一层, eval下epoch全部都是0
+            new_dict[var] = days_dict.copy()
+            new_dict[var] = {(parser_time + timedelta(days=d)).strftime("%Y-%m-%d"): v
+                                        for d, v in new_dict[var].items()} # 把天数转成具体日期
+
         results = model.model.get_forcast(**results)
 
         # Save the output
@@ -91,11 +105,13 @@ def main(context, opt):
                 for var in model.model.setting.vars_out:
                     ds.loc[var] = results[var].reshape(-1, 32, 64)
             else:
-                ds = xr.DataArray(results["t2m"].reshape(32,64), coords={'lat': np.linspace(87.1875, -87.1875, 32), 'lon':np.linspace(0, 354.375, 64)}, dims=['lat', 'lon'])
+                ds = xr.DataArray(results["t2m"].reshape(32, 64), coords={'lat': np.linspace(87.1875, -87.1875, 32), 'lon':np.linspace(0, 354.375, 64)}, dims=['lat', 'lon'])
             ds.to_netcdf(output_path)
+            with open (os.path.join(output_dir, "var_day_rmse.json"),'w') as f:
+                json.dump(new_dict, f)
         else:
             raise ValueError("Unsupported output format. Use either png or nc.")
-        
+
     except ImportError as e:
         exc_info = sys.exc_info()
         print(e)
@@ -105,6 +121,8 @@ def main(context, opt):
         traceback.print_exception(*exc_info)
         del exc_info
         sys.exit(-1)
+
+
 
 
 def main_gan(context, opt):

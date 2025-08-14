@@ -6,6 +6,7 @@ from wxbtool.nn.train import main as tnmain
 from wxbtool.nn.test import main as ttmain
 from wxbtool.nn.infer import main as infer_main
 from wxbtool.nn.infer import main_gan as inferg_main
+from wxbtool.nn.eval import main as eval_main
 
 
 @subcmd
@@ -141,9 +142,6 @@ def train(parser, context, args):
     parser.add_argument(
         "-p", "--plot", type=str, default="false", help="plot training result" 
     )
-    parser.add_argument(
-        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
-    )
 
     opt = parser.parse_args(args)
 
@@ -197,13 +195,62 @@ def test(parser, context, args):
     parser.add_argument(
         "-O", "--optimize", action="store_true", help="use optimized testing for CI"
     )
-    parser.add_argument(
-        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
-    )
     opt = parser.parse_args(args)
 
     ttmain(context, opt)
 
+@subcmd("eval", help="Backtesting model performance")
+def eval(parser, context, args):
+    parser.add_argument("-g", "--gpu", type=str, default="0", help="index of gpu")
+    parser.add_argument(
+        "-c",
+        "--n_cpu",
+        type=int,
+        default=8,
+        help="number of cpu threads to use during batch generation",
+    )
+    parser.add_argument(
+        "-b", "--batch_size",
+        type=int,
+        default=64,
+        help="size of the batches"
+    )
+    parser.add_argument(
+        "-m",
+        "--module",
+        type=str,
+        default="wxbtool.zoo.unet.t850d3",
+        help="module of the metrological model to load",
+    )
+    parser.add_argument(
+        "-l",
+        "--load",
+        type=str,
+        default="",
+        help="dump file of the metrological model to load",
+    )
+    parser.add_argument(
+        "-d",
+        "--data",
+        type=str,
+        default="",
+        help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
+    )
+    parser.add_argument(
+        "-t", "--datetime",
+        type=str,
+        required=True,
+        help="specific datetime for inference in the format %Y-%m-%d, for example 2025-01-01", # The time that model needs, predict range in [d+model_day-7, d+model_day]  
+    )
+    parser.add_argument(
+        "-o", "--output",
+        type=str,
+        required=True,
+        help="output file format, either png or nc",
+    )
+    opt = parser.parse_args(args)
+
+    eval_main(context, opt)
 
 @subcmd("infer", help="start inference")
 def infer(parser, context, args):
@@ -253,9 +300,6 @@ def infer(parser, context, args):
         type=str,
         required=True,
         help="output file format, either png or nc",
-    )
-    parser.add_argument(
-        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
     )
     opt = parser.parse_args(args)
 
@@ -309,9 +353,6 @@ def inferg(parser, context, args):
         type=str,
         required=True,
         help="output file format, either png or nc",
-    )
-    parser.add_argument(
-        "-N", "--rnn", action="store_true", help="use RNN mode to combine inputs and targets"
     )
     opt = parser.parse_args(args)
 

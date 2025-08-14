@@ -239,8 +239,8 @@ def main(context, opt):
             grid=[resolution, resolution],  # Spatial resolution
             area=[90, -180, -90, 180],  # Global coverage
             coverage=opt.coverage,  # Options: "daily", "weekly", "monthly"
-            retention_days={"daily": 1, "weekly": 7, "monthly": 30}[opt.retention],
-            retention_action="delete",  # Options: "delete", "archive"
+            # retention_days={"daily": 1, "weekly": 7, "monthly": 30}[opt.retention],
+            # retention_action="delete",  # Options: "delete", "archive"
         )
 
         # Initialize and run the downloader
