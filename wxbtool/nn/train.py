@@ -6,6 +6,8 @@ import torch as th
 import lightning.pytorch as pl
 
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.strategies import DDPStrategy
+
 from wxbtool.nn.lightning import LightningModel, GANModel
 
 
@@ -84,7 +86,7 @@ def main(context, opt):
             
             callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=50), checkpoint_callback]
             trainer = pl.Trainer(
-                # strategy="ddp_find_unused_parameters_true",
+                strategy="ddp_find_unused_parameters_true",
                 devices=devices,
                 accelerator=accelerator,
                 precision=precision,
