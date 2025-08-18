@@ -6,9 +6,10 @@ from pathlib import Path
 pytest.importorskip("numpy")
 th = pytest.importorskip("torch")
 
-root = Path(__file__).resolve().parents[1]
+root = Path(__file__).resolve().parents[1] / "tests"
 sys.path.insert(0, str(root))
 os.environ.setdefault("WXBHOME", str(root))
+
 from wxbtool.nn.lightning import LightningModel  # noqa: E402
 
 
