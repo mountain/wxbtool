@@ -260,18 +260,6 @@ class LightningModel(ltn.LightningModule):
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
 
-        # vars_out = self.model.vars_out
-        # plot(
-        #     variable,
-        #     open("anomaly_%s_fcs.png" % variable, mode="wb"),
-        #     f_anomaly[0],
-        # )
-        # plot(
-        #     variable,
-        #     open("anomaly_%s_obs.png" % variable, mode="wb"),
-        #     o_anomaly[0],
-        # )
-
         _, days = climatology.shape[0], climatology.shape[2]
         epoch = self.current_epoch
         for day in range(days):
@@ -283,6 +271,17 @@ class LightningModel(ltn.LightningModule):
             osum = np.sum(weight * o_anomaly[:, :, day, :, :] ** 2)
             acc = prod / np.sqrt(fsum * osum)
             self.accByVar[variable][epoch][day + 1] = float(acc)
+
+            plot(
+                variable,
+                open(f"anomaly_{variable}_fcs_{day}.png", mode="wb"),
+                f_anomaly[0, :, day, :, :],
+            )
+            plot(
+                variable,
+                open(f"anomaly_{variable}_obs_{day}.png", mode="wb"),
+                o_anomaly[0, :, day, :, :],
+            )
 
         prod = np.sum(weight * f_anomaly * o_anomaly)
         fsum = np.sum(weight * f_anomaly**2)
