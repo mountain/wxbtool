@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 
 import unittest
+import os
+import pathlib
 import numpy as np
+import unittest.mock as mock
 
 
 class TestWindowArray(unittest.TestCase):
@@ -12,6 +15,9 @@ class TestWindowArray(unittest.TestCase):
     optimized test cases that cover the essential functionality.
     """
 
+    @mock.patch.dict(
+        os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
+    )
     def test_window_access(self):
         """Test window array access with different shift and step parameters."""
         from wxbtool.data.dataset import WindowArray

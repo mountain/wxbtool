@@ -43,8 +43,8 @@ class LightningModel(ltn.LightningModule):
         self.labeled_acc_fsum_term = {var: 0 for var in self.model.setting.vars_out}
         self.labeled_acc_osum_term = {var: 0 for var in self.model.setting.vars_out}
 
-        self.var_dayMse = defaultdict()
-        self.var_dayAcc = defaultdict()
+        self.mseByVar = defaultdict()
+        self.accByVar = defaultdict()
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(
@@ -56,7 +56,7 @@ class LightningModel(ltn.LightningModule):
         scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 53)
         return [optimizer], [scheduler]
 
-    def loss_fn(self, input, result, target, indexies=None, mode="train"):
+    def loss_fn(self, input, result, target, indexes=None, mode="train"):
         loss = self.model.lossfun(input, result, target)
         return loss
 
@@ -108,7 +108,7 @@ class LightningModel(ltn.LightningModule):
 
         return th.sqrt(mse)
 
-    def compute_drmse(self, targets, results, variable):
+    def compute_rmse_by_time(self, targets, results, variable):
         tgt_data = targets[variable]
         rst_data = results[variable]
         target_type = tgt_data.dtype
@@ -152,7 +152,7 @@ class LightningModel(ltn.LightningModule):
             weight * squared_error
         )  # PyTorch handles broadcasting automatically
         for day in range(days):
-            self.var_dayMse[variable].setdefault(epoch, {}).setdefault(day, 0.0)
+            self.mseByVar[variable].setdefault(epoch, {}).setdefault(day, 0.0)
             cur_weighted_se = weighted_se[:, :, day, :, :]
             total_se_sum = th.sum(cur_weighted_se)
             ones_like_data = th.ones_like(cur_weighted_se)
@@ -160,7 +160,7 @@ class LightningModel(ltn.LightningModule):
             mse = total_se_sum / total_weight_sum
             rmse = (mse.item()) ** 0.5
 
-            self.var_dayMse[variable][epoch][day + 1] = rmse
+            self.mseByVar[variable][epoch][day + 1] = rmse
         else:
             total_se_sum = th.sum(weighted_se)
             ones_like_data = th.ones_like(rst)
@@ -220,14 +220,14 @@ class LightningModel(ltn.LightningModule):
             result.append(data)
         return np.concatenate(result, axis=2)
 
-    def calculate_acc(self, forecast, observation, indexies, variable, mode):
+    def calculate_acc(self, forecast, observation, indexes, variable, mode):
         # Skip plotting and simplify calculations in CI mode
         if self.ci:
             return 1.0, 1.0, 1.0
 
         batch = forecast.shape[0]
         pred_length = self.model.setting.pred_span
-        climatology = self.get_climatology(indexies, mode)
+        climatology = self.get_climatology(indexes, mode)
         var_ind = self.model.setting.vars_out.index(variable)
         climatology = climatology[:, var_ind : var_ind + 1, :, :, :]
         forecast = forecast.reshape(batch, 1, pred_length, 32, 64).cpu().numpy()
@@ -253,14 +253,14 @@ class LightningModel(ltn.LightningModule):
         _, days = climatology.shape[0], climatology.shape[2]
         epoch = self.current_epoch
         for day in range(days):
-            self.var_dayAcc[variable].setdefault(epoch, {}).setdefault(day, 0.0)
+            self.accByVar[variable].setdefault(epoch, {}).setdefault(day, 0.0)
             prod = np.sum(
                 weight * f_anomaly[:, :, day, :, :] * o_anomaly[:, :, day, :, :]
             )
             fsum = np.sum(weight * f_anomaly[:, :, day, :, :] ** 2)
             osum = np.sum(weight * o_anomaly[:, :, day, :, :] ** 2)
             acc = prod / np.sqrt(fsum * osum)
-            self.var_dayAcc[variable][epoch][day + 1] = float(acc)
+            self.accByVar[variable][epoch][day + 1] = float(acc)
 
         prod = np.sum(weight * f_anomaly * o_anomaly)
         fsum = np.sum(weight * f_anomaly**2)
@@ -345,14 +345,14 @@ class LightningModel(ltn.LightningModule):
         #         )
 
     def training_step(self, batch, batch_idx):
-        inputs, targets, indexies = batch
-        # self.get_climatology(indexies, "train")
+        inputs, targets, indexes = batch
+        # self.get_climatology(indexes, "train")
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        results = self.forward(indexies=indexies, **inputs)
+        results = self.forward(indexes=indexes, **inputs)
 
-        loss = self.loss_fn(inputs, results, targets, indexies=indexies, mode="train")
+        loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="train")
 
         self.log("train_loss", loss, prog_bar=True, sync_dist=True)
         return loss
@@ -362,48 +362,32 @@ class LightningModel(ltn.LightningModule):
         if (self.ci and batch_idx > 0) or batch_idx > 2:
             return
 
-        inputs, targets, indexies = batch
+        inputs, targets, indexes = batch
         current_batch_size = inputs[self.model.setting.vars[0]].shape[0]
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        results = self.forward(indexies=indexies, **inputs)
-        loss = self.loss_fn(inputs, results, targets, indexies=indexies, mode="eval")
+        results = self.forward(indexes=indexes, **inputs)
+        loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="eval")
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
 
         total_rmse = 0
         for variable in self.model.setting.vars_out:
-            self.var_dayMse[variable] = dict()
-            rmse = self.compute_drmse(targets, results, variable)
-            # self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
-            #         batch_size=current_batch_size, sync_dist=True)
-            total_rmse += rmse
+            self.mseByVar[variable] = dict()
+            self.accByVar[variable] = dict()
 
-            self.var_dayAcc[variable] = dict()
+            total_rmse += self.compute_rmse_by_time(targets, results, variable)
             prod, fsum, osum = self.calculate_acc(
                 results[variable],
                 targets[variable],
-                indexies=indexies,
+                indexes=indexes,
                 variable=variable,
                 mode="eval",
             )
             self.labeled_acc_prod_term[variable] += prod
             self.labeled_acc_fsum_term[variable] += fsum
             self.labeled_acc_osum_term[variable] += osum
-            acc = self.labeled_acc_prod_term[variable] / np.sqrt(
-                self.labeled_acc_fsum_term[variable]
-                * self.labeled_acc_osum_term[variable]
-            )
-            self.log(
-                f"val_acc_{variable}",
-                acc,
-                on_step=False,
-                on_epoch=True,
-                batch_size=current_batch_size,
-                sync_dist=True,
-            )
 
-        # Calculate the average RMSE across all variables
         avg_rmse = total_rmse / len(self.model.setting.vars_out)
         self.log(
             "val_rmse",
@@ -414,14 +398,20 @@ class LightningModel(ltn.LightningModule):
             sync_dist=True,
             prog_bar=True,
         )
-        with open(os.path.join(self.logger.log_dir, "val_rmse.json"), "w") as f:
-            json.dump(self.var_dayMse, f)
-        with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
-            json.dump(self.var_dayAcc, f)
+
+        with open(
+            os.path.join(self.logger.log_dir, f"val_rmse_{self.current_epoch}.json"),
+            "w",
+        ) as f:
+            json.dump(self.mseByVar, f)
+        with open(
+            os.path.join(self.logger.log_dir, f"val_acc_{self.current_epoch}.json"), "w"
+        ) as f:
+            json.dump(self.accByVar, f)
 
         # Only plot for the first batch in CI mode
         if not self.ci or batch_idx == 0 and self.opt.plot == "true":
-            self.plot(inputs, results, targets, indexies, batch_idx, mode="eval")
+            self.plot(inputs, results, targets, indexes, batch_idx, mode="eval")
 
     def test_step(self, batch, batch_idx):
         # Skip test for some batches in CI mode or if batch_idx > 1 in any mode
@@ -434,41 +424,26 @@ class LightningModel(ltn.LightningModule):
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
         results = self.forward(indexies=indexies, **inputs)
-        loss = self.loss_fn(inputs, results, targets, indexies=indexies, mode="test")
+        loss = self.loss_fn(inputs, results, targets, indexes=indexies, mode="test")
         self.log("test_loss", loss, sync_dist=True, prog_bar=True)
 
         total_rmse = 0
         for variable in self.model.setting.vars_out:
-            self.var_dayMse[variable] = dict()
-            rmse = self.compute_drmse(targets, results, variable)
-            total_rmse += rmse
+            self.mseByVar[variable] = dict()
+            self.accByVar[variable] = dict()
 
-            self.var_dayAcc[variable] = dict()
+            total_rmse += self.compute_rmse_by_time(targets, results, variable)
             prod, fsum, osum = self.calculate_acc(
                 results[variable],
                 targets[variable],
-                indexies=indexies,
+                indexes=indexies,
                 variable=variable,
                 mode="test",
             )
             self.labeled_acc_prod_term[variable] += prod
             self.labeled_acc_fsum_term[variable] += fsum
             self.labeled_acc_osum_term[variable] += osum
-            acc = self.labeled_acc_prod_term[variable] / np.sqrt(
-                self.labeled_acc_fsum_term[variable]
-                * self.labeled_acc_osum_term[variable]
-            )
-            self.log(
-                f"val_acc_{variable}",
-                acc,
-                on_step=False,
-                on_epoch=True,
-                batch_size=current_batch_size,
-                sync_dist=True,
-                prog_bar=True,
-            )
 
-        # Calculate the average RMSE across all variables
         avg_rmse = total_rmse / len(self.model.setting.vars_out)
         self.log(
             "test_rmse",
@@ -479,10 +454,11 @@ class LightningModel(ltn.LightningModule):
             sync_dist=True,
             prog_bar=True,
         )
+
         with open(os.path.join(self.logger.log_dir, "test_rmse.json"), "w") as f:
-            json.dump(self.var_dayMse, f)
+            json.dump(self.mseByVar, f)
         with open(os.path.join(self.logger.log_dir, "test_acc.json"), "w") as f:
-            json.dump(self.var_dayAcc, f)
+            json.dump(self.accByVar, f)
 
         self.plot(inputs, results, targets, indexies, batch_idx, mode="test")
 
@@ -662,7 +638,7 @@ class GANModel(LightningModel):
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         forecast_loss = self.loss_fn(
-            inputs, forecast, targets, indexies=indexies, mode="train"
+            inputs, forecast, targets, indexes=indexies, mode="train"
         )
         generate_loss = self.generator_loss(fake_judgement)
         total_loss = self.alpha * forecast_loss + (1 - self.alpha) * generate_loss
@@ -714,7 +690,7 @@ class GANModel(LightningModel):
         inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(
-            inputs, forecast, targets, indexies=indexies, mode="eval"
+            inputs, forecast, targets, indexes=indexies, mode="eval"
         )
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
@@ -730,19 +706,19 @@ class GANModel(LightningModel):
         current_batch_size = forecast["data"].shape[0]
         total_rmse = 0
         for variable in self.model.setting.vars_out:
-            self.var_dayMse[variable] = dict()
-            rmse = self.compute_drmse(targets, forecast, variable)
+            self.mseByVar[variable] = dict()
+            rmse = self.compute_rmse_by_time(targets, forecast, variable)
             # self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
             #     batch_size=current_batch_size, sync_dist=True)
             total_rmse += rmse
 
             # Calculate the average RMSE across all variables
 
-            self.var_dayAcc[variable] = dict()
+            self.accByVar[variable] = dict()
             prod, fsum, osum = self.calculate_acc(
                 forecast[variable],
                 targets[variable],
-                indexies=indexies,
+                indexes=indexies,
                 variable=variable,
                 mode="eval",
             )
@@ -773,9 +749,9 @@ class GANModel(LightningModel):
             prog_bar=True,
         )
         with open(os.path.join(self.logger.log_dir, "val_rmse.json"), "w") as f:
-            json.dump(self.var_dayMse, f)
+            json.dump(self.mseByVar, f)
         with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
-            json.dump(self.var_dayAcc, f)
+            json.dump(self.accByVar, f)
 
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
@@ -801,7 +777,7 @@ class GANModel(LightningModel):
         inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(
-            inputs, forecast, targets, indexies=indexies, mode="test"
+            inputs, forecast, targets, indexes=indexies, mode="test"
         )
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])

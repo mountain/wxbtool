@@ -91,11 +91,11 @@ def main(context, opt):
             results = model(**inputs)
 
         for variable in model.model.setting.vars_out:
-            model.var_dayMse[variable] = dict()
-            model.compute_drmse(targets, results, variable)
+            model.mseByVar[variable] = dict()
+            model.compute_rmse_by_time(targets, results, variable)
 
         new_dict = {}
-        for var, epoch_dict in model.var_dayMse.items():
+        for var, epoch_dict in model.mseByVar.items():
             days_dict = epoch_dict.get(
                 0, {}
             )  # 取出 epoch=0 这一层, eval下epoch全部都是0
