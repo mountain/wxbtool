@@ -145,7 +145,7 @@ To get the best training performance:
 
 ```bash
 # Start the dataset server
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d &
+wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d &
 
 # Train the model
 wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -b 32 -n 100
@@ -158,7 +158,7 @@ wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn
 
 ```bash
 # Start the dataset server
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d &
+wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d &
 
 # Train the GAN model
 wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -G true -n 100 -b 16 -r 0.0002 -R 5
@@ -171,7 +171,7 @@ wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -G true
 
 ```bash
 # Start the dataset server
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b 0.0.0.0:8088 &
+wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b 0.0.0.0:8088 &
 
 # Train on multiple machines (machine 1)
 wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -d http://server-ip:8088 -g 0,1,2,3

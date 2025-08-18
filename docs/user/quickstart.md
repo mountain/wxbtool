@@ -21,21 +21,6 @@ The typical workflow with wxbtool consists of these steps:
 
 ## Command Cheat Sheet
 
-Note on command aliases:
-- wxb forecast (aliases: infer, inferg) — unified deterministic or GAN forecasting
-- wxb backtest (alias: eval) — operational-style backtesting
-- wxb data-serve (alias: dserve) — dataset server
-- wxb data-download (alias: download) — ERA5 downloader
-
-Examples using the unified forecast command:
-```bash
-# Deterministic forecast (date only)
-wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.png
-
-# GAN ensemble forecast (date and time required)
-wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -G true -s 10 -o output.nc
-```
-
 Here are the essential commands to get started:
 
 ### Starting a Dataset Server
@@ -43,7 +28,7 @@ Here are the essential commands to get started:
 The dataset server prepares and serves data for training and testing. This is typically the first step:
 
 ```bash
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d
+wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d
 ```
 
 This command:
@@ -77,42 +62,42 @@ This command:
 - Calculates performance metrics
 - Outputs evaluation results
 
-### Running Inference
+### Forecasting
 
 To generate a prediction for a specific date:
 
 ```bash
-wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.png
+wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.png
 ```
-Note: For wxb infer, -t must be in YYYY-MM-DD (date only).
+Note: For deterministic forecast, -t must be in YYYY-MM-DD (date only).
 
 This command:
 - Loads the specified model
 - Makes a prediction for January 1, 2023
 - Saves the output as a PNG image
 
-### GAN Inference
+### GAN Ensemble Forecast
 
 For probabilistic forecasts using a GAN:
 
 ```bash
-wxb inferg -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -s 10 -o output.nc
+wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -G true -s 10 -o output.nc
 ```
-Note: For wxb inferg, -t must be in YYYY-MM-DDTHH:MM:SS (date and time).
+Note: For GAN forecast, -t must be in YYYY-MM-DDTHH:MM:SS (date and time).
 
 This command:
 - Uses the GAN version of the model
 - Generates 10 ensemble members
 - Saves the output as a NetCDF file
 
-### Backtesting (wxb eval)
+### Backtesting (wxb backtest)
 
 To run a day-by-day backtest starting from a specific initialization date:
 
 ```bash
-wxb eval -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.nc
+wxb backtest -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.nc
 ```
-- For wxb eval, -t must be in YYYY-MM-DD (date only).
+- For wxb backtest, -t must be in YYYY-MM-DD (date only).
 - Outputs are written to output/2023-01-01/. When using .nc, an additional var_day_rmse.json is created that contains day-by-day RMSE keyed by calendar date.
 
 ## Common Command Options
@@ -147,8 +132,8 @@ Same as training options, with emphasis on evaluation. Additionally:
 ### Inference Options
 
 - `-t` or `--datetime`: Specify the initialization time
-  - For `wxb infer`: use `YYYY-MM-DD` (date only)
-  - For `wxb inferg`: use `YYYY-MM-DDTHH:MM:SS` (date and time)
+  - For deterministic forecast: use `YYYY-MM-DD` (date only)
+  - For GAN forecast: use `YYYY-MM-DDTHH:MM:SS` (date and time)
 - `-o` or `--output`: Specify the output file (PNG or NC format)
 - `-s` or `--samples`: For GAN inference, specify the number of samples to generate
 
@@ -158,7 +143,7 @@ Here's a complete example workflow:
 
 ```bash
 # Start the dataset server in the background
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d &
+wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d &
 
 # Train the model (this may take some time)
 wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -n 50 -b 32 -r 0.001
@@ -167,7 +152,7 @@ wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -n 50 -b 32 -r 0.001
 wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn
 
 # Run inference for a specific date
-wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o forecast.png
+wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o forecast.png
 ```
 
 ## Advanced Server Configurations
@@ -175,7 +160,7 @@ wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o forecast.p
 ### HTTP Server with Custom Binding
 
 ```bash
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b 0.0.0.0:8088
+wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b 0.0.0.0:8088
 ```
 
 This makes the server accessible from other machines on the network.

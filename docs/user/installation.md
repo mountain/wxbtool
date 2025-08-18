@@ -6,9 +6,9 @@ This guide provides detailed instructions for installing and configuring wxbtool
 
 Before installing wxbtool, ensure that you have the following prerequisites:
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - pip (Python package installer)
-- PyTorch 1.8 or higher
+- PyTorch 2.5 or higher
 - CUDA-compatible GPU (recommended for training)
 
 ## Installation Methods
@@ -102,7 +102,7 @@ This should display the help menu listing all available commands.
 To test if wxbtool can access your data correctly:
 
 ```bash
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d --test true
+wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d --test true
 ```
 
 If the command runs without errors, wxbtool is correctly set up to access your data.

@@ -341,15 +341,42 @@ Manual smoke checks recommended:
 - Docs:
   - Links and examples render; time format notes present; output paths described.
 
-## 11. Changelog Draft
+## 11. Changelog Draft (Release v0.2.0)
 
-- Added
-  - New CLI aliases: `forecast` (unifies `infer`/`inferg`), `backtest` (alias of `eval`), `data-serve`, `data-download`
-  - Unified forecast workflow documented with deterministic and GAN examples
-  - Backtesting (`wxb eval`) documented including `var_day_rmse.json` output
-  - ERA5 downloader docs expanded; clarified first-run credential setup
-- Changed
-  - Documentation now prefers `forecast/backtest` names; legacy names retained
-  - Clarified time formats across inference/backtesting
-- Fixed
-  - Noted `--bind` should be used for dataset server; `--port` currently not used
+Breaking
+- Removed legacy subcommands: dserve, infer, inferg, eval, download
+- New canonical commands:
+  - data-serve (replaces dserve)
+  - data-download (replaces download)
+  - forecast (replaces infer and inferg; use -G/--gan and -s/--samples for ensembles)
+  - backtest (replaces eval)
+- This is a breaking change; users must migrate to the new subcommands
+
+Added
+- Unified forecast entrypoint supporting deterministic and GAN ensemble modes
+- Backtesting command aligned with operational terminology
+- Documentation updated across README and user/technical docs
+- Migration guidance in README and CHANGELOG
+
+Changed
+- All examples and guides now use data-serve, data-download, forecast, backtest
+- Time format notes explicitly documented:
+  - forecast (deterministic): -t YYYY-MM-DD
+  - forecast (GAN): -t YYYY-MM-DDTHH:MM:SS with -G true -s N
+  - backtest: -t YYYY-MM-DD
+
+Fixed
+- Documented dataset server binding caveat (--bind vs --port)
+
+## 12. Phase C Completion (2025-08-18)
+
+- Phase C rollout completed:
+  - CLI legacy subcommands removed from code
+  - Version bumped to v0.2.0
+  - CHANGELOG.md added with migration notes
+- Verification checklist (post-Phase C):
+  - wxb forecast --help shows -G/--gan and -s/--samples
+  - wxb backtest --help present
+  - wxb data-serve --help present
+  - wxb data-download --help present
+  - No references remain in docs to legacy subcommands

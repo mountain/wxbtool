@@ -67,7 +67,7 @@ The dataset server is a crucial component that:
 ### Running the Dataset Server
 
 ```bash
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d
+wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d
 ```
 
 Options:
@@ -175,12 +175,11 @@ inputs, targets, index = dataset[0]
 
 ## Downloading Data
 
-You can also use the alias command: wxb data-download (alias of wxb download).
 
 wxbtool includes a data download command to fetch the latest ERA5 data:
 
 ```bash
-wxb download -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn --coverage weekly
+wxb data-download -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn --coverage weekly
 ```
 
 Notes:

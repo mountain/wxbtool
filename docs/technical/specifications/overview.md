@@ -235,7 +235,7 @@ To use a specification in the command line:
 
 ```bash
 # For dataset server
-wxb dserve -m wxbtool.specs.res5_625.my_custom_spec -s SettingCustom
+wxb data-serve -m wxbtool.specs.res5_625.my_custom_spec -s SettingCustom
 
 # For training
 wxb train -m wxbtool.zoo.res5_625.my_custom_model

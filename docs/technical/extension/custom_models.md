@@ -210,7 +210,7 @@ This leverages wxbtool's training infrastructure, including PyTorch Lightning in
 Use your trained model for inference:
 
 ```bash
-wxb infer -m wxbtool.zoo.res5_625.custom.my_model -t 2023-01-01T00:00:00 -o forecast.png
+wxb forecast -m wxbtool.zoo.res5_625.custom.my_model -t 2023-01-01 -o forecast.png
 ```
 
 ## Advanced: Physics-Informed Neural Networks

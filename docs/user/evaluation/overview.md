@@ -139,7 +139,7 @@ The testing process involves these steps:
 
 ```bash
 # Start the dataset server
-wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d &
+wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d &
 
 # Test the model
 wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn
@@ -178,21 +178,19 @@ echo "Comparison complete. Results saved to model_comparison.csv"
 wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -G true
 ```
 
-## Backtesting with wxb eval (alias: wxb backtest)
+## Backtesting with wxb backtest
 
 Backtesting evaluates rolling, day-by-day performance starting from a specific initialization date. This is complementary to `wxb test` (which evaluates the full test split).
 
 - Usage:
   ```bash
-  wxb eval -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2025-01-01 -o forecast.nc
-  # or using the alias:
   wxb backtest -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2025-01-01 -o forecast.nc
   ```
   - `-t/--datetime`: Initialization date in `YYYY-MM-DD` (date only)
   - `-o/--output`: `png` or `nc`
 
 - Outputs:
-  - Same PNG/NC artifacts as `wxb infer`
+  - Same PNG/NC artifacts as `wxb forecast`
   - Additionally, when using `.nc`, writes `output/{YYYY-MM-DD}/var_day_rmse.json` containing day-by-day RMSE keyed by calendar date, for each variable in `vars_out`. Example:
     ```json
     {
@@ -206,7 +204,7 @@ Backtesting evaluates rolling, day-by-day performance starting from a specific i
 
 - Positioning vs `wxb test`:
   - `wxb test`: Bulk evaluation on the test split
-  - `wxb eval`: Operational-style backtest for one init date, computing forward-looking day-by-day scores
+  - `wxb backtest`: Operational-style backtest for one init date, computing forward-looking day-by-day scores
 
 ## Understanding Test Results
 
