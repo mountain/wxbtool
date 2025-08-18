@@ -37,7 +37,7 @@ class LightningModel(ltn.LightningModule):
             self.learning_rate = float(opt.rate)
 
         self.climatology_accessors = {}
-        self.data_home = os.environ.get("WXBHOME", "/data/climatology")
+        self.data_home = os.environ.get("WXBHOME", "data")
 
         self.labeled_acc_prod_term = {var: 0 for var in self.model.setting.vars_out}
         self.labeled_acc_fsum_term = {var: 0 for var in self.model.setting.vars_out}
@@ -422,12 +422,12 @@ class LightningModel(ltn.LightningModule):
         )
 
         with open(
-            os.path.join(self.logger.log_dir, f"val_rmse_{self.current_epoch}.json"),
+            os.path.join(self.logger.log_dir, f"val_rmse.json"),
             "w",
         ) as f:
             json.dump(self.mseByVar, f)
         with open(
-            os.path.join(self.logger.log_dir, f"val_acc_{self.current_epoch}.json"), "w"
+            os.path.join(self.logger.log_dir, f"val_acc.json"), "w"
         ) as f:
             json.dump(self.accByVar, f)
 
