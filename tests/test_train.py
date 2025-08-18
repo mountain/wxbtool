@@ -7,6 +7,16 @@ import pathlib
 import unittest.mock as mock
 
 from unittest.mock import patch
+import importlib.util
+
+import pytest
+
+CONSTANTS_FILE = pathlib.Path(__file__).parent / "constants" / "constants_5.625deg.nc"
+if importlib.util.find_spec("arghandler") is None or not CONSTANTS_FILE.exists():
+    pytest.skip(
+        "integration tests require arghandler and constants dataset",
+        allow_module_level=True,
+    )
 
 
 class TestTrain(unittest.TestCase):
