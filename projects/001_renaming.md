@@ -273,3 +273,83 @@ We evaluate the suitability of the current names: `wxb dserve`, `wxb train`, `wx
 
 - Do we adopt the new naming (`data serve/download`, `forecast`, `backtest`) now, and do we merge `inferg` into `forecast` via options?
 - If we only update docs for now, we will still implement all alignment described above (recommended baseline).
+
+## Resolution (2025-08-18)
+
+- Adopt new naming now as backward-compatible aliases:
+  - Added CLI aliases:
+    - `wxb forecast` (aliases: retains `infer` and covers `inferg` via options)
+    - `wxb backtest` (alias of `eval`)
+    - `wxb data-serve` (alias of `dserve`)
+    - `wxb data-download` (alias of `download`)
+  - Merged functionality:
+    - `inferg` behavior available through `wxb forecast -G true -s N -t YYYY-MM-DDTHH:MM:SS -o ...`
+    - Deterministic forecast via `wxb forecast -t YYYY-MM-DD -o ...`
+  - Backward compatibility: Original subcommands (`dserve`, `download`, `train`, `test`, `infer`, `inferg`, `eval`) remain intact.
+
+- Documentation alignment completed:
+  - Time formats made explicit and consistent:
+    - `infer -t`: `YYYY-MM-DD`
+    - `inferg -t`: `YYYY-MM-DDTHH:MM:SS`
+    - `eval -t`: `YYYY-MM-DD`
+  - Documented `eval` purpose, usage, outputs (`var_day_rmse.json`), and contrast with `test`.
+  - Clarified `dserve` `--bind` vs currently non-effective `--port`.
+  - Noted `--optimize` and `--test` semantics in quickstart/testing docs.
+  - Documented ERA5 downloader under Data Handling with path layout and first-run credential creation.
+
+## 8. Implementation Status
+
+- Code changes:
+  - wxb CLI aliases added and unified forecast entrypoint implemented:
+    - File: `wxbtool/wxb.py`
+      - New subcommands: `forecast`, `backtest`, `data-serve`, `data-download`
+      - `forecast` routes to deterministic (`infer_main`) or GAN (`inferg_main`) based on `-G/--gan` and `-s/--samples`
+      - Validates `--samples > 0` when `--gan true`
+- Documentation updates:
+  - `README.md`: Added alias overview, unified forecast examples, clarified time formats, eval/download examples, dserve note
+  - `docs/user/quickstart.md`: Added alias note and unified forecast examples; clarified eval output and time formats
+  - `docs/user/inference/overview.md`: Added unified forecast alias section; emphasized time formats and output structure
+  - `docs/user/evaluation/overview.md`: Documented backtesting with alias; outputs including `var_day_rmse.json`; positioned vs test
+  - `docs/user/data_handling/overview.md`: Added alias mention; ensured downloader section includes coverage options, dir structure, first-run auth
+- Scope completed vs plan:
+  - Phase A (Docs alignment): Completed
+  - Phase B (Naming with backward-compatible aliases): Implemented
+  - Phase C (Major-version migration): Not started (future)
+
+## 9. Migration and Deprecation Plan
+
+- Current release:
+  - Prefer new names in docs and help; keep legacy commands fully supported.
+- Future (major release):
+  - Mark legacy names as deprecated in help text first (not yet implemented in code).
+  - Remove legacy aliases only in a major version after a deprecation period.
+- CHANGELOG will announce alias additions and recommend migration to new names.
+
+## 10. Verification Checklist
+
+Manual smoke checks recommended:
+- Help listings:
+  - `wxb forecast --help` shows deterministic/GAN options including `-G/--gan` and `-s/--samples`
+  - `wxb backtest --help` mirrors `wxb eval --help`
+  - `wxb data-serve --help` and `wxb data-download --help` mirror originals
+- Behavior:
+  - Deterministic: `wxb forecast -m ... -t 2025-01-01 -o out.png` matches `wxb infer ...`
+  - GAN: `wxb forecast -m ... -G true -s 3 -t 2025-01-01T00:00:00 -o out.nc` matches `wxb inferg ...`
+  - Backtest: `wxb backtest -m ... -t 2025-01-01 -o out.nc` matches `wxb eval ...`
+- Error handling:
+  - `wxb forecast -G true -t ... -o ...` without `-s` fails with clear message about samples > 0
+- Docs:
+  - Links and examples render; time format notes present; output paths described.
+
+## 11. Changelog Draft
+
+- Added
+  - New CLI aliases: `forecast` (unifies `infer`/`inferg`), `backtest` (alias of `eval`), `data-serve`, `data-download`
+  - Unified forecast workflow documented with deterministic and GAN examples
+  - Backtesting (`wxb eval`) documented including `var_day_rmse.json` output
+  - ERA5 downloader docs expanded; clarified first-run credential setup
+- Changed
+  - Documentation now prefers `forecast/backtest` names; legacy names retained
+  - Clarified time formats across inference/backtesting
+- Fixed
+  - Noted `--bind` should be used for dataset server; `--port` currently not used

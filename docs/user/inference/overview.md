@@ -17,6 +17,22 @@ wxbtool supports two types of inference:
 1. **Deterministic Inference**: Produces a single forecast
 2. **Probabilistic Inference (GAN)**: Generates multiple ensemble members for uncertainty estimation
 
+## Unified Forecast Command (Alias)
+
+You can also use a unified forecast entrypoint that covers both deterministic and GAN ensemble forecasts:
+
+```bash
+# Deterministic forecast (date only)
+wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o forecast.png
+
+# GAN ensemble forecast (date and time required)
+wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -G true -s 10 -o ensemble.nc
+```
+
+The time format rules are the same as below:
+- wxb infer: use YYYY-MM-DD (date only)
+- wxb inferg: use YYYY-MM-DDTHH:MM:SS (date and time)
+
 ## Basic Inference Command
 
 The basic command to generate a deterministic forecast is:

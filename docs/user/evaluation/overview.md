@@ -178,13 +178,15 @@ echo "Comparison complete. Results saved to model_comparison.csv"
 wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -G true
 ```
 
-## Backtesting with wxb eval
+## Backtesting with wxb eval (alias: wxb backtest)
 
 Backtesting evaluates rolling, day-by-day performance starting from a specific initialization date. This is complementary to `wxb test` (which evaluates the full test split).
 
 - Usage:
   ```bash
   wxb eval -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2025-01-01 -o forecast.nc
+  # or using the alias:
+  wxb backtest -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2025-01-01 -o forecast.nc
   ```
   - `-t/--datetime`: Initialization date in `YYYY-MM-DD` (date only)
   - `-o/--output`: `png` or `nc`

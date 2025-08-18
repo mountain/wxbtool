@@ -21,6 +21,21 @@ The typical workflow with wxbtool consists of these steps:
 
 ## Command Cheat Sheet
 
+Note on command aliases:
+- wxb forecast (aliases: infer, inferg) — unified deterministic or GAN forecasting
+- wxb backtest (alias: eval) — operational-style backtesting
+- wxb data-serve (alias: dserve) — dataset server
+- wxb data-download (alias: download) — ERA5 downloader
+
+Examples using the unified forecast command:
+```bash
+# Deterministic forecast (date only)
+wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.png
+
+# GAN ensemble forecast (date and time required)
+wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -G true -s 10 -o output.nc
+```
+
 Here are the essential commands to get started:
 
 ### Starting a Dataset Server

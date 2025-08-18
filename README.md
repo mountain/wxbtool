@@ -14,6 +14,12 @@ For detailed installation instructions, see the [Installation Guide](docs/user/i
 
 ## Quick Start
 
+Preferred naming aliases are available:
+- wxb forecast (aliases: infer, inferg) — unified deterministic or GAN forecasting
+- wxb backtest (alias: eval) — operational-style backtesting
+- wxb data-serve (alias: dserve) — dataset server
+- wxb data-download (alias: download) — ERA5 downloader
+
 ### Start a data set server for 3-days prediction of t850 by Weyn's solution
 ```bash
 wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d
@@ -41,7 +47,15 @@ wxb inferg -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -s 
 ```
 Note: For wxb inferg, -t must be in YYYY-MM-DDTHH:MM:SS (date and time).
 
-### Start a data set server with http binding
+Equivalent using unified forecast command:
+```bash
+# Deterministic
+wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.png
+# GAN ensemble
+wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -G true -s 10 -o output.nc
+```
+
+### Start a data set server with http binding (alias: wxb data-serve)
 ```bash
 wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b 0.0.0.0:8088
 ```
@@ -52,13 +66,13 @@ Note: Use --bind to specify the address. The --port option is currently not used
 wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -d unix:/tmp/test.sock
 ```
 
-### Start a backtesting (evaluation) process for a UNet model
+### Start a backtesting (evaluation) process for a UNet model (alias: wxb backtest)
 ```bash
 wxb eval -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.nc
 ```
 This will write outputs under output/2023-01-01/ and, when using .nc, also create var_day_rmse.json containing day-by-day RMSE.
 
-### Download recent ERA5 data based on the model setting
+### Download recent ERA5 data based on the model setting (alias: wxb data-download)
 ```bash
 wxb download -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn --coverage weekly
 ```

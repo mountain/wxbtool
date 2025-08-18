@@ -394,6 +394,200 @@ def download(parser, context, args):
     dnmain(context, opt)
 
 
+@subcmd("forecast", help="forecast (deterministic or GAN ensemble)")
+def forecast(parser, context, args):
+    parser.add_argument("-g", "--gpu", type=str, default="0", help="index of gpu")
+    parser.add_argument(
+        "-c",
+        "--n_cpu",
+        type=int,
+        default=8,
+        help="number of cpu threads to use during batch generation",
+    )
+    parser.add_argument(
+        "-b", "--batch_size", type=int, default=64, help="size of the batches"
+    )
+    parser.add_argument(
+        "-m",
+        "--module",
+        type=str,
+        default="wxbtool.zoo.unet.t850d3",
+        help="module of the metrological model to load",
+    )
+    parser.add_argument(
+        "-l",
+        "--load",
+        type=str,
+        default="",
+        help="dump file of the metrological model to load",
+    )
+    parser.add_argument(
+        "-d",
+        "--data",
+        type=str,
+        default="",
+        help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
+    )
+    parser.add_argument(
+        "-t",
+        "--datetime",
+        type=str,
+        required=True,
+        help="datetime for forecast: use %Y-%m-%d for deterministic; use YYYY-MM-DDTHH:MM:SS for GAN",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        required=True,
+        help="output file format, either png or nc",
+    )
+    parser.add_argument(
+        "-G",
+        "--gan",
+        type=str,
+        default="false",
+        help="set to true to run GAN ensemble mode",
+    )
+    parser.add_argument(
+        "-s",
+        "--samples",
+        type=int,
+        default=0,
+        help="number of samples for GAN ensemble (required when --gan true)",
+    )
+    opt = parser.parse_args(args)
+
+    # Route to deterministic or GAN forecast
+    gan_enabled = str(getattr(opt, "gan", "false")).lower() in {"1", "true", "yes", "y"}
+    if gan_enabled or getattr(opt, "samples", 0) > 0:
+        if getattr(opt, "samples", 0) <= 0:
+            raise SystemExit("error: --samples must be > 0 when --gan true")
+        inferg_main(context, opt)
+    else:
+        infer_main(context, opt)
+
+
+@subcmd("backtest", help="Backtesting model performance (alias of eval)")
+def backtest(parser, context, args):
+    # Mirror arguments from eval
+    parser.add_argument("-g", "--gpu", type=str, default="0", help="index of gpu")
+    parser.add_argument(
+        "-c",
+        "--n_cpu",
+        type=int,
+        default=8,
+        help="number of cpu threads to use during batch generation",
+    )
+    parser.add_argument(
+        "-b", "--batch_size", type=int, default=64, help="size of the batches"
+    )
+    parser.add_argument(
+        "-m",
+        "--module",
+        type=str,
+        default="wxbtool.zoo.unet.t850d3",
+        help="module of the metrological model to load",
+    )
+    parser.add_argument(
+        "-l",
+        "--load",
+        type=str,
+        default="",
+        help="dump file of the metrological model to load",
+    )
+    parser.add_argument(
+        "-d",
+        "--data",
+        type=str,
+        default="",
+        help="http url of the dataset server or binding unix socket (unix:/path/to/your.sock)",
+    )
+    parser.add_argument(
+        "-t",
+        "--datetime",
+        type=str,
+        required=True,
+        help="specific datetime for backtesting in the format %Y-%m-%d, e.g. 2025-01-01",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        required=True,
+        help="output file format, either png or nc",
+    )
+    opt = parser.parse_args(args)
+
+    eval_main(context, opt)
+
+
+@subcmd("data-serve", help="start the dataset server (alias of dserve)")
+def data_serve(parser, context, args):
+    parser.add_argument(
+        "-b",
+        "--bind",
+        type=str,
+        default=None,
+        help="binding address (ip:port or unix:/path/to/your.sock)",
+    )
+    parser.add_argument(
+        "-p", "--port", type=int, default=8088, help="the port of the dataset server"
+    )
+    parser.add_argument(
+        "-w", "--workers", type=int, default=4, help="the number of workers"
+    )
+    parser.add_argument(
+        "-m",
+        "--module",
+        type=str,
+        default="wxbtool.specs.res5_625.t850weyn",
+        help="module of a metrological model to load",
+    )
+    parser.add_argument(
+        "-s",
+        "--setting",
+        type=str,
+        default="Setting",
+        help="setting for a metrological model spec",
+    )
+    parser.add_argument(
+        "-t", "--test", type=str, default="false", help="setting for test"
+    )
+    opt = parser.parse_args(args)
+
+    dsmain(context, opt)
+
+
+@subcmd(
+    "data-download", help="download the latest hourly ERA5 data (alias of download)"
+)
+def data_download(parser, context, args):
+    parser.add_argument(
+        "-m",
+        "--module",
+        type=str,
+        default="wxbtool.zoo.unet.t850d3",
+        help="module of the metrological model to load",
+    )
+    parser.add_argument(
+        "-G",
+        "--gan",
+        type=str,
+        default="false",
+        help="model is GAN or not, default is false",
+    )
+    parser.add_argument(
+        "--coverage",
+        type=str,
+        default="weekly",
+        help="period of data coverage: daily, weekly, monthly or an integer in days",
+    )
+    opt = parser.parse_args(args)
+
+    dnmain(context, opt)
+
+
 def main():
     import sys
 

@@ -175,6 +175,8 @@ inputs, targets, index = dataset[0]
 
 ## Downloading Data
 
+You can also use the alias command: wxb data-download (alias of wxb download).
+
 wxbtool includes a data download command to fetch the latest ERA5 data:
 
 ```bash
