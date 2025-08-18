@@ -132,18 +132,20 @@ def main(context, opt):
                             freq="D",
                         ),
                         "vars": model.model.setting.vars_out,
-                        "lat": np.linspace(87.1875, -87.1875, 32),
-                        "lon": np.linspace(0, 354.375, 64),
+                        "lat": model.model.setting.get_latitude_array(),
+                        "lon": model.model.setting.get_longitude_array(),
                     },
                 )
                 for var in model.model.setting.vars_out:
-                    ds.loc[var] = results[var].reshape(-1, 32, 64)
+                    lat_size, lon_size = model.model.setting.spatial_shape
+                    ds.loc[var] = results[var].reshape(-1, lat_size, lon_size)
             else:
+                lat_size, lon_size = model.model.setting.spatial_shape
                 ds = xr.DataArray(
-                    results["t2m"].reshape(32, 64),
+                    results["t2m"].reshape(lat_size, lon_size),
                     coords={
-                        "lat": np.linspace(87.1875, -87.1875, 32),
-                        "lon": np.linspace(0, 354.375, 64),
+                        "lat": model.model.setting.get_latitude_array(),
+                        "lon": model.model.setting.get_longitude_array(),
                     },
                     dims=["lat", "lon"],
                 )

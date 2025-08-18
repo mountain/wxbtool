@@ -421,13 +421,11 @@ class LightningModel(ltn.LightningModule):
         )
 
         with open(
-            os.path.join(self.logger.log_dir, f"val_rmse.json"),
+            os.path.join(self.logger.log_dir, "val_rmse.json"),
             "w",
         ) as f:
             json.dump(self.mseByVar, f)
-        with open(
-            os.path.join(self.logger.log_dir, f"val_acc.json"), "w"
-        ) as f:
+        with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
             json.dump(self.accByVar, f)
 
         # Only plot for the first batch in CI mode

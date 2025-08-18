@@ -142,35 +142,39 @@ class Spec(Base2d):
         self.name = "t850_weyn"
 
     def get_inputs(self, **kwargs):
+        lat_size, lon_size = self.setting.spatial_shape
+
         z500 = norm_z500(
             kwargs["geopotential"].view(
-                -1, self.setting.input_span, self.setting.height, 32, 64
+                -1, self.setting.input_span, self.setting.height, lat_size, lon_size
             )[:, :, self.setting.levels.index("500")]
         )
         z1000 = norm_z1000(
             kwargs["geopotential"].view(
-                -1, self.setting.input_span, self.setting.height, 32, 64
+                -1, self.setting.input_span, self.setting.height, lat_size, lon_size
             )[:, :, self.setting.levels.index("1000")]
         )
         tau = norm_tau(
             kwargs["geopotential"].view(
-                -1, self.setting.input_span, self.setting.height, 32, 64
+                -1, self.setting.input_span, self.setting.height, lat_size, lon_size
             )[:, :, self.setting.levels.index("300")]
             - kwargs["geopotential"].view(
-                -1, self.setting.input_span, self.setting.height, 32, 64
+                -1, self.setting.input_span, self.setting.height, lat_size, lon_size
             )[:, :, self.setting.levels.index("700")]
         )
         t850 = norm_t850(
             kwargs["temperature"].view(
-                -1, self.setting.input_span, self.setting.height, 32, 64
+                -1, self.setting.input_span, self.setting.height, lat_size, lon_size
             )[:, :, self.setting.levels.index("850")]
         )
         t2m = norm_t2m(
-            kwargs["2m_temperature"].view(-1, self.setting.input_span, 32, 64)
+            kwargs["2m_temperature"].view(
+                -1, self.setting.input_span, lat_size, lon_size
+            )
         )
         tisr = norm_tisr(
             kwargs["toa_incident_solar_radiation"].view(
-                -1, self.setting.input_span, 32, 64
+                -1, self.setting.input_span, lat_size, lon_size
             )
         )
 
@@ -201,9 +205,10 @@ class Spec(Base2d):
         )
 
     def get_targets(self, **kwargs):
-        t850 = kwargs["temperature"].view(-1, 1, self.setting.height, 32, 64)[
-            :, :, self.setting.levels.index("850")
-        ]
+        lat_size, lon_size = self.setting.spatial_shape
+        t850 = kwargs["temperature"].view(
+            -1, 1, self.setting.height, lat_size, lon_size
+        )[:, :, self.setting.levels.index("850")]
         t850 = self.augment_data(t850)
         return {"t850": t850}, t850
 
@@ -217,8 +222,9 @@ class Spec(Base2d):
     def lossfun(self, inputs, result, target):
         _, rst = self.get_results(**result)
         _, tgt = self.get_targets(**target)
-        rst = self.weight * rst.view(-1, 1, 32, 64)
-        tgt = self.weight * tgt.view(-1, 1, 32, 64)
+        lat_size, lon_size = self.setting.spatial_shape
+        rst = self.weight * rst.view(-1, 1, lat_size, lon_size)
+        tgt = self.weight * tgt.view(-1, 1, lat_size, lon_size)
 
         losst = mse(rst[:, 0], tgt[:, 0])
 

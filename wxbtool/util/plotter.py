@@ -10,20 +10,33 @@ import wxbtool.norms.minmax as minmax
 from scipy.ndimage import zoom
 from threading import local
 from wxbtool.util.cmaps import cmaps, var2cmap
+from wxbtool.nn.resolution import ResolutionConfig
 
 
 data = local()
 
 
-def imgdata():
-    if "img" in dir(data):
-        return data.img
-    data.img = np.zeros([32, 64, 4], dtype=np.uint8)
-    return data.img
+def imgdata(spatial_shape=(32, 64)):
+    """Get image data buffer with specified spatial shape"""
+    cache_key = f"img_{spatial_shape[0]}_{spatial_shape[1]}"
+    if cache_key in dir(data):
+        return getattr(data, cache_key)
+    img = np.zeros([spatial_shape[0], spatial_shape[1], 4], dtype=np.uint8)
+    setattr(data, cache_key, img)
+    return img
 
 
-def colorize(data, out, cmap):
-    data = data.reshape(32, 64)
+def colorize(data, out, cmap, spatial_shape=None):
+    """Colorize data with automatic spatial shape detection"""
+    if spatial_shape is None:
+        # Try to infer spatial shape from data
+        if hasattr(data, "shape") and len(data.shape) >= 2:
+            spatial_shape = data.shape[-2:]
+        else:
+            # Fallback to default resolution
+            spatial_shape = ResolutionConfig.get_spatial_shape("5.625deg")
+
+    data = data.reshape(spatial_shape)
     data = (data - data.min() + 0.0001) / (data.max() - data.min() + 0.0001)
     data = (data * (data >= 0) * (data < 1) + (data >= 1)) * 255
     fliped = (data[::-1, :]).astype(np.uint8)
@@ -36,11 +49,19 @@ def imsave(fileobj, data):
     fileobj.write(buffer)
 
 
-def plot(var, fileobj, data):
+def plot(var, fileobj, data, spatial_shape=None):
+    """Plot variable data with automatic spatial shape detection"""
     import wxbtool.data.variables as variables
 
     code, _ = variables.split_name(var)
-    imsave(fileobj, colorize(data, imgdata(), var2cmap[code]))
+    if spatial_shape is None and hasattr(data, "shape") and len(data.shape) >= 2:
+        spatial_shape = data.shape[-2:]
+    elif spatial_shape is None:
+        spatial_shape = ResolutionConfig.get_spatial_shape("5.625deg")
+
+    imsave(
+        fileobj, colorize(data, imgdata(spatial_shape), var2cmap[code], spatial_shape)
+    )
 
 
 class Ploter:
@@ -125,14 +146,35 @@ def adjust_longitude(lon):
 
 
 def plot_image(
-    code, input_data, truth, forecast, title="", year=2000, doy=0, save_path=None
+    code,
+    input_data,
+    truth,
+    forecast,
+    title="",
+    year=2000,
+    doy=0,
+    save_path=None,
+    setting=None,
 ):
-    input_data_high = bicubic_upsample(input_data, scale=(8, 8))
-    truth_high = bicubic_upsample(truth, scale=(8, 8))
-    forecast_high = bicubic_upsample(forecast, scale=(8, 8))
+    """Plot high-resolution images with resolution-aware upsampling"""
+    # Determine base spatial shape
+    if setting is not None:
+        base_shape = setting.spatial_shape
+    elif hasattr(input_data, "shape") and len(input_data.shape) >= 2:
+        base_shape = input_data.shape[-2:]
+    else:
+        base_shape = ResolutionConfig.get_spatial_shape("5.625deg")
 
-    lon_high = np.linspace(0, 360, 512)
-    lat_high = np.linspace(-90, 90, 256)
+    # Calculate appropriate upsampling scale based on base resolution
+    lat_scale = 256 // base_shape[0]
+    lon_scale = 512 // base_shape[1]
+
+    input_data_high = bicubic_upsample(input_data, scale=(lat_scale, lon_scale))
+    truth_high = bicubic_upsample(truth, scale=(lat_scale, lon_scale))
+    forecast_high = bicubic_upsample(forecast, scale=(lat_scale, lon_scale))
+
+    lon_high = np.linspace(0, 360, base_shape[1] * lon_scale)
+    lat_high = np.linspace(-90, 90, base_shape[0] * lat_scale)
     lon_grid, lat_grid = np.meshgrid(lon_high, lat_high)
 
     ploter = Ploter(lon_grid, lat_grid)

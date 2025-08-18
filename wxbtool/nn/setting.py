@@ -1,4 +1,7 @@
 import wxbtool.config as config
+from wxbtool.nn.resolution import ResolutionConfig
+import numpy as np
+from typing import Tuple
 
 
 class Setting:
@@ -7,6 +10,9 @@ class Setting:
             config.root
         )  # The root path of WeatherBench Dataset, inject from config
         self.resolution = "5.625deg"  # The spatial resolution of the model
+
+        # Load spatial configuration based on resolution
+        self._load_spatial_config()
 
         self.name = "test"  # The name of the model
 
@@ -73,3 +79,56 @@ class Setting:
         ]
         self.years_test = [2015]
         self.years_eval = [2016, 2017, 2018]
+
+    def _load_spatial_config(self) -> None:
+        """Load spatial dimensions and ranges based on resolution"""
+        spatial_config = ResolutionConfig.get_config(self.resolution)
+
+        # Core spatial dimensions
+        self.lat_size = spatial_config["lat_size"]
+        self.lon_size = spatial_config["lon_size"]
+
+        # Grid boundaries and steps
+        self.lat_range = spatial_config["lat_range"]
+        self.lon_range = spatial_config["lon_range"]
+        self.lat_step = spatial_config["lat_step"]
+        self.lon_step = spatial_config["lon_step"]
+
+        # Derived properties
+        self.spatial_shape = (self.lat_size, self.lon_size)
+        self.total_spatial_size = self.lat_size * self.lon_size
+
+    def get_latitude_array(self) -> np.ndarray:
+        """Generate latitude coordinate array for this resolution
+
+        Returns:
+            NumPy array of latitude values from north to south
+        """
+        lat_north, lat_south = self.lat_range
+        return np.linspace(lat_north, lat_south, self.lat_size)
+
+    def get_longitude_array(self) -> np.ndarray:
+        """Generate longitude coordinate array for this resolution
+
+        Returns:
+            NumPy array of longitude values from west to east
+        """
+        lon_west, lon_east = self.lon_range
+        return np.linspace(lon_west, lon_east, self.lon_size)
+
+    def get_meshgrid(self, normalized: bool = False) -> Tuple[np.ndarray, np.ndarray]:
+        """Generate coordinate meshgrid for this resolution
+
+        Args:
+            normalized: If True, return coordinates normalized to [0,1] range
+
+        Returns:
+            Tuple of (longitude_grid, latitude_grid) meshgrid arrays
+        """
+        if normalized:
+            x = np.linspace(0, 1, num=self.lat_size)
+            y = np.linspace(0, 1, num=self.lon_size)
+        else:
+            x = self.get_latitude_array()
+            y = self.get_longitude_array()
+        return np.meshgrid(y, x)  # Note: meshgrid returns (Y, X) order
