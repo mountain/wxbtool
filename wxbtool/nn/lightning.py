@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import numpy as np
 import torch as th
 import lightning as ltn
@@ -11,6 +13,11 @@ from wxbtool.util.plotter import plot
 from wxbtool.norms.meanstd import denormalizors
 from collections import defaultdict
 import json
+
+
+plot_root = Path(__file__).resolve().parents[1].parent / "plots"
+if not plot_root.exists():
+    plot_root.mkdir(parents=True, exist_ok=True)
 
 
 class LightningModel(ltn.LightningModule):
@@ -272,14 +279,20 @@ class LightningModel(ltn.LightningModule):
             acc = prod / np.sqrt(fsum * osum)
             self.accByVar[variable][epoch][day + 1] = float(acc)
 
+            plot_var = plot_root / f"{variable}"
+            if not plot_var.exists():
+                plot_var.mkdir(parents=True, exist_ok=True)
+
+            plot_path = plot_root / f"anomaly_{variable}_fcs_{day}.png"
             plot(
                 variable,
-                open(f"anomaly_{variable}_fcs_{day}.png", mode="wb"),
+                open(plot_path, mode="wb"),
                 f_anomaly[0, :, day, :, :],
             )
+            plot_path = plot_root / f"anomaly_{variable}_obs_{day}.png"
             plot(
                 variable,
-                open(f"anomaly_{variable}_obs_{day}.png", mode="wb"),
+                open(plot_path, mode="wb"),
                 o_anomaly[0, :, day, :, :],
             )
 
@@ -300,34 +313,42 @@ class LightningModel(ltn.LightningModule):
         if self.ci or mode == "test":
             return
 
-        # Original implementation
         for bas, var in enumerate(self.model.setting.vars_in):
             inp = inputs[var]
             span = self.model.setting.input_span
+            plot_var = plot_root / f"{var}"
+            if not plot_var.exists():
+                plot_var.mkdir(parents=True, exist_ok=True)
+
             for ix in range(span):
+                plot_inp_path = plot_var / f"{var}_inp_{ix}.png"
                 if inp.dim() == 4:
                     dat = inp[0, ix].detach().cpu().numpy().reshape(32, 64)
-                    plot(var, open("%s_inp_%d.png" % (var, ix), mode="wb"), dat)
-                if inp.dim() == 5:
+                else:
                     dat = inp[0, 0, ix].detach().cpu().numpy().reshape(32, 64)
-                    plot(var, open("%s_inp_%d.png" % (var, ix), mode="wb"), dat)
+                plot(var, open(plot_inp_path, mode="wb"), dat)
 
         for bas, var in enumerate(self.model.setting.vars_out):
+            plot_var = plot_root / f"{var}"
+            if not plot_var.exists():
+                plot_var.mkdir(parents=True, exist_ok=True)
+
             fcst = results[var]
             tgrt = targets[var]
-            # span = self.model.setting.input_span + self.model.setting.pred_span if self.rnn else self.model.setting.pred_span
             span = self.model.setting.pred_span
             for ix in range(span):
+                plot_fcst_path = plot_var / f"{var}_fcst_{ix}.png"
+                plot_tgrt_path = plot_var / f"{var}_tgt_{ix}.png"
+
                 if fcst.dim() == 4:
                     fcst_img = fcst[0, ix].detach().cpu().numpy().reshape(32, 64)
                     tgrt_img = tgrt[0, ix].detach().cpu().numpy().reshape(32, 64)
-                    plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst_img)
-                    plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt_img)
-                if fcst.dim() == 5:
+                else:
                     fcst_img = fcst[0, 0, ix].detach().cpu().numpy().reshape(32, 64)
                     tgrt_img = tgrt[0, 0, ix].detach().cpu().numpy().reshape(32, 64)
-                    plot(var, open("%s_fcs_%d.png" % (var, ix), mode="wb"), fcst_img)
-                    plot(var, open("%s_tgt_%d.png" % (var, ix), mode="wb"), tgrt_img)
+
+                plot(var, open(plot_fcst_path, mode="wb"), fcst_img)
+                plot(var, open(plot_tgrt_path, mode="wb"), tgrt_img)
 
         # for bas, var in enumerate(self.model.setting.vars_out):
         #     if inputs[var].dim() == 4:
