@@ -108,7 +108,26 @@ class LightningModel(ltn.LightningModule):
 
         return th.sqrt(mse)
 
-    def compute_rmse_by_time(self, targets, results, variable):
+    def compute_rmse_by_time(
+        self,
+        targets: dict[str, th.Tensor],
+        results: dict[str, th.Tensor],
+        variable: str,
+    ) -> th.Tensor:
+        """Compute RMSE for each prediction day and overall.
+
+        The per-day RMSE values are stored in ``self.mseByVar`` as a side
+        effect so they can later be serialized to JSON for monitoring.
+
+        Args:
+            targets: Mapping of variable names to target tensors.
+            results: Mapping of variable names to forecast tensors.
+            variable: Name of the variable to evaluate.
+
+        Returns:
+            A tensor containing the overall RMSE across all prediction days.
+        """
+
         tgt_data = targets[variable]
         rst_data = results[variable]
         target_type = tgt_data.dtype
@@ -118,14 +137,15 @@ class LightningModel(ltn.LightningModule):
 
         height, width = rst_data.size(-2), rst_data.size(-1)
         try:
-            weight = self.model.weight  # Assuming shape is [H, W] or compatible
+            weight = self.model.weight  # type: ignore[attr-defined]
             weight = weight.reshape(1, 1, 1, height, width)
         except AttributeError:
             print("Error: 'weight' attribute not found in self.model.")
             raise
-        except Exception as e:
+        except Exception as e:  # pragma: no cover - defensive branch
             print(
-                f"Error: Failed to reshape weight. Original weight shape: {self.model.weight.shape}, Target shape: (1, 1, 1, {height}, {width})"
+                "Error: Failed to reshape weight. Original weight shape: "
+                f"{self.model.weight.shape}, Target shape: (1, 1, 1, {height}, {width})"
             )
             raise e
 
@@ -133,12 +153,11 @@ class LightningModel(ltn.LightningModule):
 
         pred_span = self.model.setting.pred_span
         try:
-            # Reshape, assuming the final required shape is [B, C, P, H, W]
             tgt = tgt_data.reshape(-1, 1, pred_span, height, width)
             rst = rst_data.reshape(-1, 1, pred_span, height, width)
-        except RuntimeError as e:
+        except RuntimeError as e:  # pragma: no cover - reshape errors are rare
             print("Error: Failed to reshape input tensors.")
-            print(f"  Target shape: (-1, {1}, {pred_span}, {height}, {width})")
+            print(f"  Target shape: (-1, 1, {pred_span}, {height}, {width})")
             print(
                 f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}"
             )
@@ -148,26 +167,29 @@ class LightningModel(ltn.LightningModule):
         epoch = self.current_epoch
         rst, tgt = denormalizors[variable](rst), denormalizors[variable](tgt)
         squared_error = (rst - tgt) ** 2
-        weighted_se = (
-            weight * squared_error
-        )  # PyTorch handles broadcasting automatically
+        weighted_se = weight * squared_error
+
+        # Accumulate totals for overall RMSE
+        total_se_sum = th.tensor(0.0, device=target_device, dtype=target_type)
+        total_weight_sum = th.tensor(0.0, device=target_device, dtype=target_type)
+
+        # Ensure dictionary structure for side effects
+        self.mseByVar.setdefault(variable, {}).setdefault(epoch, {})
+
         for day in range(days):
-            self.mseByVar[variable].setdefault(epoch, {}).setdefault(day, 0.0)
             cur_weighted_se = weighted_se[:, :, day, :, :]
-            total_se_sum = th.sum(cur_weighted_se)
-            ones_like_data = th.ones_like(cur_weighted_se)
-            total_weight_sum = th.sum(weight * ones_like_data)
-            mse = total_se_sum / total_weight_sum
-            rmse = (mse.item()) ** 0.5
-
+            cur_total_se = th.sum(cur_weighted_se)
+            cur_weight_sum = th.sum(weight * th.ones_like(cur_weighted_se))
+            cur_mse = cur_total_se / cur_weight_sum
+            rmse = float(th.sqrt(cur_mse))
+            # Store per-day RMSE for later serialization
             self.mseByVar[variable][epoch][day + 1] = rmse
-        else:
-            total_se_sum = th.sum(weighted_se)
-            ones_like_data = th.ones_like(rst)
-            total_weight_sum = th.sum(weight * ones_like_data)
-            mse = total_se_sum / total_weight_sum
 
-        return th.sqrt(mse)
+            total_se_sum += cur_total_se
+            total_weight_sum += cur_weight_sum
+
+        overall_mse = total_se_sum / total_weight_sum
+        return th.sqrt(overall_mse)
 
     def get_climatology_accessor(self, mode):
         # Skip climatology in CI mode
@@ -358,8 +380,8 @@ class LightningModel(ltn.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        # Skip validation for some batches in CI mode or if batch_idx > 2 in any mode
-        if (self.ci and batch_idx > 0) or batch_idx > 2:
+        # Skip additional batches only in CI mode to keep tests fast
+        if self.ci and batch_idx > 0:
             return
 
         inputs, targets, indexes = batch
@@ -414,8 +436,8 @@ class LightningModel(ltn.LightningModule):
             self.plot(inputs, results, targets, indexes, batch_idx, mode="eval")
 
     def test_step(self, batch, batch_idx):
-        # Skip test for some batches in CI mode or if batch_idx > 1 in any mode
-        if (self.ci and batch_idx > 0) or batch_idx > 1:
+        # Skip additional batches only in CI mode to keep tests fast
+        if self.ci and batch_idx > 0:
             return
 
         inputs, targets, indexies = batch
