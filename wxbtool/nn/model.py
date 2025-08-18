@@ -84,7 +84,7 @@ class Model2d(nn.Module):
         self.clipping_threshold = 3.0
 
     def load_dataset(self, phase, mode, **kwargs):
-        
+
         if mode == "server":
             self.dataset_train, self.dataset_eval, self.dataset_test = (
                 WxDataset(

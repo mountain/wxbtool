@@ -30,7 +30,7 @@ def main(context, opt):
             model = LightningModel(mdm.model, opt=opt)
 
         n_epochs = 1
-        
+
         # Use optimized settings for CI mode
         if is_optimized:
             patience = 2  # More aggressive early stopping
@@ -40,7 +40,9 @@ def main(context, opt):
                 accelerator=accelerator,
                 precision=32,
                 max_epochs=n_epochs,
-                callbacks=[EarlyStopping(monitor="val_loss", mode="min", patience=patience)],
+                callbacks=[
+                    EarlyStopping(monitor="val_loss", mode="min", patience=patience)
+                ],
                 limit_val_batches=limit_val_batches,
                 limit_test_batches=limit_test_batches,
             )

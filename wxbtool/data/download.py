@@ -97,7 +97,9 @@ class ERA5Downloader:
         day = date.strftime("%d")
         hour = time_str.split(":")[0]
         filename = f"{date.strftime('%Y%m%d')}_{hour}.nc"
-        return os.path.join(self.config.output_folder, variable, year, month, day, filename)
+        return os.path.join(
+            self.config.output_folder, variable, year, month, day, filename
+        )
 
     def ensure_variable_dirs(self, variable: str, date: datetime.datetime):
         """Ensure that the directory for a specific variable, year, and month exists."""

@@ -4,14 +4,16 @@ import importlib
 import torch as th
 import xarray as xr
 import numpy as np
-import matplotlib.pyplot as plt
+import pandas as pd
+import json
+
+import wxbtool.config as config
+
 from wxbtool.nn.lightning import LightningModel
 from wxbtool.data.dataset import WxDataset
 from wxbtool.util.plotter import plot
 from datetime import datetime, timedelta
-import wxbtool.config as config
-import pandas as pd
-import json
+
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -32,7 +34,7 @@ def main(context, opt):
         # Load the model checkpoint if provided
         if opt.load:
             checkpoint = th.load(opt.load)
-            model.load_state_dict(checkpoint['state_dict'])
+            model.load_state_dict(checkpoint["state_dict"])
 
         # Set the model to evaluation mode
         model.eval()
@@ -41,9 +43,11 @@ def main(context, opt):
 
         # Load the dataset
         dataset = WxDataset(
-            root=model.model.setting.root,        # WXBHOME_PATH
+            root=model.model.setting.root,  # WXBHOME_PATH
             resolution=model.model.setting.resolution,
-            years=[parser_time.year],  # the year thar your date belongs to, must be Iterable
+            years=[
+                parser_time.year
+            ],  # the year thar your date belongs to, must be Iterable
             vars=model.model.setting.vars,
             levels=model.model.setting.levels,
             input_span=model.model.setting.input_span,
@@ -54,35 +58,52 @@ def main(context, opt):
 
         # Find the index of the specific datetime
         sample_var = model.model.setting.vars[0]
-        sample_path = os.path.join(config.root, sample_var, f"{sample_var}_{parser_time.year}_{model.model.setting.resolution}.nc")  
+        sample_path = os.path.join(
+            config.root,
+            sample_var,
+            f"{sample_var}_{parser_time.year}_{model.model.setting.resolution}.nc",
+        )
         sample_data = xr.open_dataarray(sample_path)
-        day_of_year = int(parser_time.strftime('%j'))
-        datetime_index = sample_data.time.values.tolist().index(float(day_of_year-1))
+        day_of_year = int(parser_time.strftime("%j"))
+        datetime_index = sample_data.time.values.tolist().index(float(day_of_year - 1))
 
         # Get the input data for the specific datetime
         inputs, targets, _ = dataset[datetime_index]
 
         # Convert inputs to torch tensors
-        inputs = {k: th.tensor(v[:model.model.setting.input_span, :, :], dtype=th.float32).unsqueeze(0) for k, v in inputs.items()} # 只取input_span范围
-        targets = {k: th.tensor(v, dtype=th.float32).unsqueeze(0) for k, v in targets.items()}
+        inputs = {
+            k: th.tensor(
+                v[: model.model.setting.input_span, :, :], dtype=th.float32
+            ).unsqueeze(0)
+            for k, v in inputs.items()
+        }  # 只取input_span范围
+        targets = {
+            k: th.tensor(v, dtype=th.float32).unsqueeze(0) for k, v in targets.items()
+        }
 
         inputs = model.model.get_inputs(**inputs)
-        targets = model.model.get_targets(**targets) # targets必须也得get一次，norm后，才能和compute_drmse适配
+        targets = model.model.get_targets(
+            **targets
+        )  # targets必须也得get一次，norm后，才能和compute_drmse适配
 
         # Perform inference
         with th.no_grad():
             results = model(**inputs)
-        
+
         for variable in model.model.setting.vars_out:
             model.var_dayMse[variable] = dict()
-            rmse = model.compute_drmse(targets, results, variable)
+            model.compute_drmse(targets, results, variable)
 
         new_dict = {}
         for var, epoch_dict in model.var_dayMse.items():
-            days_dict = epoch_dict.get(0, {})  # 取出 epoch=0 这一层, eval下epoch全部都是0
+            days_dict = epoch_dict.get(
+                0, {}
+            )  # 取出 epoch=0 这一层, eval下epoch全部都是0
             new_dict[var] = days_dict.copy()
-            new_dict[var] = {(parser_time + timedelta(days=d)).strftime("%Y-%m-%d"): v
-                                        for d, v in new_dict[var].items()} # 把天数转成具体日期
+            new_dict[var] = {
+                (parser_time + timedelta(days=d)).strftime("%Y-%m-%d"): v
+                for d, v in new_dict[var].items()
+            }  # 把天数转成具体日期
 
         results = model.model.get_forcast(**results)
 
@@ -92,22 +113,42 @@ def main(context, opt):
         file_name = f"{opt.module.split('.')[-1]}.{opt.output}"
         output_path = os.path.join(output_dir, file_name)
 
-        if opt.output.endswith('png'):
+        if opt.output.endswith("png"):
             for var, data in results.items():
                 if var == "t2m":
-                    plot(var, open(output_path, mode="wb"), data.squeeze().cpu().numpy())
-        elif opt.output.endswith('nc'):
+                    plot(
+                        var, open(output_path, mode="wb"), data.squeeze().cpu().numpy()
+                    )
+        elif opt.output.endswith("nc"):
             if len(model.model.setting.vars_out) > 1:
-                ds = xr.DataArray(None, dims=("vars", "time", "lat", "lon"), coords={"time": pd.date_range(start=opt.datetime, periods=model.model.setting.input_span + model.model.setting.pred_span, freq='D'), 
-                                                                                     "vars": model.model.setting.vars_out, 
-                                                                                     "lat": np.linspace(87.1875, -87.1875, 32), 
-                                                                                     "lon": np.linspace(0, 354.375, 64)})
+                ds = xr.DataArray(
+                    None,
+                    dims=("vars", "time", "lat", "lon"),
+                    coords={
+                        "time": pd.date_range(
+                            start=opt.datetime,
+                            periods=model.model.setting.input_span
+                            + model.model.setting.pred_span,
+                            freq="D",
+                        ),
+                        "vars": model.model.setting.vars_out,
+                        "lat": np.linspace(87.1875, -87.1875, 32),
+                        "lon": np.linspace(0, 354.375, 64),
+                    },
+                )
                 for var in model.model.setting.vars_out:
                     ds.loc[var] = results[var].reshape(-1, 32, 64)
             else:
-                ds = xr.DataArray(results["t2m"].reshape(32, 64), coords={'lat': np.linspace(87.1875, -87.1875, 32), 'lon':np.linspace(0, 354.375, 64)}, dims=['lat', 'lon'])
+                ds = xr.DataArray(
+                    results["t2m"].reshape(32, 64),
+                    coords={
+                        "lat": np.linspace(87.1875, -87.1875, 32),
+                        "lon": np.linspace(0, 354.375, 64),
+                    },
+                    dims=["lat", "lon"],
+                )
             ds.to_netcdf(output_path)
-            with open (os.path.join(output_dir, "var_day_rmse.json"),'w') as f:
+            with open(os.path.join(output_dir, "var_day_rmse.json"), "w") as f:
                 json.dump(new_dict, f)
         else:
             raise ValueError("Unsupported output format. Use either png or nc.")
@@ -123,8 +164,6 @@ def main(context, opt):
         sys.exit(-1)
 
 
-
-
 def main_gan(context, opt):
     try:
         os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
@@ -135,7 +174,7 @@ def main_gan(context, opt):
         # Load the model checkpoint if provided
         if opt.load:
             checkpoint = th.load(opt.load)
-            generator.load_state_dict(checkpoint['state_dict'])
+            generator.load_state_dict(checkpoint["state_dict"])
 
         # Set the model to evaluation mode
         generator.eval()
@@ -160,23 +199,34 @@ def main_gan(context, opt):
         inputs, _ = dataset[datetime_index]
 
         # Convert inputs to torch tensors
-        inputs = {k: th.tensor(v, dtype=th.float32).unsqueeze(0) for k, v in inputs.items()}
+        inputs = {
+            k: th.tensor(v, dtype=th.float32).unsqueeze(0) for k, v in inputs.items()
+        }
 
         # Perform GAN inference
         results = []
         with th.no_grad():
             for _ in range(opt.samples):
-                noise = th.randn_like(inputs['data'][:, :1, :, :], dtype=th.float32)
-                inputs['noise'] = noise
+                noise = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
+                inputs["noise"] = noise
                 result = generator(**inputs)
-                results.append(result['data'].cpu().numpy())
+                results.append(result["data"].cpu().numpy())
 
         # Save the output
-        if opt.output.endswith('.png'):
+        if opt.output.endswith(".png"):
             for i, data in enumerate(results):
-                plot(f"sample_{i}", open(f"{opt.output}_{i}.png", mode="wb"), data.squeeze())
-        elif opt.output.endswith('.nc'):
-            ds = xr.Dataset({f"sample_{i}": (("time", "lat", "lon"), data.squeeze()) for i, data in enumerate(results)})
+                plot(
+                    f"sample_{i}",
+                    open(f"{opt.output}_{i}.png", mode="wb"),
+                    data.squeeze(),
+                )
+        elif opt.output.endswith(".nc"):
+            ds = xr.Dataset(
+                {
+                    f"sample_{i}": (("time", "lat", "lon"), data.squeeze())
+                    for i, data in enumerate(results)
+                }
+            )
             ds.to_netcdf(opt.output)
         else:
             raise ValueError("Unsupported output format. Use either png or nc.")

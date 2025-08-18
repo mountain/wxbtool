@@ -15,7 +15,6 @@ import numpy as np
 
 import msgpack
 import msgpack_numpy as m
-import wxbtool.config as config
 from wxbtool.nn.setting import Setting
 
 m.patch()
@@ -25,6 +24,7 @@ from torch.utils.data import Dataset, DataLoader, Sampler  # noqa: E402
 
 
 logger = logging.getLogger()
+
 
 class WindowArray(type(np.zeros(0, dtype=np.float32))):
     def __new__(subtype, orig, shift=0, step=1):
@@ -50,13 +50,19 @@ class WxDataset(Dataset):
         setting=None,
     ):
         self.setting = setting if setting is not None else Setting()
-        
+
         # Use values from setting if not explicitly provided
         self.root = root if root is not None else self.setting.root
-        self.resolution = resolution if resolution is not None else self.setting.resolution
-        self.input_span = input_span if input_span is not None else self.setting.input_span
+        self.resolution = (
+            resolution if resolution is not None else self.setting.resolution
+        )
+        self.input_span = (
+            input_span if input_span is not None else self.setting.input_span
+        )
         self.step = step if step is not None else self.setting.step
-        self.pred_shift = pred_shift if pred_shift is not None else self.setting.pred_shift
+        self.pred_shift = (
+            pred_shift if pred_shift is not None else self.setting.pred_shift
+        )
         self.pred_span = pred_span if pred_span is not None else self.setting.pred_span
         self.years = years if years is not None else self.setting.years_train
         self.vars = vars if vars is not None else self.setting.vars
@@ -86,7 +92,9 @@ class WxDataset(Dataset):
         hashstr = hashlib.md5(code.encode("utf-8")).hexdigest()
         self.hashcode = hashstr
 
-        dumpdir = path.abspath("%s/.cache/%s" % (self.root, hashstr))  # every time has to reload the .cache file
+        dumpdir = path.abspath(
+            "%s/.cache/%s" % (self.root, hashstr)
+        )  # every time has to reload the .cache file
         # if not path.exists(dumpdir):
         os.makedirs(dumpdir, exist_ok=True)
         self.load(dumpdir)
@@ -105,7 +113,21 @@ class WxDataset(Dataset):
         except (FileNotFoundError, IndexError, AttributeError) as e:
             logger.warning(f"Could not determine levels automatically: {e}")
             # Fallback to default levels if we can't determine them automatically
-            all_levels = [50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0, 600.0, 700.0, 850.0, 925.0, 1000.0]
+            all_levels = [
+                50.0,
+                100.0,
+                150.0,
+                200.0,
+                250.0,
+                300.0,
+                400.0,
+                500.0,
+                600.0,
+                700.0,
+                850.0,
+                925.0,
+                1000.0,
+            ]
             logger.info(f"Using default levels: {all_levels}")
 
         # Find indices of requested levels in the available levels
@@ -115,8 +137,10 @@ class WxDataset(Dataset):
                 levels_selector.append(all_levels.index(float(lvl)))
             except ValueError:
                 logger.error(f"Level {lvl} not found in available levels: {all_levels}")
-                raise ValueError(f"Level {lvl} not found in available levels: {all_levels}")
-        
+                raise ValueError(
+                    f"Level {lvl} not found in available levels: {all_levels}"
+                )
+
         selector = np.array(levels_selector, dtype=np.int64)
 
         size = 0
@@ -305,7 +329,7 @@ class WxDataset(Dataset):
         #             # Combine inputs and targets for each variable
         #             all_data[var] = np.concatenate([inputs[var], targets[var]], axis=0)
         #     return all_data, all_data, item
-        
+
         return inputs, targets, item
 
 
@@ -327,12 +351,18 @@ class WxDatasetClient(Dataset):
         self.url = url
         self.phase = phase
         self.setting = setting if setting is not None else Setting()
-        
+
         # Use values from setting if not explicitly provided
-        self.resolution = resolution if resolution is not None else self.setting.resolution
+        self.resolution = (
+            resolution if resolution is not None else self.setting.resolution
+        )
         self.step = step if step is not None else self.setting.step
-        self.input_span = input_span if input_span is not None else self.setting.input_span
-        self.pred_shift = pred_shift if pred_shift is not None else self.setting.pred_shift
+        self.input_span = (
+            input_span if input_span is not None else self.setting.input_span
+        )
+        self.pred_shift = (
+            pred_shift if pred_shift is not None else self.setting.pred_shift
+        )
         self.pred_span = pred_span if pred_span is not None else self.setting.pred_span
         self.years = years if years is not None else self.setting.years_train
         self.vars = vars if vars is not None else self.setting.vars
@@ -418,7 +448,7 @@ class WxDatasetClient(Dataset):
         #             # Combine inputs and targets for each variable
         #             all_data[var] = np.concatenate([data["inputs"][var], data["targets"][var]], axis=0)
         #     return all_data, all_data, item
-            
+
         return data["inputs"], data["targets"], item
 
 

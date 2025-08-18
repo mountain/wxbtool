@@ -11,7 +11,9 @@ import wxbtool.norms.meanstd as n
 from wxbtool.nn.model import Base2d
 from wxbtool.nn.setting import Setting
 from wxbtool.data.variables import split_name
-from wxbtool.norms.meanstd import *
+from wxbtool.norms.meanstd import norm_t2m, denorm_t2m
+
+
 mse = nn.MSELoss()
 
 
@@ -103,6 +105,7 @@ class Setting90d(SettingSimple):
         self.vars = ["test_variable"]
         self.vars_in = ["test"]
         self.vars_out = ["test"]
+
 
 class SettingRNN12d(SettingSimple):
     def __init__(self):
@@ -227,14 +230,16 @@ class SpecRNN(ClimateSpec):
     def get_inputs(self, **kwargs):
         input_span = self.setting.input_span
         t2m = norm_t2m(
-            kwargs["2m_temperature"].view(-1, 1, input_span, 32, 64)[:, :, :input_span, :]
+            kwargs["2m_temperature"].view(-1, 1, input_span, 32, 64)[
+                :, :, :input_span, :
+            ]
         )
-        
+
         data = t2m
 
         return {
-            'data': data,
-            't2m': t2m,
+            "data": data,
+            "t2m": t2m,
         }
 
     def get_targets(self, **kwargs):
@@ -244,10 +249,7 @@ class SpecRNN(ClimateSpec):
         assert t2m.shape[2] == self.setting.pred_span
         data = t2m
 
-        return {
-            'data': data,
-            't2m': t2m
-        }
+        return {"data": data, "t2m": t2m}
 
     def get_results(self, **kwargs):
         t2m = kwargs["t2m"]
@@ -256,10 +258,10 @@ class SpecRNN(ClimateSpec):
         data = t2m
 
         return {
-            'data': data,
-            't2m': t2m,
+            "data": data,
+            "t2m": t2m,
         }
-    
+
     def get_forcast(self, **kwargs):
         t2m = kwargs["t2m"]
         t2m = denorm_t2m(t2m)
@@ -267,20 +269,25 @@ class SpecRNN(ClimateSpec):
         data = t2m
 
         return {
-            't2m': t2m,
+            "data": data,
+            "t2m": t2m,
         }
 
     def lossfun(self, inputs, result, target):
-        assert result['data'].dim() == 5 and target['data'].dim() == 5, "Input and target must be 5D tensors"
-        rst = result['data']
+        assert (
+            result["data"].dim() == 5 and target["data"].dim() == 5
+        ), "Input and target must be 5D tensors"
+        rst = result["data"]
         print(f"rst shape: {rst.shape}")
-        tgt = target['data']
+        tgt = target["data"]
         print(f"rst shape: {tgt.shape}")
 
         weight = self.get_weight(rst.device).reshape(1, 1, 1, 32, 64)
         weight = weight * th.ones_like(tgt)
 
-        val_loss = th.sum(weight * (rst - tgt) ** 2, dim=(1, 2, 3, 4)) / th.sum(weight, dim=(1, 2, 3, 4))
+        val_loss = th.sum(weight * (rst - tgt) ** 2, dim=(1, 2, 3, 4)) / th.sum(
+            weight, dim=(1, 2, 3, 4)
+        )
         val_loss = val_loss.mean()
 
         # rst_diff = rst[:, :, 1:, :, :] - rst[:, :, :-1, :, :]

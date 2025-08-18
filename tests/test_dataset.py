@@ -12,11 +12,11 @@ from unittest.mock import patch
 class TestDataset(unittest.TestCase):
     """
     Optimized test cases for dataset functionality.
-    
+
     These tests use smaller batch sizes, fewer workers, and consolidated test cases
     to reduce test execution time while still verifying functionality.
     """
-    
+
     def setUp(self):
         pass
 
@@ -48,13 +48,13 @@ class TestDataset(unittest.TestCase):
 
         # Test with the dataset
         testargs = [
-            "wxb", 
-            "test", 
-            "-m", 
-            "models.model", 
-            "-b", 
+            "wxb",
+            "test",
+            "-m",
+            "models.model",
+            "-b",
             "5",  # Reduced batch size
-            "-t", 
+            "-t",
             "true",
             "-c",
             "4",  # Reduced CPU threads

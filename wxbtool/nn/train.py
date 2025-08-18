@@ -6,7 +6,6 @@ import torch as th
 import lightning.pytorch as pl
 
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
-from lightning.pytorch.strategies import DDPStrategy
 
 from wxbtool.nn.lightning import LightningModel, GANModel
 
@@ -46,7 +45,9 @@ def main(context, opt):
             ratio = float(opt.ratio)
             generator_lr, discriminator_lr = learning_rate, learning_rate / ratio
             if opt.load:
-                model = GANModel.load_from_checkpoint(opt.load, mdm.generator, mdm.discriminator, opt=opt)
+                model = GANModel.load_from_checkpoint(
+                    opt.load, mdm.generator, mdm.discriminator, opt=opt
+                )
             else:
                 model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
             model.generator.learning_rate = generator_lr
@@ -66,25 +67,30 @@ def main(context, opt):
                 accelerator=accelerator,
                 precision=precision,
                 max_epochs=n_epochs,
-            #     callbacks=callbacks,
+                #     callbacks=callbacks,
             )
         else:
             learning_rate = float(opt.rate)
             if opt.load:
-                model = LightningModel.load_from_checkpoint(opt.load, model=mdm.model, opt=opt)
+                model = LightningModel.load_from_checkpoint(
+                    opt.load, model=mdm.model, opt=opt
+                )
             else:
                 model = LightningModel(mdm.model, opt=opt)
             model.learning_rate = learning_rate
             checkpoint_callback = ModelCheckpoint(
-                                        monitor='val_rmse',
-                                        filename='best-{epoch:03d}-{val_rmse:.3f}-{val_loss:.3f}',
-                                        save_top_k=5,
-                                        mode='min',
-                                        dirpath=f'trains/{model.model.name}',
-                                        save_weights_only=False
-                                    )
-            
-            callbacks = [EarlyStopping(monitor="val_loss", mode="min", patience=50), checkpoint_callback]
+                monitor="val_rmse",
+                filename="best-{epoch:03d}-{val_rmse:.3f}-{val_loss:.3f}",
+                save_top_k=5,
+                mode="min",
+                dirpath=f"trains/{model.model.name}",
+                save_weights_only=False,
+            )
+
+            callbacks = [
+                EarlyStopping(monitor="val_loss", mode="min", patience=50),
+                checkpoint_callback,
+            ]
             trainer = pl.Trainer(
                 strategy="ddp_find_unused_parameters_true",
                 devices=devices,
@@ -96,7 +102,7 @@ def main(context, opt):
 
         trainer.fit(model)
         trainer.test(model=model, dataloaders=model.test_dataloader())
-        
+
         # Skip saving the model in test mode with optimization
         if not (opt.test == "true" and is_optimized):
             th.save(model, model.model.name + ".ckpt")

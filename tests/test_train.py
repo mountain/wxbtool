@@ -12,11 +12,11 @@ from unittest.mock import patch
 class TestTrain(unittest.TestCase):
     """
     Optimized test cases for training models.
-    
+
     These tests use smaller batch sizes, fewer CPU threads, and minimal epochs
     to reduce test execution time while still verifying functionality.
     """
-    
+
     @mock.patch.dict(
         os.environ, {"WXBHOME": str(pathlib.Path(__file__).parent.absolute())}
     )
@@ -49,7 +49,7 @@ class TestTrain(unittest.TestCase):
     def test_train_other_models(self):
         """
         Test training other model architectures.
-        
+
         This consolidated test verifies that different model architectures can be trained,
         but uses only one model (fast_6d) to save time.
         """

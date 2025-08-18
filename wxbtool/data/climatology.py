@@ -28,7 +28,7 @@ class ClimatologyAccessor:
         self.climatology_data = {}  # Cache for climatology DataArrays
         self.doy_indexer = []
         self.yr_indexer = []
-        
+
         # Cache for levels data
         self._all_levels = None
         self.setting = setting
@@ -69,15 +69,15 @@ class ClimatologyAccessor:
     def get_all_levels(self):
         """
         Get all available levels from the first 3D variable file.
-        
+
         Returns:
         - list: List of available levels.
         """
         if self._all_levels is not None:
             return self._all_levels
-            
+
         setting = self.setting if self.setting is not None else Setting()
-            
+
         var3d_path = os.path.join(config.root, setting.vars3d[0])
         try:
             any_file = os.listdir(var3d_path)[0]
@@ -86,9 +86,23 @@ class ClimatologyAccessor:
         except (FileNotFoundError, IndexError, AttributeError) as e:
             logger.warning(f"Could not determine levels automatically: {e}")
             # Fallback to default levels if we can't determine them automatically
-            self._all_levels = [50.0, 100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0, 600.0, 700.0, 850.0, 925.0, 1000.0]
+            self._all_levels = [
+                50.0,
+                100.0,
+                150.0,
+                200.0,
+                250.0,
+                300.0,
+                400.0,
+                500.0,
+                600.0,
+                700.0,
+                850.0,
+                925.0,
+                1000.0,
+            ]
             logger.info(f"Using default levels: {self._all_levels}")
-            
+
         return self._all_levels
 
     def load_climatology_var(self, var):
@@ -178,7 +192,9 @@ class ClimatologyAccessor:
             selected_data = climatology_var[doy_indices]
             h = selected_data.shape[2]
             w = selected_data.shape[3]
-            climatology_dict[var] = normalizors[var](selected_data).reshape(1, 1, seq_len, h, w)
+            climatology_dict[var] = normalizors[var](selected_data).reshape(
+                1, 1, seq_len, h, w
+            )
 
         return np.concatenate([climatology_dict[v] for v in vars], axis=1)
 
@@ -187,9 +203,11 @@ class ClimatologyAccessor:
 if __name__ == "__main__":
     # Create a setting instance
     setting = Setting()
-    
+
     # Initialize the accessor with the path to climatology data and the setting
-    climatology_accessor = ClimatologyAccessor(home="/data/climatology", setting=setting)
+    climatology_accessor = ClimatologyAccessor(
+        home="/data/climatology", setting=setting
+    )
 
     # Define the years and variables
     years = [2000, 2001, 2002, 2003, 2004]  # Includes both leap and non-leap years
@@ -206,6 +224,8 @@ if __name__ == "__main__":
 
     # Example 2: Retrieve climatology data for multiple batch_idx values
     batch_indices = [0, 365, 730, 1095, 1460]  # Corresponds to January 1st of each year
-    climatology_multiple = climatology_accessor.get_climatology(variables, batch_indices)
+    climatology_multiple = climatology_accessor.get_climatology(
+        variables, batch_indices
+    )
     print("\nMultiple batch_idx:")
     print(f"Data shape: {climatology_multiple.shape}")

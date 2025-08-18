@@ -12,11 +12,11 @@ from unittest.mock import patch
 class TestTest(unittest.TestCase):
     """
     Optimized test cases for testing models.
-    
+
     These tests use smaller batch sizes, fewer CPU threads, and minimal settings
     to reduce test execution time while still verifying functionality.
     """
-    
+
     def setUp(self):
         pass
 
@@ -31,13 +31,13 @@ class TestTest(unittest.TestCase):
         import wxbtool.wxb as wxb
 
         testargs = [
-            "wxb", 
-            "test", 
-            "-m", 
-            "models.fast_3d", 
-            "-b", 
+            "wxb",
+            "test",
+            "-m",
+            "models.fast_3d",
+            "-b",
             "5",  # Reduced batch size
-            "-t", 
+            "-t",
             "true",
             "-c",
             "4",  # Reduced CPU threads
@@ -51,20 +51,20 @@ class TestTest(unittest.TestCase):
     def test_teste_other_models(self):
         """
         Test other model architectures.
-        
+
         This consolidated test verifies that different model architectures can be tested,
         but uses only one model (fast_6d) to save time.
         """
         import wxbtool.wxb as wxb
 
         testargs = [
-            "wxb", 
-            "test", 
-            "-m", 
+            "wxb",
+            "test",
+            "-m",
             "models.fast_6d",  # Representative of other models
-            "-b", 
+            "-b",
             "5",  # Reduced batch size
-            "-t", 
+            "-t",
             "true",
             "-c",
             "4",  # Reduced CPU threads
