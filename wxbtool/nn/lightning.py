@@ -15,7 +15,7 @@ from collections import defaultdict
 import json
 
 
-plot_root = Path(__file__).resolve().parents[1].parent / "plots"
+plot_root = Path(os.getcwd()) / "plots"
 if not plot_root.exists():
     plot_root.mkdir(parents=True, exist_ok=True)
 
