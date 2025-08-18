@@ -17,6 +17,7 @@ The typical workflow with wxbtool consists of these steps:
 2. Training a model
 3. Testing the model
 4. Using the model for inference
+5. Backtesting the forecast for a specific initialization date
 
 ## Command Cheat Sheet
 
@@ -66,8 +67,9 @@ This command:
 To generate a prediction for a specific date:
 
 ```bash
-wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -o output.png
+wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.png
 ```
+Note: For wxb infer, -t must be in YYYY-MM-DD (date only).
 
 This command:
 - Loads the specified model
@@ -81,11 +83,22 @@ For probabilistic forecasts using a GAN:
 ```bash
 wxb inferg -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -s 10 -o output.nc
 ```
+Note: For wxb inferg, -t must be in YYYY-MM-DDTHH:MM:SS (date and time).
 
 This command:
 - Uses the GAN version of the model
 - Generates 10 ensemble members
 - Saves the output as a NetCDF file
+
+### Backtesting (wxb eval)
+
+To run a day-by-day backtest starting from a specific initialization date:
+
+```bash
+wxb eval -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.nc
+```
+- For wxb eval, -t must be in YYYY-MM-DD (date only).
+- Outputs are written to output/2023-01-01/. When using .nc, an additional var_day_rmse.json is created that contains day-by-day RMSE keyed by calendar date.
 
 ## Common Command Options
 
@@ -97,6 +110,7 @@ Here are some common options you can use with wxbtool commands:
 - `-w` or `--workers`: Set number of worker processes (e.g., `-w 8`)
 - `-m` or `--module`: Specify the model specification module
 - `-s` or `--setting`: Specify the setting class within the module
+- Note: `--port` is currently not used by the implementation; prefer `--bind` to set address/port or a Unix socket.
 
 ### Training Options
 
@@ -106,14 +120,20 @@ Here are some common options you can use with wxbtool commands:
 - `-l` or `--load`: Load a previously saved model (e.g., `-l model.ckpt`)
 - `-r` or `--rate`: Set the learning rate (e.g., `-r 0.001`)
 - `-d` or `--data`: Specify dataset server URL (e.g., `-d http://localhost:8088`)
+- `-O` or `--optimize`: Enable fast/CI mode (reduces batch counts/epochs where applicable)
+- `-t` or `--test`: Set to `true` to shorten a run (e.g., 1 epoch for smoke testing)
 
 ### Testing Options
 
-Similar to training options, with focus on model evaluation.
+Same as training options, with emphasis on evaluation. Additionally:
+- `-O` or `--optimize`: Fast/CI mode (limits validation/test batches)
+- `-t` or `--test`: Set to `true` to shorten a test run
 
 ### Inference Options
 
-- `-t` or `--datetime`: Specify the date and time for prediction
+- `-t` or `--datetime`: Specify the initialization time
+  - For `wxb infer`: use `YYYY-MM-DD` (date only)
+  - For `wxb inferg`: use `YYYY-MM-DDTHH:MM:SS` (date and time)
 - `-o` or `--output`: Specify the output file (PNG or NC format)
 - `-s` or `--samples`: For GAN inference, specify the number of samples to generate
 
@@ -132,7 +152,7 @@ wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -n 50 -b 32 -r 0.001
 wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn
 
 # Run inference for a specific date
-wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -o forecast.png
+wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o forecast.png
 ```
 
 ## Advanced Server Configurations

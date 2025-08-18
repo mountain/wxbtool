@@ -61,6 +61,13 @@ wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -G true
 
 - `-G/--gan`: Set to `true` to test a GAN model
 
+### Additional Options
+
+In addition to the options above, testing supports:
+
+- `-O/--optimize`: Fast/CI mode. Limits validation/test batches and reduces patience to speed up continuous integration runs.
+- `-t/--test`: Set to `true` to shorten runs (e.g., forces 1 epoch in some flows). Useful for smoke testing.
+
 ## Performance Metrics
 
 wxbtool evaluates models using several performance metrics:
@@ -170,6 +177,34 @@ echo "Comparison complete. Results saved to model_comparison.csv"
 # Test a GAN model to evaluate ensemble performance
 wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -G true
 ```
+
+## Backtesting with wxb eval
+
+Backtesting evaluates rolling, day-by-day performance starting from a specific initialization date. This is complementary to `wxb test` (which evaluates the full test split).
+
+- Usage:
+  ```bash
+  wxb eval -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2025-01-01 -o forecast.nc
+  ```
+  - `-t/--datetime`: Initialization date in `YYYY-MM-DD` (date only)
+  - `-o/--output`: `png` or `nc`
+
+- Outputs:
+  - Same PNG/NC artifacts as `wxb infer`
+  - Additionally, when using `.nc`, writes `output/{YYYY-MM-DD}/var_day_rmse.json` containing day-by-day RMSE keyed by calendar date, for each variable in `vars_out`. Example:
+    ```json
+    {
+      "t2m": {
+        "2025-01-01": 2.31,
+        "2025-01-02": 2.45,
+        "2025-01-03": 2.62
+      }
+    }
+    ```
+
+- Positioning vs `wxb test`:
+  - `wxb test`: Bulk evaluation on the test split
+  - `wxb eval`: Operational-style backtest for one init date, computing forward-looking day-by-day scores
 
 ## Understanding Test Results
 

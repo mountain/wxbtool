@@ -75,6 +75,7 @@ Options:
 - `-s/--setting`: Specifies the setting class
 - `-b/--bind`: Optional binding address (e.g., `127.0.0.1:8088`)
 - `-w/--workers`: Number of worker processes
+- Note: `--port` is currently not used by the implementation; prefer `--bind` to set the address/port or a Unix socket (e.g., `unix:/tmp/wxb.sock`).
 
 ### Client-Server Architecture
 
@@ -180,7 +181,15 @@ wxbtool includes a data download command to fetch the latest ERA5 data:
 wxb download -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn --coverage weekly
 ```
 
-This relies on appropriate API credentials for ECMWF data access.
+Notes:
+- Coverage options: `daily`, `weekly`, `monthly`, or an integer number of days (e.g., `--coverage 10`).
+- Variables, levels, and resolution are inferred from the model's `Setting`.
+- Output directory structure:
+  ```
+  era5/{variable}/{YYYY}/{MM}/{DD}/{YYYYMMDD}_{HH}.nc
+  ```
+- First run: the tool will prompt for your ECMWF CDS API key and create `~/.cdsapirc` automatically.
+- Ensure you have valid ECMWF CDS credentials for data access.
 
 ## Common Issues and Solutions
 

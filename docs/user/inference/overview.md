@@ -22,8 +22,9 @@ wxbtool supports two types of inference:
 The basic command to generate a deterministic forecast is:
 
 ```bash
-wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -o forecast.png
+wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o forecast.png
 ```
+Note: For wxb infer, -t must be in YYYY-MM-DD (date only).
 
 This command:
 - Loads the model implementation from the specified module
@@ -47,10 +48,12 @@ wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -g 0 -c 8
 ### Time Selection and Output Options
 
 ```bash
-wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -o output.nc
+wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o output.nc
 ```
 
-- `-t/--datetime`: The specific date and time for prediction (format: YYYY-MM-DDTHH:MM:SS)
+- `-t/--datetime`: Initialization time for prediction
+  - For `wxb infer` use `YYYY-MM-DD` (date only)
+  - For `wxb inferg` use `YYYY-MM-DDTHH:MM:SS` (date and time)
 - `-o/--output`: The output file path and format (supports .png or .nc)
 
 ### Data Source Configuration
@@ -76,6 +79,7 @@ For probabilistic forecasting using a GAN model:
 ```bash
 wxb inferg -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -s 10 -o ensemble.nc
 ```
+Note: For wxb inferg, -t must be in YYYY-MM-DDTHH:MM:SS (date and time).
 
 This command:
 - Uses the GAN-based inference mode
@@ -89,12 +93,12 @@ This command:
 
 ## Output Formats
 
-wxbtool supports two output formats:
+wxbtool supports two output formats. By default, outputs are written under output/{YYYY-MM-DD}/ as {module_last}.{png|nc}:
 
 ### PNG Format
 
 ```bash
-wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -o forecast.png
+wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o forecast.png
 ```
 
 - Produces a visual representation of the forecast
@@ -105,7 +109,7 @@ wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -o f
 ### NetCDF Format
 
 ```bash
-wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -o forecast.nc
+wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o forecast.nc
 ```
 
 - Stores the raw numerical forecast data
@@ -133,7 +137,7 @@ The inference process involves these steps:
 wxb dserve -m wxbtool.specs.res5_625.t850weyn -s Setting3d &
 
 # Run inference for a specific date
-wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01T00:00:00 -o forecast.png
+wxb infer -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2023-01-01 -o forecast.png
 ```
 
 ### GAN Ensemble Workflow
@@ -154,12 +158,12 @@ For generating forecasts for multiple dates, you can create a simple script:
 
 ```bash
 #!/bin/bash
-DATES=("2023-01-01T00:00:00" "2023-01-02T00:00:00" "2023-01-03T00:00:00")
+DATES=("2023-01-01" "2023-01-02" "2023-01-03")
 MODEL="wxbtool.zoo.res5_625.unet.t850d3sm_weyn"
 
 for date in "${DATES[@]}"; do
-    outfile="forecast_${date//:/_}.png"  # Replace colons with underscores for filename
-    wxb infer -m $MODEL -t $date -o $outfile
+    outfile="forecast_${date}.png"
+    wxb infer -m $MODEL -t "$date" -o "$outfile"
     echo "Generated forecast for $date"
 done
 ```
@@ -224,7 +228,9 @@ Make sure your dataset includes the necessary historical data.
 
 1. **Missing Data Errors**
    - Ensure your data directory contains the required historical data
-   - Check that the datetime format is correct (YYYY-MM-DDTHH:MM:SS)
+   - Check the datetime format:
+     - For `wxb infer`: use `YYYY-MM-DD` (date only)
+     - For `wxb inferg`: use `YYYY-MM-DDTHH:MM:SS` (date and time)
    - Verify the dataset server is running properly
 
 2. **Model Loading Issues**
