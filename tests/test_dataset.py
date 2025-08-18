@@ -33,7 +33,7 @@ class TestDataset(unittest.TestCase):
         # Start dataset server
         testargs = [
             "wxb",
-            "dserve",
+            "data-serve",
             "-m",
             "models.model",
             "-s",
@@ -72,7 +72,7 @@ class TestDataset(unittest.TestCase):
         # Start dataset server with Unix socket
         testargs = [
             "wxb",
-            "dserve",
+            "data-serve",
             "-m",
             "models.model",
             "-s",
@@ -115,7 +115,7 @@ class TestDataset(unittest.TestCase):
         # Start dataset server for climate model
         testargs = [
             "wxb",
-            "dserve",
+            "data-serve",
             "-m",
             "spec.spec",
             "-s",
