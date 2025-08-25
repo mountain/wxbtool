@@ -1,6 +1,6 @@
 [project]
 name = "wxbtool"
-version = "0.2.0"
+version = "0.2.1"
 description = "A toolkit for WeatherBench based on PyTorch"
 authors = [{email="mingli.yuan@gmail.com", name="Mingli Yuan"}]
 license = {file = "LICENSE"}
@@ -44,4 +44,4 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["wxbtool"]
+include = ["wxbtool", "wxbtool.*"]

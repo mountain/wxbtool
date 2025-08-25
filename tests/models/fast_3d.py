@@ -76,7 +76,9 @@ class Mdl(Spec):
 
         # Use a smaller CNN for faster computation
         input_channels = (
-            self.setting.input_span * len(self.setting.vars_in) + self.constant_size + 2
+            self.setting.input_span * len(self.setting.vars_in)
+            + self.constant_size()
+            + 2
         )
         output_channels = self.setting.pred_span * len(self.setting.vars_out)
 

@@ -22,7 +22,7 @@ class ResUNetModel(Spec):
         super().__init__(setting)
         self.name = "t850d3bg-rasp"
         self.resunet = resunet(
-            setting.input_span * len(setting.vars_in) + self.constant_size + 2,
+            setting.input_span * len(setting.vars_in) + self.constant_size() + 2,
             1,
             spatial=(32, 64 + 2),
             layers=5,

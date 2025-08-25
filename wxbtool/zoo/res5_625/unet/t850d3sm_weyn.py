@@ -23,7 +23,7 @@ class ResUNetModel(Spec):
         self.name = "t850d3sm-weyn"
         lat_size, lon_size = setting.spatial_shape
         self.resunet = resunet(
-            setting.input_span * (len(setting.vars) + 2) + self.constant_size + 2,
+            setting.input_span * (len(setting.vars) + 2) + self.constant_size() + 2,
             1,
             spatial=(lat_size, lon_size + 2),
             layers=5,

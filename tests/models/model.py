@@ -22,7 +22,7 @@ class Model(Spec):
         # Use a smaller CNN for faster computation
         self.cnn = SimpleCNN2d(
             self.setting.input_span * len(self.setting.vars_in)
-            + self.constant_size
+            + self.constant_size()
             + 2,
             self.setting.pred_span * len(self.setting.vars_out),
         )
