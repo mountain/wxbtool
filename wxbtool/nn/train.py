@@ -79,8 +79,8 @@ def main(context, opt):
                 model = LightningModel(mdm.model, opt=opt)
             model.learning_rate = learning_rate
             checkpoint_callback = ModelCheckpoint(
-                monitor="val_rmse",
-                filename="best-{epoch:03d}-{val_rmse:.3f}-{val_loss:.3f}",
+                monitor="val_loss",
+                filename="best-{epoch:03d}-{val_loss:.3f}",
                 save_top_k=5,
                 mode="min",
                 dirpath=f"trains/{model.model.name}",

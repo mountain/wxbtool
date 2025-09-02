@@ -54,6 +54,9 @@ class LightningModel(ltn.LightningModule):
         self.accByVar = defaultdict()
 
     def configure_optimizers(self):
+        if hasattr(self.model, "configure_optimizers"):
+            return self.model.configure_optimizers()
+
         optimizer = optim.AdamW(
             self.parameters(),
             lr=self.learning_rate,
