@@ -107,31 +107,26 @@ class WxDataset(Dataset):
     def load(self, dumpdir):
         import wxbtool.data.variables as v  # noqa: E402
 
-        # Get all available levels from the first 3D variable file
-        var3d_path = os.path.join(self.root, self.setting.vars3d[0])
-        try:
-            any_file = os.listdir(var3d_path)[0]
-            sample_data = xr.open_dataarray(f"{var3d_path}/{any_file}")
-            all_levels = sample_data.level.values.tolist()
-        except (FileNotFoundError, IndexError, AttributeError) as e:
-            logger.warning(f"Could not determine levels automatically: {e}")
-            # Fallback to default levels if we can't determine them automatically
-            all_levels = [
-                50.0,
-                100.0,
-                150.0,
-                200.0,
-                250.0,
-                300.0,
-                400.0,
-                500.0,
-                600.0,
-                700.0,
-                850.0,
-                925.0,
-                1000.0,
-            ]
-            logger.info(f"Using default levels: {all_levels}")
+        # Determine available levels only if any of the requested variables are 3D
+        all_levels = []
+        # Identify 3D variables present in the current dataset variables (self.vars)
+        var3d_list = [var for var in self.vars if var in v.vars3d]
+        if var3d_list:
+            first3d = var3d_list[0]
+            try:
+                var3d_path = os.path.join(self.root, first3d)
+                any_file = os.listdir(var3d_path)[0]
+                sample_data = xr.open_dataarray(f"{var3d_path}/{any_file}")
+                all_levels = sample_data.level.values.tolist()
+            except (FileNotFoundError, IndexError, AttributeError) as e:
+                logger.error(
+                    f"Failed to read levels from 3D variable '{first3d}'. "
+                    f"Please check data integrity and paths. Original error: {e}"
+                )
+                raise ValueError(
+                    f"Configuration requires 3D variables in dataset (found {var3d_list}), "
+                    f"but failed to load level info from '{first3d}'."
+                )
 
         # Find indices of requested levels in the available levels
         levels_selector = []
