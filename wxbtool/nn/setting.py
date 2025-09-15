@@ -11,6 +11,14 @@ class Setting:
         )  # The root path of WeatherBench Dataset, inject from config
         self.resolution = "5.625deg"  # The spatial resolution of the model
 
+        # Dataset organization configuration (Flexible Granularity & Path)
+        # granularity controls the date_range frequency used for file discovery.
+        # Supported values: "yearly", "quarterly", "monthly", "weekly", "daily", "hourly".
+        self.granularity = "yearly"
+        # data_path_format is formatted relative to the variable directory: <root>/<var>/<formatted>
+        # Supported placeholders: {var}, {resolution}, {year}, {month}, {day}, {hour}, {week}, {quarter}
+        self.data_path_format = "{var}_{year}_{resolution}.nc"
+
         # Load spatial configuration based on resolution
         self._load_spatial_config()
 

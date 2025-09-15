@@ -65,6 +65,26 @@ wxb data-download -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn --coverage weekly
 
 For more detailed examples and explanations, see the [Quick Start Guide](docs/user/quickstart.md).
 
+## Flexible Dataset Organization
+
+wxbtool supports flexible dataset layouts beyond the default yearly files. You can configure how data files are discovered by setting two fields in your Setting:
+
+- granularity: one of yearly, quarterly, monthly, weekly, daily, hourly
+- data_path_format: a Python format string relative to the variable directory, supporting placeholders {var}, {resolution}, {year}, {month}, {day}, {hour}, {week}, {quarter}
+
+Example for monthly files:
+```python
+from wxbtool.nn.setting import Setting
+
+class MySetting(Setting):
+    def __init__(self):
+        super().__init__()
+        self.granularity = "monthly"
+        self.data_path_format = "{year}/{var}_{year}-{month:02d}_{resolution}.nc"
+```
+
+See details and more examples in the [Data Handling Guide](docs/user/data_handling/overview.md).
+
 ## Documentation
 
 ### User Documentation

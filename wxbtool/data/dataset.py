@@ -12,6 +12,8 @@ import random
 
 import xarray as xr
 import numpy as np
+import pandas as pd
+from wxbtool.data.path import DataPathManager
 
 import msgpack
 import msgpack_numpy as m
@@ -19,7 +21,6 @@ from wxbtool.nn.setting import Setting
 
 m.patch()
 
-from itertools import product  # noqa: E402
 from torch.utils.data import Dataset, DataLoader, Sampler  # noqa: E402
 
 
@@ -79,7 +80,7 @@ class WxDataset(Dataset):
             self.width = 32
             self.length = 64
 
-        code = "%s:%s:%s:%s:%s:%s:%s:%s" % (
+        code = "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (
             self.resolution,
             self.years,
             self.vars,
@@ -88,6 +89,8 @@ class WxDataset(Dataset):
             self.input_span,
             self.pred_shift,
             self.pred_span,
+            self.setting.granularity,
+            self.setting.data_path_format,
         )
         hashstr = hashlib.md5(code.encode("utf-8")).hexdigest()
         self.hashcode = hashstr
@@ -145,14 +148,48 @@ class WxDataset(Dataset):
 
         size = 0
         lastvar = None
-        for var, yr in product(self.vars, self.years):
-            if var in v.vars3d:
-                length = self.load_3ddata(yr, var, selector, self.accumulated)
-            elif var in v.vars2d:
-                length = self.load_2ddata(yr, var, self.accumulated)
-            else:
-                raise ValueError("variable %s does not supported!" % var)
-            size += length
+
+        # Construct a date range covering selected years according to granularity
+        min_year, max_year = min(self.years), max(self.years)
+        start_date = f"{min_year}-01-01"
+        end_date = f"{max_year}-12-31"
+        freq_map = {
+            "yearly": "YS",
+            "quarterly": "QS",
+            "monthly": "MS",
+            "weekly": "W-MON",
+            "daily": "D",
+            "hourly": "H",
+        }
+        freq = freq_map.get(self.setting.granularity, "D")
+        if self.setting.granularity not in freq_map:
+            logger.warning(
+                f"Unknown granularity '{self.setting.granularity}', defaulting to daily frequency 'D'"
+            )
+        date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
+
+        for var in self.vars:
+            file_paths = DataPathManager.get_file_paths(
+                self.root,
+                var,
+                self.resolution,
+                self.setting.data_path_format,
+                date_range,
+            )
+            for data_path in file_paths:
+                if not os.path.exists(data_path):
+                    logger.debug(f"Missing data file skipped: {data_path}")
+                    continue
+
+                if var in v.vars3d:
+                    length = self.load_3ddata(
+                        data_path, var, selector, self.accumulated
+                    )
+                elif var in v.vars2d:
+                    length = self.load_2ddata(data_path, var, self.accumulated)
+                else:
+                    raise ValueError(f"variable {var} does not supported!")
+                size += length
 
             if lastvar and lastvar != var:
                 self.inputs[lastvar] = WindowArray(
@@ -219,10 +256,9 @@ class WxDataset(Dataset):
         for var in list(self.accumulated.keys()):
             del self.accumulated[var]
 
-    def load_2ddata(self, year, var, accumulated):
+    def load_2ddata(self, data_path, var, accumulated):
         import wxbtool.data.variables as v  # noqa: E402
 
-        data_path = "%s/%s/%s_%d_%s.nc" % (self.root, var, var, year, self.resolution)
         with xr.open_dataset(data_path) as ds:
             ds = ds.transpose("time", "lat", "lon")
             if var not in accumulated:
@@ -235,14 +271,18 @@ class WxDataset(Dataset):
                     ],
                     axis=0,
                 )
-            logger.info("%s[%d]: %s", var, year, str(accumulated[var].shape))
+            logger.info(
+                "%s[%s]: %s",
+                var,
+                os.path.basename(data_path),
+                str(accumulated[var].shape),
+            )
 
         return accumulated[var].shape[0]
 
-    def load_3ddata(self, year, var, selector, accumulated):
+    def load_3ddata(self, data_path, var, selector, accumulated):
         import wxbtool.data.variables as v  # noqa: E402
 
-        data_path = "%s/%s/%s_%d_%s.nc" % (self.root, var, var, year, self.resolution)
         with xr.open_dataset(data_path) as ds:
             ds = ds.transpose("time", "level", "lat", "lon")
             if var not in accumulated:
@@ -259,7 +299,12 @@ class WxDataset(Dataset):
                     ],
                     axis=0,
                 )
-            logger.info("%s[%d]: %s", var, year, str(accumulated[var].shape))
+            logger.info(
+                "%s[%s]: %s",
+                var,
+                os.path.basename(data_path),
+                str(accumulated[var].shape),
+            )
 
         return accumulated[var].shape[0]
 
