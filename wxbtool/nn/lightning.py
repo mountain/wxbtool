@@ -231,8 +231,8 @@ class LightningModel(ltn.LightningModule):
         step = self.model.setting.step
         span = self.model.setting.pred_span
         shift = self.model.setting.pred_shift
-        height = self.model.setting.height
-        width = self.model.setting.width
+        height = self.model.setting.lat_size
+        width = self.model.setting.lon_size
 
         if self.ci:
             return np.zeros((batch_size, len(vars_out), span, height, width))
@@ -260,8 +260,8 @@ class LightningModel(ltn.LightningModule):
 
         batch = forecast.shape[0]
         pred_length = self.model.setting.pred_span
-        height = self.model.setting.height
-        width = self.model.setting.width
+        height = self.model.setting.lat_size
+        width = self.model.setting.lon_size
 
         climatology = self.get_climatology(indexes, mode)
         var_ind = self.model.setting.vars_out.index(variable)
