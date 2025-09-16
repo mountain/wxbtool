@@ -171,8 +171,12 @@ class WxDataset(Dataset):
                 self.setting.data_path_format,
                 date_range,
             )
+            found_any = False
+            examples_missing = []
             for data_path in file_paths:
                 if not os.path.exists(data_path):
+                    if len(examples_missing) < 3:
+                        examples_missing.append(data_path)
                     logger.debug(f"Missing data file skipped: {data_path}")
                     continue
 
@@ -185,6 +189,16 @@ class WxDataset(Dataset):
                 else:
                     raise ValueError(f"variable {var} does not supported!")
                 size += length
+                found_any = True
+
+            if not found_any:
+                msg = (
+                    f"No existing files found for variable '{var}' under root '{self.root}'. "
+                    f"Tried {len(file_paths)} candidate path(s). "
+                )
+                if examples_missing:
+                    msg += "Examples (first 3): " + "; ".join(examples_missing)
+                logger.warning(msg)
 
             if (
                 last_loaded_var

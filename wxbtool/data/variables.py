@@ -184,6 +184,12 @@ def register_var2d(name: str, code: str, *, override: bool = False) -> None:
             del codes[owner]
         _remove_from_list(owner, vars2d)
         _remove_from_list(owner, vars3d)
+        # Auto-alias both ways for directory/name lookups after code reassignment
+        _aliases[owner] = name
+        _aliases[name] = owner
+        logger.info(
+            "Registered aliases: '%s' <-> '%s' due to code reassignment", owner, name
+        )
 
     # Apply mapping
     codes[name] = code
@@ -239,6 +245,12 @@ def register_var3d(name: str, code: str, *, override: bool = False) -> None:
             del codes[owner]
         _remove_from_list(owner, vars2d)
         _remove_from_list(owner, vars3d)
+        # Auto-alias both ways for directory/name lookups after code reassignment
+        _aliases[owner] = name
+        _aliases[name] = owner
+        logger.info(
+            "Registered aliases: '%s' <-> '%s' due to code reassignment", owner, name
+        )
 
     # Apply mapping
     codes[name] = code

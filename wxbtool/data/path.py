@@ -25,6 +25,8 @@ from typing import Iterable, List
 
 import pandas as pd
 
+import wxbtool.data.variables as v  # alias-aware var names
+
 
 class DataPathManager:
     """Stateless helper that formats file paths based on a date range and format."""
@@ -69,17 +71,27 @@ class DataPathManager:
         """
         paths = []
         for ts in date_range:
-            fields = cls._compute_fields(ts, var, resolution)
+            # Try multiple candidates for the {var} token and directory:
+            # - provided var
+            # - canonical alias (resolve_name)
+            # - canonical code (when available)
+            candidates = {var, v.resolve_name(var)}
             try:
-                relative = data_path_format.format(**fields)
-            except KeyError as e:
-                raise KeyError(
-                    f"Unknown placeholder {e} in data_path_format='{data_path_format}'. "
-                    f"Supported keys: {sorted(fields.keys())}"
-                )
-            # Join as root/var/<relative>
-            full_path = os.path.join(root, var, relative)
-            paths.append(full_path)
+                candidates.add(v.get_code(var))
+            except Exception:
+                pass
+
+            for cand in candidates:
+                fields = cls._compute_fields(ts, cand, resolution)
+                try:
+                    relative = data_path_format.format(**fields)
+                except KeyError as e:
+                    raise KeyError(
+                        f"Unknown placeholder {e} in data_path_format='{data_path_format}'. "
+                        f"Supported keys: {sorted(fields.keys())}"
+                    )
+                full_path = os.path.join(root, cand, relative)
+                paths.append(full_path)
 
         # Deduplicate while preserving order
         seen = set()
