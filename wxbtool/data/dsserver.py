@@ -2,22 +2,21 @@
 
 import importlib
 import logging
-import resource
-import arrow
-import sys
 import os
-import flask
+import resource
+import sys
 
+import arrow
+import flask
 import msgpack
 import msgpack_numpy as m
 
 m.patch()
 
-import numpy as np  # noqa: E402
-
 from pathlib import Path  # noqa: E402
-from flask import Flask  # noqa: E402
 
+import numpy as np  # noqa: E402
+from flask import Flask  # noqa: E402
 
 rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (2048, rlimit[1]))

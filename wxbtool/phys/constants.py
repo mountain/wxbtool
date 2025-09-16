@@ -2,7 +2,6 @@
 
 import numpy as np
 
-
 g = 9.80665
 
 Omega = 2 * np.pi / (24 * 3600 * 0.99726966323716)

@@ -2,7 +2,6 @@
 
 import numpy as np
 
-
 COPPER = np.array(
     [
         [0, 0, 0, 255],

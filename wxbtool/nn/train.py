@@ -1,14 +1,12 @@
+import importlib
 import os
 import sys
-import importlib
 
-import torch as th
 import lightning.pytorch as pl
-
+import torch as th
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
-from wxbtool.nn.lightning import LightningModel, GANModel
-
+from wxbtool.nn.lightning import GANModel, LightningModel
 
 if th.cuda.is_available():
     accelerator = "gpu"

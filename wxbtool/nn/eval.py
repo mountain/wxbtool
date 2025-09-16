@@ -1,19 +1,18 @@
+import importlib
+import json
 import os
 import sys
-import importlib
-import torch as th
-import xarray as xr
-import numpy as np
-import pandas as pd
-import json
-
-import wxbtool.config as config
-
-from wxbtool.nn.lightning import LightningModel
-from wxbtool.data.dataset import WxDataset
-from wxbtool.util.plotter import plot
 from datetime import datetime, timedelta
 
+import numpy as np
+import pandas as pd
+import torch as th
+import xarray as xr
+
+import wxbtool.config as config
+from wxbtool.data.dataset import WxDataset
+from wxbtool.nn.lightning import LightningModel
+from wxbtool.util.plotter import plot
 
 if th.cuda.is_available():
     accelerator = "gpu"

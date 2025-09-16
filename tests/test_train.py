@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import unittest
-import os
-import sys
-import pathlib
-import unittest.mock as mock
-
-from unittest.mock import patch
 import importlib.util
+import os
+import pathlib
+import sys
+import unittest
+import unittest.mock as mock
+from unittest.mock import patch
 
 import pytest
 

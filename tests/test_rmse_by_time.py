@@ -1,7 +1,8 @@
 import os
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 pytest.importorskip("numpy")
 th = pytest.importorskip("torch")

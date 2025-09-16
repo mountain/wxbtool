@@ -36,6 +36,18 @@ wxbtool supports both 2D and 3D meteorological variables:
 - `total_precipitation`: Accumulated precipitation
 - `total_cloud_cover`: Cloud cover fraction
 
+### Extending Supported Variables and Normalization
+
+You can extend the set of variables and their normalization without modifying library code:
+
+- Register variables (2D/3D), codes, and aliases via the official Variable Registry APIs.
+- Register normalization/denormalization functions via the Normalization Registry APIs.
+- Prefer registries over monkeypatching; registries are idempotent, override-aware, and logged.
+
+See:
+- Technical guide: Variable Registry — docs/technical/extension/new_variables.md
+- Technical guide: Normalization Systems — docs/technical/specifications/normalization.md
+
 ## Data Organization
 
 ### Directory Structure

@@ -3,10 +3,9 @@ Test climate model in wxbtool package - Optimized for faster testing
 """
 
 import torch as th
-
 from leibniz.nn.net import SimpleCNN2d
-from tests.spec.spec import Setting60d, ClimateSpec
 
+from tests.spec.spec import ClimateSpec, Setting60d
 
 setting = Setting60d()
 

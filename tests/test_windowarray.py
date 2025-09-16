@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
-import unittest
 import os
 import pathlib
-import numpy as np
+import unittest
 import unittest.mock as mock
+
+import numpy as np
 
 
 class TestWindowArray(unittest.TestCase):

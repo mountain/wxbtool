@@ -24,8 +24,9 @@ Our primary objective is not merely to write code that runs, but to build a syst
 
 * **Formatting**: All Python code **must** be formatted using `black` with its default configuration.
 * **Linting**: All Python code **must** pass `ruff` checks without any warnings. Custom rules may be defined in `pyproject.toml`.
+* **Import Sorting**: All Python imports **must** be sorted using `isort` (project defaults). Keep grouping and ordering deterministic.
 * **Type Checking**: All Python code **must** pass static analysis by `mypy` in strict mode (`--strict`).
-* **Automation**: These checks **must** be automated locally using the `pre-commit` framework. Any commit that fails pre-commit hooks will be rejected by the CI pipeline.
+* **Automation**: These checks (**ruff**, **black**, **isort**, **mypy**, **pytest**) **must** be automated locally using the `pre-commit` framework. Any commit that fails pre-commit hooks will be rejected by the CI pipeline. Provide convenience scripts/Make targets where helpful.
 * **Modularity**: Functions and classes should be small and adhere to the Single Responsibility Principle (SRP).
 * **Naming**: Follow the PEP 8 naming conventions. Use descriptive, unambiguous names for variables, functions, and classes.
 
@@ -114,3 +115,34 @@ Our primary objective is not merely to write code that runs, but to build a syst
 * **Review Focus**: Reviews should be constructive and focus on code quality, correctness, test coverage, documentation, and adherence to these protocols.
 * **Author's Responsibility**: The PR author is responsible for ensuring their code is clean, tested, and easy to review. They are also expected to respond to feedback in a timely manner.
 * **Reviewer's Responsibility**: The reviewer is responsible for providing thorough, respectful, and actionable feedback. The goal is collaborative improvement of the codebase, not personal criticism.
+
+## 5. Engineering Checklist (Pre-merge)
+
+Before merging any change, complete the following:
+
+- Code Quality & Tests
+  - [ ] Run ruff with autofix: `ruff check . --fix`
+  - [ ] Run black formatting: `black .`
+  - [ ] Run import sorting: `isort .`
+  - [ ] Run tests: `pytest -q` (and ensure non-flaky, meaningful coverage)
+  - [ ] (If applicable) Run mypy: `mypy --strict .` and resolve typing issues
+  - [ ] Ensure pre-commit hooks are installed and passing locally
+
+- Documentation Updates
+  - [ ] Update README.md if user-facing behavior or commands changed
+  - [ ] Update /docs (user + technical) where relevant:
+        - User docs (e.g., data handling, training, inference, evaluation)
+        - Technical docs (e.g., extension guides, specifications)
+  - [ ] Update docs/index.md navigation to include any new docs pages
+  - [ ] Add code docstrings for new/changed public APIs
+
+- Project Hygiene
+  - [ ] Update CHANGELOG.md with user-visible changes (Keep a Changelog format)
+  - [ ] If introducing new conventions or tools, update AGENTS.md accordingly
+  - [ ] Verify CI configuration enforces ruff, black, isort, mypy, pytest
+  - [ ] Consider version bump if public API/CLI changes
+
+- PR Quality
+  - [ ] Reference related ADRs/Project docs (e.g., Projects/00x_*.md)
+  - [ ] Provide a clear PR description covering the "what" and "why"
+  - [ ] Keep changes focused and atomic; avoid unrelated refactors

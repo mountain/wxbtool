@@ -8,7 +8,7 @@ eliminating hard-coded dimensions throughout the codebase and enabling
 multi-resolution support.
 """
 
-from typing import Dict, Tuple, Any
+from typing import Any, Dict, Tuple
 
 
 class ResolutionConfig:

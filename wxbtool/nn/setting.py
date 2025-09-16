@@ -1,7 +1,9 @@
+from typing import Tuple
+
+import numpy as np
+
 import wxbtool.config as config
 from wxbtool.nn.resolution import ResolutionConfig
-import numpy as np
-from typing import Tuple
 
 
 class Setting:

@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
 
+import logging
+from typing import Callable, Optional
+
 import numpy as np
 import torch as th
+
+from wxbtool.data.variables import code2var, codes
 
 
 def norm_t2m(t2m):
@@ -436,3 +441,95 @@ denormalizors = {
     "q925": denorm_q925,
     "test": lambda x: x,
 }
+
+# Registry APIs for normalizers/denormalizers
+
+_logger = logging.getLogger(__name__)
+
+
+def _canonical_key(key: str) -> str:
+    """
+    Resolve a user-provided key (variable name or code) to the canonical code key
+    used by normalizors/denormalizors.
+
+    Rules:
+    - If key already exists in the dicts (assumed to be a code), return it.
+    - If key matches a known variable name in `codes`, map to its code.
+    - If key is a known code in `code2var`, return it.
+    - Otherwise, return the original key (allows advanced/custom usage).
+    """
+    if key in normalizors or key in denormalizors:
+        return key
+    if key in codes:
+        return codes[key]
+    if key in code2var:
+        return key
+    return key
+
+
+def register_normalizer(key: str, fn: Callable, *, override: bool = False) -> None:
+    """
+    Register (or update) a normalizer function.
+
+    - `key` may be a variable name or a code; it will be resolved to a canonical code.
+    - Idempotent when the same function is already registered.
+    - If a different function exists and `override=False`, raises ValueError.
+      With `override=True`, overwrites and logs a WARNING.
+    """
+    if not callable(fn):
+        raise TypeError("fn must be callable")
+    ckey = _canonical_key(key)
+
+    existing = normalizors.get(ckey)
+    if existing is fn:
+        _logger.debug("register_normalizer: idempotent for %s", ckey)
+        return
+    if existing is not None and not override:
+        raise ValueError(
+            f"Normalizer for '{ckey}' already exists. Use override=True to replace."
+        )
+    if existing is not None and override:
+        _logger.warning("Overriding normalizer for %s", ckey)
+    normalizors[ckey] = fn
+
+
+def register_denormalizer(key: str, fn: Callable, *, override: bool = False) -> None:
+    """
+    Register (or update) a denormalizer function.
+
+    - `key` may be a variable name or a code; it will be resolved to a canonical code.
+    - Idempotent when the same function is already registered.
+    - If a different function exists and `override=False`, raises ValueError.
+      With `override=True`, overwrites and logs a WARNING.
+    """
+    if not callable(fn):
+        raise TypeError("fn must be callable")
+    ckey = _canonical_key(key)
+
+    existing = denormalizors.get(ckey)
+    if existing is fn:
+        _logger.debug("register_denormalizer: idempotent for %s", ckey)
+        return
+    if existing is not None and not override:
+        raise ValueError(
+            f"Denormalizer for '{ckey}' already exists. Use override=True to replace."
+        )
+    if existing is not None and override:
+        _logger.warning("Overriding denormalizer for %s", ckey)
+    denormalizors[ckey] = fn
+
+
+def get_normalizer(key: str) -> Optional[Callable]:
+    """
+    Get a normalizer by variable name or code. Returns None if not found.
+    """
+    ckey = _canonical_key(key)
+    return normalizors.get(ckey)
+
+
+def get_denormalizer(key: str) -> Optional[Callable]:
+    """
+    Get a denormalizer by variable name or code. Returns None if not found.
+    """
+    ckey = _canonical_key(key)
+    return denormalizors.get(ckey)

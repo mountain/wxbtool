@@ -4,13 +4,11 @@ Test model in wxbtool package - Optimized for faster testing
 
 import numpy as np
 import torch as th
-
 from leibniz.nn.net import SimpleCNN2d
 from torch.utils.data import Dataset
 
 from tests.spec.spec import Setting3d, Spec
 from wxbtool.data.variables import vars3d
-
 
 setting = Setting3d()
 

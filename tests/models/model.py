@@ -5,9 +5,9 @@ Base model for testing - Optimized for faster testing
 """
 
 import torch as th
-
 from leibniz.nn.net.simple import SimpleCNN2d
-from tests.spec.spec import Spec, Setting3d
+
+from tests.spec.spec import Setting3d, Spec
 
 
 class Model(Spec):

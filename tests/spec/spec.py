@@ -7,12 +7,10 @@ import torch.nn as nn
 
 import wxbtool.data.variables as v
 import wxbtool.norms.meanstd as n
-
+from wxbtool.data.variables import split_name
 from wxbtool.nn.model import Base2d
 from wxbtool.nn.setting import Setting
-from wxbtool.data.variables import split_name
-from wxbtool.norms.meanstd import norm_t2m, denorm_t2m
-
+from wxbtool.norms.meanstd import denorm_t2m, norm_t2m
 
 mse = nn.MSELoss()
 

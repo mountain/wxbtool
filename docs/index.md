@@ -28,6 +28,8 @@ wxbtool is a powerful toolkit designed for meteorological modeling, specifically
 - [Dataset Implementation](technical/dataset/overview.md) - Technical details of dataset handling
 - [Neural Network Models](technical/models/overview.md) - Implementation details of provided models
 - [Extension Guide](technical/extension/overview.md) - How to extend wxbtool with custom components
+- [Variable Registry](technical/extension/new_variables.md) - Official APIs to register variables (2D/3D), codes, and aliases
+- [Normalization Systems](technical/specifications/normalization.md) - Normalization/denormalization registry APIs and usage
 - [API Reference](technical/api/overview.md) - Comprehensive API documentation
 
 ### Examples & Resources

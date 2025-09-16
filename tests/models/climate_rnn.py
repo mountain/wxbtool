@@ -1,10 +1,10 @@
 import logging
 
-from tests.spec.spec import SpecRNN, SettingRNN12d
+import numpy as np
 from leibniz.nn.net import SimpleCNN2d
 from torch.utils.data import Dataset
-import numpy as np
 
+from tests.spec.spec import SettingRNN12d, SpecRNN
 
 setting = SettingRNN12d()
 logger = logging.getLogger(__name__)

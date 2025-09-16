@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
+from threading import local
+
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-import wxbtool.norms.minmax as minmax
-
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
 from scipy.ndimage import zoom
-from threading import local
-from wxbtool.util.cmaps import cmaps, var2cmap
-from wxbtool.nn.resolution import ResolutionConfig
 
+import wxbtool.norms.minmax as minmax
+from wxbtool.nn.resolution import ResolutionConfig
+from wxbtool.util.cmaps import cmaps, var2cmap
 
 data = local()
 

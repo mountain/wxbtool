@@ -1,8 +1,7 @@
 import numpy as np
 import torch as th
 
-
-from wxbtool.phys.constants import WaterDensity, IceDensity
+from wxbtool.phys.constants import IceDensity, WaterDensity
 
 
 def water_mass_by_density(d):

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
-import xarray as xr
 import numpy as np
+import xarray as xr
 
 
 # Land-sea mask

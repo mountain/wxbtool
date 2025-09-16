@@ -14,11 +14,11 @@ This spec follows basic settings and discussions in
 
 import torch as th
 import torch.nn as nn
+
+from wxbtool.data.variables import code2var, split_name, vars3d
 from wxbtool.nn.model import Base2d
 from wxbtool.nn.setting import Setting
-from wxbtool.data.variables import vars3d, code2var, split_name
-from wxbtool.norms.meanstd import normalizors, denorm_t850
-
+from wxbtool.norms.meanstd import denorm_t850, normalizors
 
 mse = nn.MSELoss()
 

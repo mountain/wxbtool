@@ -1,28 +1,27 @@
 # -*- coding: utf-8 -*-
 
+import hashlib
+import http.client
+import json
+import logging
 import os
 import os.path as path
-import hashlib
-import requests
-import logging
-import json
-import http.client
-import socket
 import random
-
-import xarray as xr
-import numpy as np
-import pandas as pd
-from wxbtool.data.path import DataPathManager
+import socket
 
 import msgpack
 import msgpack_numpy as m
+import numpy as np
+import pandas as pd
+import requests
+import xarray as xr
+
+from wxbtool.data.path import DataPathManager
 from wxbtool.nn.setting import Setting
 
 m.patch()
 
-from torch.utils.data import Dataset, DataLoader, Sampler  # noqa: E402
-
+from torch.utils.data import DataLoader, Dataset, Sampler  # noqa: E402
 
 logger = logging.getLogger()
 

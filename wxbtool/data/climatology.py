@@ -1,12 +1,13 @@
-import xarray as xr
+import logging
 import os
+
 import numpy as np
 import torch
-import logging
+import xarray as xr
 
+import wxbtool.config as config
 from wxbtool.nn.setting import Setting
 from wxbtool.norms.meanstd import normalizors
-import wxbtool.config as config
 
 logger = logging.getLogger()
 

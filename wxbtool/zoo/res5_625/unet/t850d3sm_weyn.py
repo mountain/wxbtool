@@ -9,12 +9,11 @@ the weighted rmse is 2.41 K
 """
 
 import torch as th
-
-from leibniz.nn.net import resunet
 from leibniz.nn.activation import CappingRelu
 from leibniz.nn.layer.senet import SEBottleneck
+from leibniz.nn.net import resunet
 
-from wxbtool.specs.res5_625.t850weyn import Spec, Setting3d
+from wxbtool.specs.res5_625.t850weyn import Setting3d, Spec
 
 
 class ResUNetModel(Spec):

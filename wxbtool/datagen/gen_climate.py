@@ -1,7 +1,8 @@
+from datetime import datetime, timedelta
+
 import numpy as np
 import xarray as xr
 
-from datetime import datetime, timedelta
 from wxbtool.datagen.util import generate_time_label_array_gray
 
 
