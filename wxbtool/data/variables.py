@@ -15,18 +15,25 @@ def resolve_name(name: str) -> str:
 
 def is_var2d(name: str) -> bool:
     """Check if a variable (or its alias) is a known 2D variable."""
+    if name in vars2d:
+        return True
     canonical = resolve_name(name)
     return canonical in vars2d
 
 
 def is_var3d(name: str) -> bool:
     """Check if a variable (or its alias) is a known 3D variable."""
+    if name in vars3d:
+        return True
     canonical = resolve_name(name)
     return canonical in vars3d
 
 
 def get_code(name: str) -> str:
     """Get canonical code for a variable (or its alias)."""
+    # Prefer direct mapping if present
+    if name in codes:
+        return codes[name]
     canonical = resolve_name(name)
     if canonical in codes:
         return codes[canonical]
@@ -184,11 +191,10 @@ def register_var2d(name: str, code: str, *, override: bool = False) -> None:
             del codes[owner]
         _remove_from_list(owner, vars2d)
         _remove_from_list(owner, vars3d)
-        # Auto-alias both ways for directory/name lookups after code reassignment
+        # Auto-alias old owner to the new canonical name so directory/name lookups still work
         _aliases[owner] = name
-        _aliases[name] = owner
         logger.info(
-            "Registered aliases: '%s' <-> '%s' due to code reassignment", owner, name
+            "Registered alias '%s' -> '%s' due to code reassignment", owner, name
         )
 
     # Apply mapping
@@ -245,11 +251,10 @@ def register_var3d(name: str, code: str, *, override: bool = False) -> None:
             del codes[owner]
         _remove_from_list(owner, vars2d)
         _remove_from_list(owner, vars3d)
-        # Auto-alias both ways for directory/name lookups after code reassignment
+        # Auto-alias old owner to the new canonical name so directory/name lookups still work
         _aliases[owner] = name
-        _aliases[name] = owner
         logger.info(
-            "Registered aliases: '%s' <-> '%s' due to code reassignment", owner, name
+            "Registered alias '%s' -> '%s' due to code reassignment", owner, name
         )
 
     # Apply mapping
