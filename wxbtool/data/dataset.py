@@ -73,6 +73,7 @@ class WxDataset(Dataset):
             "data": {},
         }
         self.accumulated = {}
+        self.active_vars = []
 
         if resolution == "5.625deg":
             self.height = 13
@@ -109,7 +110,7 @@ class WxDataset(Dataset):
         # Determine available levels only if any of the requested variables are 3D
         all_levels = []
         # Identify 3D variables present in the current dataset variables (self.vars)
-        var3d_list = [var for var in self.vars if var in v.vars3d]
+        var3d_list = [var for var in self.vars if v.is_var3d(var)]
         if var3d_list:
             first3d = var3d_list[0]
             try:
@@ -141,7 +142,7 @@ class WxDataset(Dataset):
         selector = np.array(levels_selector, dtype=np.int64)
 
         size = 0
-        lastvar = None
+        last_loaded_var = None
 
         # Construct a date range covering selected years according to granularity
         min_year, max_year = min(self.years), max(self.years)
@@ -175,43 +176,49 @@ class WxDataset(Dataset):
                     logger.debug(f"Missing data file skipped: {data_path}")
                     continue
 
-                if var in v.vars3d:
+                if v.is_var3d(var):
                     length = self.load_3ddata(
                         data_path, var, selector, self.accumulated
                     )
-                elif var in v.vars2d:
+                elif v.is_var2d(var):
                     length = self.load_2ddata(data_path, var, self.accumulated)
                 else:
                     raise ValueError(f"variable {var} does not supported!")
                 size += length
 
-            if lastvar and lastvar != var:
-                self.inputs[lastvar] = WindowArray(
-                    self.accumulated[lastvar],
+            if (
+                last_loaded_var
+                and last_loaded_var in self.accumulated
+                and last_loaded_var != var
+            ):
+                self.inputs[last_loaded_var] = WindowArray(
+                    self.accumulated[last_loaded_var],
                     shift=self.input_span * self.step,
                     step=self.step,
                 )
-                self.targets[lastvar] = WindowArray(
-                    self.accumulated[lastvar],
+                self.targets[last_loaded_var] = WindowArray(
+                    self.accumulated[last_loaded_var],
                     shift=self.pred_span * self.step + self.pred_shift,
                     step=self.step,
                 )
-                self.dump_var(dumpdir, lastvar)
+                self.dump_var(dumpdir, last_loaded_var)
 
-            lastvar = var
+            if var in self.accumulated:
+                self.active_vars.append(var)
+                last_loaded_var = var
 
-        if lastvar:
-            self.inputs[lastvar] = WindowArray(
-                self.accumulated[lastvar],
+        if last_loaded_var and last_loaded_var in self.accumulated:
+            self.inputs[last_loaded_var] = WindowArray(
+                self.accumulated[last_loaded_var],
                 shift=self.input_span * self.step,
                 step=self.step,
             )
-            self.targets[lastvar] = WindowArray(
-                self.accumulated[lastvar],
+            self.targets[last_loaded_var] = WindowArray(
+                self.accumulated[last_loaded_var],
                 shift=self.pred_span * self.step + self.pred_shift,
                 step=self.step,
             )
-            self.dump_var(dumpdir, lastvar)
+            self.dump_var(dumpdir, last_loaded_var)
 
         if not self.accumulated:
             logger.error("No data accumulated. Please check the data loading process.")
@@ -244,7 +251,7 @@ class WxDataset(Dataset):
         with open("%s/shapes.json" % dumpdir, mode="w") as fp:
             json.dump(self.shapes, fp)
 
-        self.size = size // len(self.vars)
+        self.size = size // max(1, len(self.active_vars))
         logger.info("total %s items loaded!", self.size)
 
         for var in list(self.accumulated.keys()):
@@ -256,12 +263,12 @@ class WxDataset(Dataset):
         with xr.open_dataset(data_path) as ds:
             ds = ds.transpose("time", "lat", "lon")
             if var not in accumulated:
-                accumulated[var] = np.array(ds[v.codes[var]].data, dtype=np.float32)
+                accumulated[var] = np.array(ds[v.get_code(var)].data, dtype=np.float32)
             else:
                 accumulated[var] = np.concatenate(
                     [
                         accumulated[var],
-                        np.array(ds[v.codes[var]].data, dtype=np.float32),
+                        np.array(ds[v.get_code(var)].data, dtype=np.float32),
                     ],
                     axis=0,
                 )
@@ -280,14 +287,14 @@ class WxDataset(Dataset):
         with xr.open_dataset(data_path) as ds:
             ds = ds.transpose("time", "level", "lat", "lon")
             if var not in accumulated:
-                accumulated[var] = np.array(ds[v.codes[var]].data, dtype=np.float32)[
+                accumulated[var] = np.array(ds[v.get_code(var)].data, dtype=np.float32)[
                     :, selector, :, :
                 ]
             else:
                 accumulated[var] = np.concatenate(
                     [
                         accumulated[var],
-                        np.array(ds[v.codes[var]].data, dtype=np.float32)[
+                        np.array(ds[v.get_code(var)].data, dtype=np.float32)[
                             :, selector, :, :
                         ],
                     ],
@@ -313,7 +320,8 @@ class WxDataset(Dataset):
         with open("%s/shapes.json" % dumpdir) as fp:
             shapes = json.load(fp)
 
-        for var in self.vars:
+        self.active_vars = [var for var in self.vars if var in shapes["data"]]
+        for var in self.active_vars:
             file_dump = "%s/%s.npy" % (dumpdir, var)
 
             # load data from memmap, and skip the first shift elements of mmap data header
@@ -323,13 +331,13 @@ class WxDataset(Dataset):
             shift = data.shape[0] - total_size
             self.accumulated[var] = np.reshape(data[shift:], shape)
 
-            if var in v.vars2d or var in v.vars3d:
+            if v.is_var2d(var) or v.is_var3d(var):
                 self.inputs[var] = self.accumulated[var]
                 self.targets[var] = self.accumulated[var]
 
     def __len__(self):
         length = (
-            self.accumulated[self.vars[0]].shape[0]
+            self.accumulated[self.active_vars[0]].shape[0]
             - (self.input_span - 1) * self.step
             - (self.pred_span - 1) * self.step
             - self.pred_shift
@@ -341,8 +349,8 @@ class WxDataset(Dataset):
         import wxbtool.data.variables as v  # noqa: E402
 
         inputs, targets = {}, {}
-        for var in self.vars:
-            if var in v.vars2d or var in v.vars3d:
+        for var in self.active_vars:
+            if v.is_var2d(var) or v.is_var3d(var):
                 input_slice = self.inputs[var][item :: self.step][: self.input_span]
                 target_slice = self.targets[var][
                     item

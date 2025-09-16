@@ -7,6 +7,32 @@ logger = logging.getLogger(__name__)
 # Optional alias mapping (kept separate to avoid mutating code2var one-to-one mapping)
 _aliases: Dict[str, str] = {}
 
+
+def resolve_name(name: str) -> str:
+    """Resolve an alias to its canonical variable name if present."""
+    return _aliases.get(name, name)
+
+
+def is_var2d(name: str) -> bool:
+    """Check if a variable (or its alias) is a known 2D variable."""
+    canonical = resolve_name(name)
+    return canonical in vars2d
+
+
+def is_var3d(name: str) -> bool:
+    """Check if a variable (or its alias) is a known 3D variable."""
+    canonical = resolve_name(name)
+    return canonical in vars3d
+
+
+def get_code(name: str) -> str:
+    """Get canonical code for a variable (or its alias)."""
+    canonical = resolve_name(name)
+    if canonical in codes:
+        return codes[canonical]
+    raise KeyError(f"No code mapping for variable '{name}' (resolved to '{canonical}')")
+
+
 vars2d = [
     "2m_temperature",
     "10m_u_component_of_wind",
