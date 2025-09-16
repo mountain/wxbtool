@@ -163,6 +163,15 @@ class WxDataset(Dataset):
             )
         date_range = pd.date_range(start=start_date, end=end_date, freq=freq)
 
+        # Diagnostics: show effective granularity/format and variable list
+        logger.info(
+            "Dataset discovery with granularity=%s, data_path_format='%s', years=%s",
+            self.setting.granularity,
+            self.setting.data_path_format,
+            self.years,
+        )
+        logger.info("Variables requested: %s", self.vars)
+
         for var in self.vars:
             file_paths = DataPathManager.get_file_paths(
                 self.root,

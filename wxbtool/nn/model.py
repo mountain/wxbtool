@@ -95,6 +95,7 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
+                    setting=self.setting,
                 ),
                 WxDataset(
                     self.setting.root,
@@ -106,6 +107,7 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
+                    setting=self.setting,
                 ),
                 WxDataset(
                     self.setting.root,
@@ -117,6 +119,7 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
+                    setting=self.setting,
                 ),
             )
         else:
