@@ -40,6 +40,13 @@ def get_code(name: str) -> str:
     raise KeyError(f"No code mapping for variable '{name}' (resolved to '{canonical}')")
 
 
+def get_var(code: str) -> str:
+    """Get canonical variable name for a code."""
+    if code in code2var:
+        return code2var[code]
+    raise KeyError(f"No variable mapping for code '{code}'")
+
+
 vars2d = [
     "2m_temperature",
     "10m_u_component_of_wind",
@@ -115,7 +122,11 @@ def split_name(composite):
         if composite[:2] == "vo" or composite[:2] == "pv":
             return composite[:2], composite[2:]
         else:
-            return composite[:1], composite[1:]
+            code, level = composite[:1], composite[1:]
+            if code in code2var:
+                return code, level
+            else:
+                return composite, ""
 
 
 def is_known_variable(name: str) -> bool:
