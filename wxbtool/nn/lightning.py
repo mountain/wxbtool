@@ -330,9 +330,11 @@ class LightningModel(ltn.LightningModule):
             for ix in range(span):
                 plot_inp_path = plot_var / f"{var}_inp_{ix}.png"
                 if inp.dim() == 4:
-                    dat = inp[0, ix].detach().cpu().numpy().reshape(32, 64)
+                    height, width = inp.size(-2), inp.size(-1)
+                    dat = inp[0, ix].detach().cpu().numpy().reshape(height, width)
                 else:
-                    dat = inp[0, 0, ix].detach().cpu().numpy().reshape(32, 64)
+                    height, width = inp.size(-2), inp.size(-1)
+                    dat = inp[0, 0, ix].detach().cpu().numpy().reshape(height, width)
                 plot(var, open(plot_inp_path, mode="wb"), dat)
 
         for bas, var in enumerate(self.model.setting.vars_out):
