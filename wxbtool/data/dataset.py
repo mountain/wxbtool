@@ -256,10 +256,13 @@ class WxDataset(Dataset):
                         length = self.load_3ddata(
                             data_path, var, selector, self.accumulated
                         )
-                    elif v.is_var2d(var):
-                        length = self.load_2ddata(data_path, var, self.accumulated)
                     else:
-                        raise ValueError(f"variable {var} does not supported!")
+                        # Treat as 2D if we can resolve a code; this is robust to alias/renamed variables.
+                        try:
+                            _ = v.get_code(var)
+                            length = self.load_2ddata(data_path, var, self.accumulated)
+                        except KeyError:
+                            raise ValueError(f"variable {var} does not supported!")
                     size += length
                     found_any = True
 
