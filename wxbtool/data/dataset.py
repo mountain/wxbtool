@@ -512,7 +512,7 @@ class WxDatasetClient(Dataset):
         self.vars = vars if vars is not None else self.setting.vars
         self.levels = levels if levels is not None else self.setting.levels
 
-        code = "%s:%s:%s:%s:%s:%s:%s:%s" % (
+        code = "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (
             self.resolution,
             self.years,
             self.vars,
@@ -521,6 +521,8 @@ class WxDatasetClient(Dataset):
             self.input_span,
             self.pred_shift,
             self.pred_span,
+            self.setting.granularity,
+            self.setting.data_path_format,
         )
         self.hashcode = hashlib.md5(code.encode("utf-8")).hexdigest()
 

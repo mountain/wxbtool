@@ -120,7 +120,9 @@ def split_name(composite):
 
 def is_known_variable(name: str) -> bool:
     """Return True if the variable name or alias is known to the registry."""
-    return name in vars2d or name in vars3d or name in codes or name in _aliases
+    if name in codes or name in _aliases:
+        return True
+    return False
 
 
 def get_supported_variables() -> Dict[str, List[str]]:
@@ -273,11 +275,7 @@ def register_alias(alias: str, target_name: str, *, override: bool = False) -> N
     """
     if not isinstance(alias, str) or not isinstance(target_name, str):
         raise TypeError("alias and target_name must be strings")
-    if (
-        target_name not in codes
-        and target_name not in vars2d
-        and target_name not in vars3d
-    ):
+    if not is_known_variable(target_name):
         raise KeyError(f"Target variable '{target_name}' is not known.")
 
     if alias in _aliases and _aliases[alias] == target_name:
