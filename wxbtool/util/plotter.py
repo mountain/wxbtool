@@ -59,8 +59,9 @@ def plot(var, fileobj, data, spatial_shape=None):
     elif spatial_shape is None:
         spatial_shape = ResolutionConfig.get_spatial_shape("5.625deg")
 
+    cmap_id = var2cmap.get(code, "coolwarm")
     imsave(
-        fileobj, colorize(data, imgdata(spatial_shape), var2cmap[code], spatial_shape)
+        fileobj, colorize(data, imgdata(spatial_shape), cmaps[cmap_id], spatial_shape)
     )
 
 
