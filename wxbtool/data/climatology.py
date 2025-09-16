@@ -133,7 +133,7 @@ class ClimatologyAccessor:
 
             if vname in variables.vars2d:
                 with xr.open_dataset(file_path) as ds:
-                    ds = ds.transpose("time", "lat", "lon")
+                    ds = ds.transpose("dayofyear", "lat", "lon")
                     data = np.array(ds[variables.codes[vname]].data, dtype=np.float32)
                     # add a channel dimension at the 1 position
                     data = np.expand_dims(data, axis=1)
