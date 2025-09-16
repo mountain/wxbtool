@@ -107,6 +107,16 @@ class WxDataset(Dataset):
     def load(self, dumpdir):
         import wxbtool.data.variables as v  # noqa: E402
 
+        # Load existing shapes metadata if present (for cache hit/skip)
+        shapes_path = f"{dumpdir}/shapes.json"
+        if os.path.exists(shapes_path):
+            try:
+                with open(shapes_path) as fp:
+                    self.shapes = json.load(fp)
+                logger.info("Loaded existing shapes metadata from %s", shapes_path)
+            except Exception as e:
+                logger.warning("Failed to load shapes metadata %s: %s", shapes_path, e)
+
         # Determine available levels only if any of the requested variables are 3D
         all_levels = []
         # Identify 3D variables present in the current dataset variables (self.vars)
@@ -173,42 +183,7 @@ class WxDataset(Dataset):
         logger.info("Variables requested: %s", self.vars)
 
         for var in self.vars:
-            file_paths = DataPathManager.get_file_paths(
-                self.root,
-                var,
-                self.resolution,
-                self.setting.data_path_format,
-                date_range,
-            )
-            found_any = False
-            examples_missing = []
-            for data_path in file_paths:
-                if not os.path.exists(data_path):
-                    if len(examples_missing) < 3:
-                        examples_missing.append(data_path)
-                    logger.debug(f"Missing data file skipped: {data_path}")
-                    continue
-
-                if v.is_var3d(var):
-                    length = self.load_3ddata(
-                        data_path, var, selector, self.accumulated
-                    )
-                elif v.is_var2d(var):
-                    length = self.load_2ddata(data_path, var, self.accumulated)
-                else:
-                    raise ValueError(f"variable {var} does not supported!")
-                size += length
-                found_any = True
-
-            if not found_any:
-                msg = (
-                    f"No existing files found for variable '{var}' under root '{self.root}'. "
-                    f"Tried {len(file_paths)} candidate path(s). "
-                )
-                if examples_missing:
-                    msg += "Examples (first 3): " + "; ".join(examples_missing)
-                logger.warning(msg)
-
+            # Flush previously loaded variable (if any) before switching vars
             if (
                 last_loaded_var
                 and last_loaded_var in self.accumulated
@@ -225,6 +200,80 @@ class WxDataset(Dataset):
                     step=self.step,
                 )
                 self.dump_var(dumpdir, last_loaded_var)
+
+            # If cache file exists and shapes metadata already has this var, skip rebuild
+            cached_npy = os.path.join(dumpdir, f"{var}.npy")
+            if (
+                isinstance(self.shapes, dict)
+                and "data" in self.shapes
+                and var in self.shapes["data"]
+                and os.path.exists(cached_npy)
+            ):
+                logger.info(
+                    "Cache hit for %s: using existing cache %s", var, cached_npy
+                )
+                self.active_vars.append(var)
+                last_loaded_var = var
+                continue
+
+            # Try loading using multiple directory/token candidates while keeping the
+            # data variable key resolved from the original var via v.get_code(var).
+            candidates = [var]
+            try:
+                alias_name = v.resolve_name(var)
+                if alias_name != var:
+                    candidates.append(alias_name)
+            except Exception:
+                pass
+            try:
+                code_name = v.get_code(var)
+                if code_name not in candidates:
+                    candidates.append(code_name)
+            except Exception:
+                pass
+
+            found_any = False
+            tried_total = 0
+            examples_missing = []
+
+            for cand in candidates:
+                file_paths = DataPathManager.get_file_paths(
+                    self.root,
+                    cand,
+                    self.resolution,
+                    self.setting.data_path_format,
+                    date_range,
+                )
+                tried_total += len(file_paths)
+                for data_path in file_paths:
+                    if not os.path.exists(data_path):
+                        if len(examples_missing) < 3:
+                            examples_missing.append(data_path)
+                        logger.debug(f"Missing data file skipped: {data_path}")
+                        continue
+
+                    if v.is_var3d(var):
+                        length = self.load_3ddata(
+                            data_path, var, selector, self.accumulated
+                        )
+                    elif v.is_var2d(var):
+                        length = self.load_2ddata(data_path, var, self.accumulated)
+                    else:
+                        raise ValueError(f"variable {var} does not supported!")
+                    size += length
+                    found_any = True
+
+                if found_any:
+                    break  # No need to try further candidates once loaded
+
+            if not found_any:
+                msg = (
+                    f"No existing files found for variable '{var}' under root '{self.root}'. "
+                    f"Tried {tried_total} candidate path(s) across {len(candidates)} name forms {candidates}. "
+                )
+                if examples_missing:
+                    msg += "Examples (first 3): " + "; ".join(examples_missing)
+                logger.warning(msg)
 
             if var in self.accumulated:
                 self.active_vars.append(var)
@@ -243,33 +292,45 @@ class WxDataset(Dataset):
             )
             self.dump_var(dumpdir, last_loaded_var)
 
-        if not self.accumulated:
+        # If no in-memory accumulation was done but we already have active_vars from cache hits,
+        # defer loading to memmap() instead of failing here.
+        if not self.accumulated and len(self.active_vars) == 0:
             logger.error("No data accumulated. Please check the data loading process.")
             raise ValueError(
                 "No data accumulated. Ensure that data is correctly loaded and accumulated."
             )
 
-        lengths = {var: acc.shape[0] for var, acc in self.accumulated.items()}
-        unique_lengths = set(lengths.values())
+        # Only check in-memory lengths consistency when we actually accumulated data in-memory.
+        # When we rely entirely on cache hits (active_vars > 0) and no new accumulation, defer to memmap().
+        if self.accumulated:
+            lengths = {var: acc.shape[0] for var, acc in self.accumulated.items()}
+            unique_lengths = set(lengths.values())
 
-        if len(unique_lengths) != 1:
-            max_length = max(unique_lengths)
+            if len(unique_lengths) != 1:
+                max_length = max(unique_lengths)
 
-            inconsistent_vars = {
-                var: length for var, length in lengths.items() if length != max_length
-            }
+                inconsistent_vars = {
+                    var: length
+                    for var, length in lengths.items()
+                    if length != max_length
+                }
 
-            if inconsistent_vars:
-                for var, length in inconsistent_vars.items():
-                    logger.error(
-                        f"Variable {var} has inconsistent length {length}. Expected length: {max_length}."
+                if inconsistent_vars:
+                    for var, length in inconsistent_vars.items():
+                        logger.error(
+                            f"Variable {var} has inconsistent length {length}. Expected length: {max_length}."
+                        )
+
+                    raise ValueError(
+                        "Inconsistent data lengths across variables detected. Please check the data loading process."
                     )
-
-                raise ValueError(
-                    "Inconsistent data lengths across variables detected. Please check the data loading process."
-                )
+            else:
+                logger.info("All variables have consistent data lengths.")
         else:
-            logger.info("All variables have consistent data lengths.")
+            logger.info(
+                "No in-memory accumulation; relying on cache for vars: %s",
+                self.active_vars,
+            )
 
         with open("%s/shapes.json" % dumpdir, mode="w") as fp:
             json.dump(self.shapes, fp)
@@ -334,8 +395,18 @@ class WxDataset(Dataset):
 
     def dump_var(self, dumpdir, var):
         file_dump = "%s/%s.npy" % (dumpdir, var)
+        # Ensure dict structure exists
+        if "data" not in self.shapes:
+            self.shapes["data"] = {}
+        # Update shape metadata and write array
         self.shapes["data"][var] = self.accumulated[var].shape
         np.save(file_dump, self.accumulated[var])
+        # Persist shapes metadata incrementally after each variable
+        try:
+            with open(f"{dumpdir}/shapes.json", mode="w") as fp:
+                json.dump(self.shapes, fp)
+        except Exception as e:
+            logger.warning("Failed to write shapes metadata for %s: %s", var, e)
 
     def memmap(self, dumpdir):
         import wxbtool.data.variables as v  # noqa: E402
