@@ -231,9 +231,11 @@ class LightningModel(ltn.LightningModule):
         step = self.model.setting.step
         span = self.model.setting.pred_span
         shift = self.model.setting.pred_shift
+        height = self.model.setting.height
+        width = self.model.setting.width
 
         if self.ci:
-            return np.zeros((batch_size, len(vars_out), span, 32, 64))
+            return np.zeros((batch_size, len(vars_out), span, height, width))
 
         # Original implementation
         accessor = self.get_climatology_accessor(mode)
@@ -246,7 +248,7 @@ class LightningModel(ltn.LightningModule):
                 [idx + delta + shift for idx in indexies]
             )  # shift to the forecast time
             data = accessor.get_climatology(vars_out, shifts).reshape(
-                batch_size, len(vars_out), 1, 32, 64
+                batch_size, len(vars_out), 1, height, width
             )
             result.append(data)
         return np.concatenate(result, axis=2)
@@ -258,13 +260,16 @@ class LightningModel(ltn.LightningModule):
 
         batch = forecast.shape[0]
         pred_length = self.model.setting.pred_span
+        height = self.model.setting.height
+        width = self.model.setting.width
+
         climatology = self.get_climatology(indexes, mode)
         var_ind = self.model.setting.vars_out.index(variable)
         climatology = climatology[:, var_ind : var_ind + 1, :, :, :]
-        forecast = forecast.reshape(batch, 1, pred_length, 32, 64).cpu().numpy()
-        observation = observation.reshape(batch, 1, pred_length, 32, 64).cpu().numpy()
-        climatology = climatology.reshape(batch, 1, pred_length, 32, 64)
-        weight = self.model.weight.reshape(1, 1, 1, 32, 64).cpu().numpy()
+        forecast = forecast.reshape(batch, 1, pred_length, height, width).cpu().numpy()
+        observation = observation.reshape(batch, 1, pred_length, height, width).cpu().numpy()
+        climatology = climatology.reshape(batch, 1, pred_length, height, width)
+        weight = self.model.weight.reshape(1, 1, 1, height, width).cpu().numpy()
 
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
@@ -343,11 +348,13 @@ class LightningModel(ltn.LightningModule):
                 plot_tgrt_path = plot_var / f"{var}_tgt_{ix}.png"
 
                 if fcst.dim() == 4:
-                    fcst_img = fcst[0, ix].detach().cpu().numpy().reshape(32, 64)
-                    tgrt_img = tgrt[0, ix].detach().cpu().numpy().reshape(32, 64)
+                    height, width = fcst.size(-2), fcst.size(-1)
+                    fcst_img = fcst[0, ix].detach().cpu().numpy().reshape(height, width)
+                    tgrt_img = tgrt[0, ix].detach().cpu().numpy().reshape(height, width)
                 else:
-                    fcst_img = fcst[0, 0, ix].detach().cpu().numpy().reshape(32, 64)
-                    tgrt_img = tgrt[0, 0, ix].detach().cpu().numpy().reshape(32, 64)
+                    height, width = fcst.size(-2), fcst.size(-1)
+                    fcst_img = fcst[0, 0, ix].detach().cpu().numpy().reshape(height, width)
+                    tgrt_img = tgrt[0, 0, ix].detach().cpu().numpy().reshape(height, width)
 
                 plot(var, open(plot_fcst_path, mode="wb"), fcst_img)
                 plot(var, open(plot_tgrt_path, mode="wb"), tgrt_img)
