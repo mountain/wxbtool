@@ -61,7 +61,7 @@ def plot(var, fileobj, data, spatial_shape=None):
 
     cmap_id = var2cmap.get(code, "coolwarm")
     imsave(
-        fileobj, colorize(data, imgdata(spatial_shape), cmaps[cmap_id], spatial_shape)
+        fileobj, colorize(data, imgdata(spatial_shape), cmap_id, spatial_shape)
     )
 
 
