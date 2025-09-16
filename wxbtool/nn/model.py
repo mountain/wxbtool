@@ -167,6 +167,16 @@ class Model2d(nn.Module):
         self.eval_size = len(self.dataset_eval)
         self.test_size = len(self.dataset_test)
 
+        import logging
+
+        logger = logging.getLogger()
+        if self.dataset_train:
+            logger.info("train dataset key: %s", self.dataset_train.hashcode)
+        if self.dataset_eval:
+            logger.info("eval dataset key: %s", self.dataset_eval.hashcode)
+        if self.dataset_test:
+            logger.info("test dataset key: %s", self.dataset_test.hashcode)
+
     def get_constant(self, input, device):
         if device not in self.constant_cache:
             if not hasattr(self, "constant"):

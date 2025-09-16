@@ -61,6 +61,10 @@ def init(opt):
     datasets["eval"] = deval
     datasets["test"] = dtest
 
+    logger.info("train dataset key: %s", dtrain.hashcode)
+    logger.info("eval dataset key: %s", deval.hashcode)
+    logger.info("test dataset key: %s", dtest.hashcode)
+
     handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(
         logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")

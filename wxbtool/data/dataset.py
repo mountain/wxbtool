@@ -95,11 +95,9 @@ class WxDataset(Dataset):
         hashstr = hashlib.md5(code.encode("utf-8")).hexdigest()
         self.hashcode = hashstr
 
-        dumpdir = path.abspath(
-            "%s/.cache/%s" % (self.root, hashstr)
-        )  # every time has to reload the .cache file
-        # if not path.exists(dumpdir):
-        os.makedirs(dumpdir, exist_ok=True)
+        dumpdir = path.abspath("%s/.cache/%s" % (self.root, hashstr))
+        if not path.exists(dumpdir):
+            os.makedirs(dumpdir, exist_ok=True)
         self.load(dumpdir)
 
         self.memmap(dumpdir)
@@ -114,6 +112,14 @@ class WxDataset(Dataset):
                 with open(shapes_path) as fp:
                     self.shapes = json.load(fp)
                 logger.info("Loaded existing shapes metadata from %s", shapes_path)
+                if "data" in self.shapes and all(
+                    var in self.shapes["data"] for var in self.vars
+                ):
+                    logger.info("cache found, skip loading")
+                    self.active_vars.extend(
+                        [var for var in self.vars if var in self.shapes["data"]]
+                    )
+                    return
             except Exception as e:
                 logger.warning("Failed to load shapes metadata %s: %s", shapes_path, e)
 
