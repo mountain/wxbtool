@@ -95,6 +95,8 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
+                    granularity=self.setting.granularity,
+                    data_path_format=self.setting.data_path_format,
                     setting=self.setting,
                 ),
                 WxDataset(
@@ -107,6 +109,8 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
+                    granularity=self.setting.granularity,
+                    data_path_format=self.setting.data_path_format,
                     setting=self.setting,
                 ),
                 WxDataset(
@@ -119,6 +123,8 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
+                    granularity=self.setting.granularity,
+                    data_path_format=self.setting.data_path_format,
                     setting=self.setting,
                 ),
             )
@@ -136,6 +142,8 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
+                    granularity=self.setting.granularity,
+                    data_path_format=self.setting.data_path_format,
                 ),
                 WxDatasetClient(
                     ds_url,
@@ -148,6 +156,8 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
+                    granularity=self.setting.granularity,
+                    data_path_format=self.setting.data_path_format,
                 ),
                 WxDatasetClient(
                     ds_url,
@@ -160,6 +170,8 @@ class Model2d(nn.Module):
                     pred_shift=self.setting.pred_shift,
                     pred_span=self.setting.pred_span,
                     step=self.setting.step,
+                    granularity=self.setting.granularity,
+                    data_path_format=self.setting.data_path_format,
                 ),
             )
 

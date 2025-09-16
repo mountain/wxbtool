@@ -47,6 +47,8 @@ class WxDataset(Dataset):
         input_span=None,
         pred_shift=None,
         pred_span=None,
+        granularity=None,
+        data_path_format=None,
         setting=None,
     ):
         self.setting = setting if setting is not None else Setting()
@@ -67,6 +69,14 @@ class WxDataset(Dataset):
         self.years = years if years is not None else self.setting.years_train
         self.vars = vars if vars is not None else self.setting.vars
         self.levels = levels if levels is not None else self.setting.levels
+        self.granularity = (
+            granularity if granularity is not None else self.setting.granularity
+        )
+        self.data_path_format = (
+            data_path_format
+            if data_path_format is not None
+            else self.setting.data_path_format
+        )
         self.inputs = {}
         self.targets = {}
         self.shapes = {
@@ -89,8 +99,8 @@ class WxDataset(Dataset):
             self.input_span,
             self.pred_shift,
             self.pred_span,
-            self.setting.granularity,
-            self.setting.data_path_format,
+            self.granularity,
+            self.data_path_format,
         )
         hashstr = hashlib.md5(code.encode("utf-8")).hexdigest()
         self.hashcode = hashstr
@@ -471,15 +481,6 @@ class WxDataset(Dataset):
                         f"Target slice for var {var} at index {item} has shape {target_slice.shape}"
                     )
 
-        # In RNN mode, return combined inputs and targets as 'all'
-        # if hasattr(self, 'rnn_mode') and self.rnn_mode:
-        #     all_data = {}
-        #     for var in self.vars:
-        #         if var in inputs and var in targets:
-        #             # Combine inputs and targets for each variable
-        #             all_data[var] = np.concatenate([inputs[var], targets[var]], axis=0)
-        #     return all_data, all_data, item
-
         return inputs, targets, item
 
 
@@ -496,6 +497,8 @@ class WxDatasetClient(Dataset):
         input_span=None,
         pred_shift=None,
         pred_span=None,
+        granularity="daily",
+        data_path_format="default",
         setting=None,
     ):
         self.url = url
@@ -517,6 +520,8 @@ class WxDatasetClient(Dataset):
         self.years = years if years is not None else self.setting.years_train
         self.vars = vars if vars is not None else self.setting.vars
         self.levels = levels if levels is not None else self.setting.levels
+        self.granularity = granularity
+        self.data_path_format = data_path_format
 
         code = "%s:%s:%s:%s:%s:%s:%s:%s:%s:%s" % (
             self.resolution,
@@ -527,8 +532,8 @@ class WxDatasetClient(Dataset):
             self.input_span,
             self.pred_shift,
             self.pred_span,
-            self.setting.granularity,
-            self.setting.data_path_format,
+            self.granularity,
+            self.data_path_format,
         )
         self.hashcode = hashlib.md5(code.encode("utf-8")).hexdigest()
 
@@ -591,15 +596,6 @@ class WxDatasetClient(Dataset):
                 continue
             for var, blk in val.items():
                 val[var] = np.array(np.copy(blk), dtype=np.float32)
-
-        # In RNN mode, return combined inputs and targets as 'all'
-        # if hasattr(self, 'rnn_mode') and self.rnn_mode:
-        #     all_data = {}
-        #     for var in data["inputs"].keys():
-        #         if var in data["inputs"] and var in data["targets"]:
-        #             # Combine inputs and targets for each variable
-        #             all_data[var] = np.concatenate([data["inputs"][var], data["targets"][var]], axis=0)
-        #     return all_data, all_data, item
 
         return data["inputs"], data["targets"], item
 
