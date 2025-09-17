@@ -368,3 +368,7 @@ def main():
         handler.run(["help"])
     else:
         handler.run(sys.argv[1:])
+
+
+if __name__ == "__main__":
+    main()
