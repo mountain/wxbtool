@@ -12,6 +12,7 @@ import wxbtool.config as config
 from wxbtool.data.dataset import WxDataset
 from wxbtool.nn.lightning import LightningModel
 from wxbtool.util.plotter import plot
+from wxbtool.nn.config import get_runtime_device, detect_torchrun, is_rank_zero
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -24,8 +25,11 @@ else:
 
 def main(context, opt):
     try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
+        ctx = detect_torchrun()
+        if getattr(opt, "gpu", None) != "-1" and not ctx["is_torchrun"]:
+            os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
         sys.path.insert(0, os.getcwd())
+        device = get_runtime_device(opt)
         mdm = importlib.import_module(opt.module, package=None)
         model = LightningModel(mdm.model, opt=opt)
 
@@ -34,7 +38,8 @@ def main(context, opt):
             checkpoint = th.load(opt.load)
             model.load_state_dict(checkpoint["state_dict"])
 
-        # Set the model to evaluation mode
+        # Move to device and set eval mode
+        model.to(device)
         model.eval()
 
         parser_time = datetime.strptime(opt.datetime, "%Y-%m-%d")
@@ -71,7 +76,7 @@ def main(context, opt):
         # Convert inputs to torch tensors
         inputs = {
             k: th.tensor(
-                v[: model.model.setting.input_span, :, :], dtype=th.float32
+                v[: model.model.setting.input_span, :, :], dtype=th.float32, device=device
             ).unsqueeze(0)
             for k, v in inputs.items()
         }  # 只取input_span范围
@@ -83,6 +88,10 @@ def main(context, opt):
             results = model(**inputs)
 
         results = model.model.get_forcast(**results)
+
+        # Only rank-0 writes outputs in distributed runs
+        if not is_rank_zero():
+            return
 
         # Save the output
         output_dir = f"output/{opt.datetime}"
@@ -109,18 +118,20 @@ def main(context, opt):
                             freq="D",
                         ),
                         "vars": model.model.setting.vars_out,
-                        "lat": np.linspace(87.1875, -87.1875, 32),
-                        "lon": np.linspace(0, 354.375, 64),
+                        "lat": model.model.setting.get_latitude_array(),
+                        "lon": model.model.setting.get_longitude_array(),
                     },
                 )
                 for var in model.model.setting.vars_out:
-                    ds.loc[var] = results[var].reshape(-1, 32, 64)
+                    lat_size, lon_size = model.model.setting.spatial_shape
+                    ds.loc[var] = results[var].reshape(-1, lat_size, lon_size)
             else:
+                lat_size, lon_size = model.model.setting.spatial_shape
                 ds = xr.DataArray(
-                    results["t2m"].reshape(32, 64),
+                    results["t2m"].reshape(lat_size, lon_size),
                     coords={
-                        "lat": np.linspace(87.1875, -87.1875, 32),
-                        "lon": np.linspace(0, 354.375, 64),
+                        "lat": model.model.setting.get_latitude_array(),
+                        "lon": model.model.setting.get_longitude_array(),
                     },
                     dims=["lat", "lon"],
                 )
@@ -141,8 +152,11 @@ def main(context, opt):
 
 def main_gan(context, opt):
     try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
+        ctx = detect_torchrun()
+        if getattr(opt, "gpu", None) != "-1" and not ctx["is_torchrun"]:
+            os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
         sys.path.insert(0, os.getcwd())
+        device = get_runtime_device(opt)
         mdm = importlib.import_module(opt.module, package=None)
         generator = mdm.generator
 
@@ -151,7 +165,8 @@ def main_gan(context, opt):
             checkpoint = th.load(opt.load)
             generator.load_state_dict(checkpoint["state_dict"])
 
-        # Set the model to evaluation mode
+        # Move to device and set eval mode
+        generator.to(device)
         generator.eval()
 
         # Load the dataset
@@ -175,7 +190,7 @@ def main_gan(context, opt):
 
         # Convert inputs to torch tensors
         inputs = {
-            k: th.tensor(v, dtype=th.float32).unsqueeze(0) for k, v in inputs.items()
+            k: th.tensor(v, dtype=th.float32, device=device).unsqueeze(0) for k, v in inputs.items()
         }
 
         # Perform GAN inference
@@ -186,6 +201,10 @@ def main_gan(context, opt):
                 inputs["noise"] = noise
                 result = generator(**inputs)
                 results.append(result["data"].cpu().numpy())
+
+        # Only rank-0 writes outputs in distributed runs
+        if not is_rank_zero():
+            return
 
         # Save the output
         if opt.output.endswith(".png"):

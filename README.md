@@ -65,6 +65,19 @@ wxb data-download -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn --coverage weekly
 
 For more detailed examples and explanations, see the [Quick Start Guide](docs/user/quickstart.md).
 
+## Distributed Training (torchrun)
+
+For multi-node or multi-process execution, use PyTorch's torchrun to launch one process per GPU. Under torchrun, -g/--gpu is ignored (device placement is controlled by LOCAL_RANK). Only rank 0 writes outputs in forecast/backtest to avoid file clobbering.
+
+Example (single node, 4 GPUs):
+```bash
+torchrun --nproc_per_node=4 -m wxbtool.wxb train \
+  -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn \
+  --batch_size 64 --n_epochs 200 --rate 0.001
+```
+
+See detailed guidance in the Training Guide: docs/user/training/overview.md.
+
 ## Flexible Dataset Organization
 
 wxbtool supports flexible dataset layouts beyond the default yearly files. You can configure how data files are discovered by setting two fields in your Setting:

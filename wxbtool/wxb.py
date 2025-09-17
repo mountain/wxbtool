@@ -7,6 +7,7 @@ from wxbtool.nn.infer import main as infer_main
 from wxbtool.nn.infer import main_gan as inferg_main
 from wxbtool.nn.test import main as ttmain
 from wxbtool.nn.train import main as tnmain
+from wxbtool.nn.config import add_device_arguments
 
 
 @subcmd
@@ -16,6 +17,7 @@ def help(parser, context, args):
 
 @subcmd("train", help="start training")
 def train(parser, context, args):
+    add_device_arguments(parser)
     parser.add_argument("-g", "--gpu", type=str, default="", help="indexes of gpu")
     parser.add_argument(
         "-c",
@@ -113,6 +115,7 @@ def train(parser, context, args):
 
 @subcmd("test", help="start testing")
 def test(parser, context, args):
+    add_device_arguments(parser)
     parser.add_argument("-g", "--gpu", type=str, default="0", help="index of gpu")
     parser.add_argument(
         "-c",
@@ -165,6 +168,7 @@ def test(parser, context, args):
 
 @subcmd("forecast", help="forecast (deterministic or GAN ensemble)")
 def forecast(parser, context, args):
+    add_device_arguments(parser)
     parser.add_argument("-g", "--gpu", type=str, default="0", help="index of gpu")
     parser.add_argument(
         "-c",
@@ -240,6 +244,7 @@ def forecast(parser, context, args):
 @subcmd("backtest", help="Backtesting model performance")
 def backtest(parser, context, args):
     # Mirror arguments from eval
+    add_device_arguments(parser)
     parser.add_argument("-g", "--gpu", type=str, default="0", help="index of gpu")
     parser.add_argument(
         "-c",

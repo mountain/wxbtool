@@ -167,18 +167,37 @@ wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -G true -n 100 -b 16 -r 0.0
 wxb test -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -G true
 ```
 
-### Distributed Training Workflow
+### Distributed Training (torchrun)
+
+For multi-node or multi-process training, use PyTorch's torchrun to launch one process per GPU. The -g/--gpu flag is ignored under torchrun (device placement is controlled by LOCAL_RANK). You can optionally pass --num_nodes for clarity; torchrun's --nnodes is authoritative.
 
 ```bash
-# Start the dataset server
+# Start the dataset server (reachable by all nodes)
 wxb data-serve -m wxbtool.specs.res5_625.t850weyn -s Setting3d -b 0.0.0.0:8088 &
 
-# Train on multiple machines (machine 1)
-wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -d http://server-ip:8088 -g 0,1,2,3
-
-# Train on multiple machines (machine 2)
-wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -d http://server-ip:8088 -g 0,1,2,3
+# Example: 3 nodes, 4 GPUs per node (run this on node_rank=0; adjust node_rank on other nodes)
+torchrun \
+  --nproc_per_node=4 \
+  --nnodes=3 \
+  --node_rank=0 \
+  --master_addr=192.168.1.100 \
+  --master_port=29500 \
+  -m wxbtool.wxb train \
+  -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn \
+  -d http://192.168.1.100:8088 \
+  --batch_size 64 \
+  --n_epochs 200 \
+  --rate 0.001 \
+  --num_nodes 3
 ```
+
+Notes:
+- Do not pass -g/--gpu under torchrun; it is intentionally ignored.
+- Single-machine, multi-GPU without torchrun is still supported:
+  ```bash
+  wxb train -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -g 0,1,2,3
+  ```
+- The Trainer configuration is centralized; behavior is consistent across train/test/forecast/backtest.
 
 ## Monitoring Training Progress
 

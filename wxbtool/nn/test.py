@@ -2,11 +2,11 @@ import importlib
 import os
 import sys
 
-import lightning.pytorch as pl
 import torch as th
 from lightning.pytorch.callbacks import EarlyStopping
 
 from wxbtool.nn.lightning import GANModel, LightningModel
+from wxbtool.nn.config import configure_trainer, detect_torchrun
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -19,7 +19,9 @@ else:
 
 def main(context, opt):
     try:
-        os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
+        ctx = detect_torchrun()
+        if getattr(opt, "gpu", None) != "-1" and not ctx["is_torchrun"]:
+            os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
         sys.path.insert(0, os.getcwd())
         mdm = importlib.import_module(opt.module, package=None)
 
@@ -37,8 +39,8 @@ def main(context, opt):
             patience = 2  # More aggressive early stopping
             limit_val_batches = 3  # Limit validation to first 3 batches
             limit_test_batches = 2  # Limit testing to first 2 batches
-            trainer = pl.Trainer(
-                accelerator=accelerator,
+            trainer = configure_trainer(
+                opt,
                 precision=32,
                 max_epochs=n_epochs,
                 callbacks=[
@@ -48,8 +50,8 @@ def main(context, opt):
                 limit_test_batches=limit_test_batches,
             )
         else:
-            trainer = pl.Trainer(
-                accelerator=accelerator,
+            trainer = configure_trainer(
+                opt,
                 precision=32,
                 max_epochs=n_epochs,
                 callbacks=[EarlyStopping(monitor="val_loss", mode="min", patience=30)],

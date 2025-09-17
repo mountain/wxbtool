@@ -81,11 +81,21 @@ This architecture provides several advantages:
 ## Command Line Interface
 
 The command-line interface (`wxb.py`) ties all components together, providing commands for:
-- Dataset server management (`dserve`)
+- Dataset server management (`data-serve`)
+- Data download (`data-download`)
 - Model training (`train`)
 - Model testing (`test`)
-- Model inference (`infer` and `inferg`)
-- Data download (`download`)
+- Forecasting (`forecast`) – deterministic and GAN ensemble (via `-G/--gan` and `-s/--samples`)
+- Backtesting (`backtest`) – operational day-by-day evaluation
+
+Device & distributed configuration is centralized in `wxbtool/nn/config.py`:
+- `add_device_arguments(parser)` – injects shared CLI flags (e.g., `--num_nodes`)
+- `configure_trainer(opt, ...)` – constructs a Lightning `Trainer` with proper accelerator/devices/strategy
+- `get_runtime_device()`, `detect_torchrun()`, `is_rank_zero()` – helpers for imperative inference/backtesting
+
+torchrun usage (multi-node/process):
+- `-g/--gpu` is ignored under torchrun; placement is controlled by `LOCAL_RANK`
+- one process per GPU; only global rank 0 writes forecast/backtest outputs to avoid clobbering
 
 ## Model Specification System
 

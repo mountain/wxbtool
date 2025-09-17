@@ -206,6 +206,21 @@ Backtesting evaluates rolling, day-by-day performance starting from a specific i
   - `wxb test`: Bulk evaluation on the test split
   - `wxb backtest`: Operational-style backtest for one init date, computing forward-looking day-by-day scores
 
+## Distributed Backtesting (torchrun)
+
+Backtesting can run distributed across multiple GPUs/nodes using torchrun. Under torchrun, -g/--gpu is ignored and only global rank 0 writes outputs to avoid file clobbering.
+
+Example (single node, 4 GPUs):
+```bash
+torchrun --nproc_per_node=4 -m wxbtool.wxb backtest \
+  -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn \
+  -t 2025-01-01 -o forecast.nc
+```
+
+Notes:
+- Do not pass -g/--gpu under torchrun; one process per GPU is launched.
+- Outputs (PNG/NC and var_day_rmse.json) are written only by rank 0.
+
 ## Understanding Test Results
 
 Test results include:

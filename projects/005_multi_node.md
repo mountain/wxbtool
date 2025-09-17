@@ -1,7 +1,8 @@
 # Project 005: Enabling True Multi-Node Distributed Training
 
-Status: Proposed
+Status: Implemented
 Created: 2025-09-17
+Implemented: 2025-09-17
 Author: Mingli Yuan
 Type: Architecture Decision Record & Technical Specification
 Version Impact: v0.3.0 (significant feature upgrade)
@@ -154,6 +155,11 @@ Top-level:
   - Clear message when `-g` is passed under torchrun that it is ignored.
   - Existing `forecast -G true` validation remains unchanged (require `--samples > 0`).
 
+Results (2025-09-17):
+- Local CI: `uv run pytest -q` → 45 passed, 53 warnings
+- Lint: `ruff check .` and `flake8` clean (excluding `.venv`)
+- Docs: Updated training/inference guides for torchrun usage and rank-0 writes
+
 ## 9. Risks & Mitigations
 
 - Env drift across nodes:
@@ -194,9 +200,10 @@ Significant upgrade enabling true multi-node distributed execution and centraliz
 ### Added
 - Centralized device/distributed configuration in wxbtool/nn/config.py
   - add_device_arguments(parser), configure_trainer(opt, **kwargs)
+  - get_runtime_device(), detect_torchrun(), is_rank_zero()
 - Multi-node and multi-GPU support across commands when launched via torchrun: train, test, forecast, backtest
 - New CLI option: --num_nodes (defaults to 1) for clarity/help; torchrun's --nnodes is authoritative.
-- INFO log when torchrun detected and -g/--gpu is ignored.
+- Rank-0-only output writing for forecast/backtest to avoid file clobbering.
 
 ### Changed
 - -g/--gpu optional for single-node; ignored under torchrun (device assignment handled by torchrun).
@@ -206,3 +213,14 @@ Significant upgrade enabling true multi-node distributed execution and centraliz
 - Single-node users: no changes required.
 - Multi-node users: launch via torchrun and stop passing -g/--gpu; optionally pass --num_nodes for clarity. torchrun options (--nnodes, --nproc_per_node, --node_rank, --master_addr, --master_port) control the cluster.
 ```
+
+## 14. Implementation Status
+
+- Code merged:
+  - wxbtool/nn/config.py (new)
+  - wxbtool/nn/train.py, test.py → use configure_trainer
+  - wxbtool/nn/infer.py, eval.py → device-aware and rank-0 writes; flexible-resolution coords
+  - wxbtool/wxb.py → adds --num_nodes to relevant subcommands
+- Tests: Passing (45/45)
+- Lint: ruff/flake8 clean (exclude .venv)
+- Docs: User training/inference updated; evaluation distributed notes pending in next doc sweep if needed

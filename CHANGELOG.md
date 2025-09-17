@@ -3,6 +3,24 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
+## [0.3.0] - 2025-09-17
+Significant upgrade enabling true multi-node distributed execution and centralized device configuration. Single-node usage remains backward compatible.
+
+### Added
+- Centralized device/distributed configuration in wxbtool/nn/config.py
+  - add_device_arguments(parser), configure_trainer(opt, **kwargs)
+- Multi-node and multi-GPU support across commands when launched via torchrun: train, test, forecast, backtest
+- New CLI option: --num_nodes (defaults to 1) for clarity/help; torchrun's --nnodes is authoritative.
+- INFO log when torchrun detected and -g/--gpu is ignored.
+
+### Changed
+- -g/--gpu optional for single-node; ignored under torchrun (device assignment handled by torchrun).
+- Documentation updated: README, docs/user/{training,inference,evaluation,quickstart,installation}, docs/technical/architecture/overview.md.
+
+### Migration
+- Single-node users: no changes required.
+- Multi-node users: launch via torchrun and stop passing -g/--gpu; optionally pass --num_nodes for clarity. torchrun options (--nnodes, --nproc_per_node, --node_rank, --master_addr, --master_port) control the cluster.
+
 ## [0.2.0] - 2025-08-18
 Minor release introducing canonical command names and removing legacy CLI subcommands.
 Python API remains unchanged; only the CLI surface changed.

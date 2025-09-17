@@ -238,6 +238,21 @@ For a model with `input_span = 3` and 8-hour steps, you need data from:
 
 Make sure your dataset includes the necessary historical data.
 
+## Distributed Inference (torchrun)
+
+You can accelerate inference/backtesting across multiple GPUs/nodes using torchrun. Under torchrun, -g/--gpu is ignored (device placement is controlled by LOCAL_RANK), and only rank 0 writes outputs to avoid file clobbering.
+
+Example (single node, 4 GPUs):
+```bash
+torchrun --nproc_per_node=4 -m wxbtool.wxb forecast \
+  -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn \
+  -t 2023-01-01 -o forecast.nc
+```
+
+Notes:
+- Do not pass -g/--gpu under torchrun; one process is launched per GPU.
+- Outputs are written only by global rank 0; logs/metrics are aggregated by Lightning.
+
 ## Troubleshooting Inference Issues
 
 ### Common Problems and Solutions

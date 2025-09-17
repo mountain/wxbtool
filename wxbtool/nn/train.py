@@ -2,11 +2,11 @@ import importlib
 import os
 import sys
 
-import lightning.pytorch as pl
 import torch as th
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
 from wxbtool.nn.lightning import GANModel, LightningModel
+from wxbtool.nn.config import configure_trainer, detect_torchrun
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -19,9 +19,11 @@ else:
 
 def main(context, opt):
     global accelerator
+    ctx = detect_torchrun()
     if opt.gpu == "-1":
         accelerator = "cpu"
-    else:
+    elif not ctx["is_torchrun"]:
+        # Only apply CUDA_VISIBLE_DEVICES in single-node mode
         os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
     try:
         sys.path.insert(0, os.getcwd())
@@ -30,11 +32,6 @@ def main(context, opt):
         n_epochs = 1 if opt.test == "true" else opt.n_epochs
         is_optimized = hasattr(opt, "optimize") and opt.optimize
 
-        if opt.gpu is not None and opt.gpu != "" and opt.gpu != "-1":
-            devices = [int(gpu) for gpu in opt.gpu.split(",")]
-
-        else:
-            devices = 1
 
         precision = "bf16-mixed" if accelerator == "gpu" else "32"
 
@@ -50,22 +47,12 @@ def main(context, opt):
                 model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
             model.generator.learning_rate = generator_lr
             model.discriminator.learning_rate = discriminator_lr
-            # checkpoint_callback = ModelCheckpoint(
-            #                             monitor='crps',
-            #                             filename='best-{epoch:03d}-{crps:.3f}-{rmse:.3f}',
-            #                             save_top_k=5,
-            #                             mode='min',
-            #                             dirpath=f'trains/{model.model.name}',
-            #                             save_weights_only=False
-            #                         )
-            # callbacks = [checkpoint_callback]
-            trainer = pl.Trainer(
-                strategy="ddp_find_unused_parameters_true",
-                devices=devices,
-                accelerator=accelerator,
+
+            trainer = configure_trainer(
+                opt,
                 precision=precision,
                 max_epochs=n_epochs,
-                #     callbacks=callbacks,
+                strategy="ddp_find_unused_parameters_true",
             )
         else:
             learning_rate = float(opt.rate)
@@ -89,13 +76,12 @@ def main(context, opt):
                 EarlyStopping(monitor="val_loss", mode="min", patience=50),
                 checkpoint_callback,
             ]
-            trainer = pl.Trainer(
-                strategy="ddp_find_unused_parameters_true",
-                devices=devices,
-                accelerator=accelerator,
+            trainer = configure_trainer(
+                opt,
+                callbacks=callbacks,
                 precision=precision,
                 max_epochs=n_epochs,
-                callbacks=callbacks,
+                strategy="ddp_find_unused_parameters_true",
             )
 
         trainer.fit(model)
