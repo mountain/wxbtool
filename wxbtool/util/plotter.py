@@ -60,9 +60,7 @@ def plot(var, fileobj, data, spatial_shape=None):
         spatial_shape = ResolutionConfig.get_spatial_shape("5.625deg")
 
     cmap_id = var2cmap.get(code, "coolwarm")
-    imsave(
-        fileobj, colorize(data, imgdata(spatial_shape), cmap_id, spatial_shape)
-    )
+    imsave(fileobj, colorize(data, imgdata(spatial_shape), cmap_id, spatial_shape))
 
 
 class Ploter:

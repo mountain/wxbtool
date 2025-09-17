@@ -267,7 +267,9 @@ class LightningModel(ltn.LightningModule):
         var_ind = self.model.setting.vars_out.index(variable)
         climatology = climatology[:, var_ind : var_ind + 1, :, :, :]
         forecast = forecast.reshape(batch, 1, pred_length, height, width).cpu().numpy()
-        observation = observation.reshape(batch, 1, pred_length, height, width).cpu().numpy()
+        observation = (
+            observation.reshape(batch, 1, pred_length, height, width).cpu().numpy()
+        )
         climatology = climatology.reshape(batch, 1, pred_length, height, width)
         weight = self.model.weight.reshape(1, 1, 1, height, width).cpu().numpy()
 
@@ -355,8 +357,12 @@ class LightningModel(ltn.LightningModule):
                     tgrt_img = tgrt[0, ix].detach().cpu().numpy().reshape(height, width)
                 else:
                     height, width = fcst.size(-2), fcst.size(-1)
-                    fcst_img = fcst[0, 0, ix].detach().cpu().numpy().reshape(height, width)
-                    tgrt_img = tgrt[0, 0, ix].detach().cpu().numpy().reshape(height, width)
+                    fcst_img = (
+                        fcst[0, 0, ix].detach().cpu().numpy().reshape(height, width)
+                    )
+                    tgrt_img = (
+                        tgrt[0, 0, ix].detach().cpu().numpy().reshape(height, width)
+                    )
 
                 plot(var, open(plot_fcst_path, mode="wb"), fcst_img)
                 plot(var, open(plot_tgrt_path, mode="wb"), tgrt_img)

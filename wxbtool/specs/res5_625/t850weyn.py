@@ -16,8 +16,15 @@ import torch.nn as nn
 
 from wxbtool.nn.model import Base2d
 from wxbtool.nn.setting import Setting
-from wxbtool.norms.meanstd import (denorm_t850, norm_t2m, norm_t850, norm_tau,
-                                   norm_tisr, norm_z500, norm_z1000)
+from wxbtool.norms.meanstd import (
+    denorm_t850,
+    norm_t2m,
+    norm_t850,
+    norm_tau,
+    norm_tisr,
+    norm_z500,
+    norm_z1000,
+)
 
 mse = nn.MSELoss()
 
