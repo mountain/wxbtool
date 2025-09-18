@@ -7,6 +7,7 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
 from wxbtool.nn.lightning import GANModel, LightningModel
 from wxbtool.nn.config import configure_trainer, detect_torchrun
+from wxbtool.nn.callbacks import UniversalLoggingCallback
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -32,7 +33,6 @@ def main(context, opt):
         n_epochs = 1 if opt.test == "true" else opt.n_epochs
         is_optimized = hasattr(opt, "optimize") and opt.optimize
 
-
         precision = "bf16-mixed" if accelerator == "gpu" else "32"
 
         if opt.gan == "true":
@@ -50,6 +50,7 @@ def main(context, opt):
 
             trainer = configure_trainer(
                 opt,
+                callbacks=[UniversalLoggingCallback()],
                 precision=precision,
                 max_epochs=n_epochs,
                 strategy="ddp_find_unused_parameters_true",
@@ -75,6 +76,7 @@ def main(context, opt):
             callbacks = [
                 EarlyStopping(monitor="val_loss", mode="min", patience=50),
                 checkpoint_callback,
+                UniversalLoggingCallback(),
             ]
             trainer = configure_trainer(
                 opt,

@@ -238,6 +238,12 @@ For a model with `input_span = 3` and 8-hour steps, you need data from:
 
 Make sure your dataset includes the necessary historical data.
 
+## Artifacts and Plotting
+
+- The -p/--plot toggle applies to training and testing flows (wxb train, wxb test). When enabled, image artifacts (inputs, forecast vs target, ACC anomalies) are produced and saved via a universal logging callback under logger.log_dir/plots (fallback to ./plots).
+- In distributed runs (torchrun), only global rank 0 writes artifacts to avoid file clobbering.
+- Forecast (wxb forecast) produces PNG/NetCDF outputs as requested; backtesting (wxb backtest) additionally writes output/{YYYY-MM-DD}/var_day_rmse.json with day-by-day RMSE keyed by calendar date when using .nc output.
+
 ## Distributed Inference (torchrun)
 
 You can accelerate inference/backtesting across multiple GPUs/nodes using torchrun. Under torchrun, -g/--gpu is ignored (device placement is controlled by LOCAL_RANK), and only rank 0 writes outputs to avoid file clobbering.

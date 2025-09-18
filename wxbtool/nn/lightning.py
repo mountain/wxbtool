@@ -1,7 +1,6 @@
 import json
 import os
 from collections import defaultdict
-from pathlib import Path
 
 import lightning as ltn
 import numpy as np
@@ -11,12 +10,11 @@ from torch.utils.data import DataLoader
 
 from wxbtool.data.climatology import ClimatologyAccessor
 from wxbtool.data.dataset import ensemble_loader
-from wxbtool.norms.meanstd import denormalizors
-from wxbtool.util.plotter import plot
-
-plot_root = Path(os.getcwd()) / "plots"
-if not plot_root.exists():
-    plot_root.mkdir(parents=True, exist_ok=True)
+from wxbtool.nn.metrics import (
+    rmse_by_time as metrics_rmse_by_time,
+    rmse_weighted as metrics_rmse_weighted,
+    acc_anomaly_by_time,
+)
 
 
 class LightningModel(ltn.LightningModule):
@@ -72,50 +70,11 @@ class LightningModel(ltn.LightningModule):
     def compute_rmse(self, targets, results, variable):
         tgt_data = targets[variable]
         rst_data = results[variable]
-        target_type = tgt_data.dtype
-        target_device = rst_data.device
-        tgt_data = tgt_data.to(device=target_device)
-        rst_data = rst_data.to(device=target_device, dtype=target_type)
-
-        height, width = rst_data.size(-2), rst_data.size(-1)
-        try:
-            weight = self.model.weight  # Assuming shape is [H, W] or compatible
-            weight = weight.reshape(1, 1, 1, height, width)
-        except AttributeError:
-            print("Error: 'weight' attribute not found in self.model.")
-            raise
-        except Exception as e:
-            print(
-                f"Error: Failed to reshape weight. Original weight shape: {self.model.weight.shape}, Target shape: (1, 1, 1, {height}, {width})"
-            )
-            raise e
-
-        weight = weight.to(device=target_device, dtype=target_type)
-
-        # Handle data shape based on RNN mode or non-RNN mode
         pred_span = self.model.setting.pred_span
-        try:
-            # Reshape, assuming the final required shape is [B, C, P, H, W]
-            tgt = tgt_data.reshape(-1, 1, pred_span, height, width)
-            rst = rst_data.reshape(-1, 1, pred_span, height, width)
-        except RuntimeError as e:
-            print("Error: Failed to reshape input tensors.")
-            print(f"  Target shape: (-1, {1}, {pred_span}, {height}, {width})")
-            print(
-                f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}"
-            )
-            raise e
-
-        squared_error = (rst - tgt) ** 2
-        weighted_se = (
-            weight * squared_error
-        )  # PyTorch handles broadcasting automatically
-        total_se_sum = th.sum(weighted_se)
-        ones_like_data = th.ones_like(rst)
-        total_weight_sum = th.sum(weight * ones_like_data)
-        mse = total_se_sum / total_weight_sum
-
-        return th.sqrt(mse)
+        weight = self.model.weight
+        return metrics_rmse_weighted(
+            rst_data, tgt_data, weights=weight, pred_span=pred_span, denorm_key=variable
+        )
 
     def compute_rmse_by_time(
         self,
@@ -136,69 +95,18 @@ class LightningModel(ltn.LightningModule):
         Returns:
             A tensor containing the overall RMSE across all prediction days.
         """
-
         tgt_data = targets[variable]
         rst_data = results[variable]
-        target_type = tgt_data.dtype
-        target_device = rst_data.device
-        tgt_data = tgt_data.to(device=target_device)
-        rst_data = rst_data.to(device=target_device, dtype=target_type)
-
-        height, width = rst_data.size(-2), rst_data.size(-1)
-        try:
-            weight = self.model.weight  # type: ignore[attr-defined]
-            weight = weight.reshape(1, 1, 1, height, width)
-        except AttributeError:
-            print("Error: 'weight' attribute not found in self.model.")
-            raise
-        except Exception as e:  # pragma: no cover - defensive branch
-            print(
-                "Error: Failed to reshape weight. Original weight shape: "
-                f"{self.model.weight.shape}, Target shape: (1, 1, 1, {height}, {width})"
-            )
-            raise e
-
-        weight = weight.to(device=target_device, dtype=target_type)
-
         pred_span = self.model.setting.pred_span
-        try:
-            tgt = tgt_data.reshape(-1, 1, pred_span, height, width)
-            rst = rst_data.reshape(-1, 1, pred_span, height, width)
-        except RuntimeError as e:  # pragma: no cover - reshape errors are rare
-            print("Error: Failed to reshape input tensors.")
-            print(f"  Target shape: (-1, 1, {pred_span}, {height}, {width})")
-            print(
-                f"  Tgt original shape: {tgt_data.shape}, Rst original shape: {rst_data.shape}"
-            )
-            raise e
-
-        _, days = tgt.size(0), tgt.size(2)
+        weight = self.model.weight
+        overall, per_day = metrics_rmse_by_time(
+            rst_data, tgt_data, weights=weight, pred_span=pred_span, denorm_key=variable
+        )
         epoch = self.current_epoch
-        rst, tgt = denormalizors[variable](rst), denormalizors[variable](tgt)
-        squared_error = (rst - tgt) ** 2
-        weighted_se = weight * squared_error
-
-        # Accumulate totals for overall RMSE
-        total_se_sum = th.tensor(0.0, device=target_device, dtype=target_type)
-        total_weight_sum = th.tensor(0.0, device=target_device, dtype=target_type)
-
-        # Ensure dictionary structure for side effects
         self.mseByVar.setdefault(variable, {}).setdefault(epoch, {})
-
-        for day in range(days):
-            cur_weighted_se = weighted_se[:, :, day, :, :]
-            cur_total_se = th.sum(cur_weighted_se)
-            cur_weight_sum = th.sum(weight * th.ones_like(cur_weighted_se))
-            cur_mse = cur_total_se / cur_weight_sum
-            rmse = float(th.sqrt(cur_mse))
-            # Store per-day RMSE for later serialization
-            self.mseByVar[variable][epoch][day + 1] = rmse
-
-            total_se_sum += cur_total_se
-            total_weight_sum += cur_weight_sum
-
-        overall_mse = total_se_sum / total_weight_sum
-        return th.sqrt(overall_mse)
+        for day_idx, rmse_val in enumerate(per_day, start=1):
+            self.mseByVar[variable][epoch][day_idx] = rmse_val
+        return overall
 
     def get_climatology_accessor(self, mode):
         # Skip climatology in CI mode
@@ -276,40 +184,29 @@ class LightningModel(ltn.LightningModule):
         f_anomaly = forecast - climatology
         o_anomaly = observation - climatology
 
-        _, days = climatology.shape[0], climatology.shape[2]
+        # Compute ACC via metrics helper
+        per_day_acc, prod_sum, fsum_sum, osum_sum = acc_anomaly_by_time(
+            f_anomaly, o_anomaly, weights=weight
+        )
+
         epoch = self.current_epoch
-        for day in range(days):
-            self.accByVar[variable].setdefault(epoch, {}).setdefault(day, 0.0)
-            prod = np.sum(
-                weight * f_anomaly[:, :, day, :, :] * o_anomaly[:, :, day, :, :]
-            )
-            fsum = np.sum(weight * f_anomaly[:, :, day, :, :] ** 2)
-            osum = np.sum(weight * o_anomaly[:, :, day, :, :] ** 2)
-            acc = prod / np.sqrt(fsum * osum)
-            self.accByVar[variable][epoch][day + 1] = float(acc)
+        self.accByVar.setdefault(variable, {}).setdefault(epoch, {})
+        for day, acc in enumerate(per_day_acc, start=1):
+            self.accByVar[variable][epoch][day] = float(acc)
 
-            plot_var = plot_root / f"{variable}"
-            if not plot_var.exists():
-                plot_var.mkdir(parents=True, exist_ok=True)
+        # Queue anomaly plots for logging if enabled
+        if getattr(self.opt, "plot", "false") == "true":
+            # ensure artifacts dict
+            if not hasattr(self, "artifacts_to_log") or self.artifacts_to_log is None:
+                self.artifacts_to_log = {}
+            for day in range(pred_length):
+                tag_f = f"anomaly_{variable}_fcs_{day}"
+                tag_o = f"anomaly_{variable}_obs_{day}"
+                # Use first sample in batch for visualization
+                self.artifacts_to_log[tag_f] = {"var": variable, "data": f_anomaly[0, 0, day]}
+                self.artifacts_to_log[tag_o] = {"var": variable, "data": o_anomaly[0, 0, day]}
 
-            plot_path = plot_root / f"anomaly_{variable}_fcs_{day}.png"
-            plot(
-                variable,
-                open(plot_path, mode="wb"),
-                f_anomaly[0, :, day, :, :],
-            )
-            plot_path = plot_root / f"anomaly_{variable}_obs_{day}.png"
-            plot(
-                variable,
-                open(plot_path, mode="wb"),
-                o_anomaly[0, :, day, :, :],
-            )
-
-        prod = np.sum(weight * f_anomaly * o_anomaly)
-        fsum = np.sum(weight * f_anomaly**2)
-        osum = np.sum(weight * o_anomaly**2)
-
-        return prod, fsum, osum
+        return prod_sum, fsum_sum, osum_sum
 
     def forecast_error(self, rmse):
         return rmse
@@ -321,51 +218,43 @@ class LightningModel(ltn.LightningModule):
         # Skip plotting in CI mode or test mode
         if self.ci or mode == "test":
             return
+        if getattr(self.opt, "plot", "false") != "true":
+            return
 
-        for bas, var in enumerate(self.model.setting.vars_in):
+        # ensure artifacts dict
+        if not hasattr(self, "artifacts_to_log") or self.artifacts_to_log is None:
+            self.artifacts_to_log = {}
+
+        # Inputs
+        for var in self.model.setting.vars_in:
             inp = inputs[var]
             span = self.model.setting.input_span
-            plot_var = plot_root / f"{var}"
-            if not plot_var.exists():
-                plot_var.mkdir(parents=True, exist_ok=True)
-
             for ix in range(span):
-                plot_inp_path = plot_var / f"{var}_inp_{ix}.png"
                 if inp.dim() == 4:
                     height, width = inp.size(-2), inp.size(-1)
                     dat = inp[0, ix].detach().cpu().numpy().reshape(height, width)
                 else:
                     height, width = inp.size(-2), inp.size(-1)
                     dat = inp[0, 0, ix].detach().cpu().numpy().reshape(height, width)
-                plot(var, open(plot_inp_path, mode="wb"), dat)
+                tag = f"{var}_inp_{ix}"
+                self.artifacts_to_log[tag] = {"var": var, "data": dat}
 
-        for bas, var in enumerate(self.model.setting.vars_out):
-            plot_var = plot_root / f"{var}"
-            if not plot_var.exists():
-                plot_var.mkdir(parents=True, exist_ok=True)
-
+        # Forecast vs Target
+        for var in self.model.setting.vars_out:
             fcst = results[var]
             tgrt = targets[var]
             span = self.model.setting.pred_span
             for ix in range(span):
-                plot_fcst_path = plot_var / f"{var}_fcst_{ix}.png"
-                plot_tgrt_path = plot_var / f"{var}_tgt_{ix}.png"
-
                 if fcst.dim() == 4:
                     height, width = fcst.size(-2), fcst.size(-1)
                     fcst_img = fcst[0, ix].detach().cpu().numpy().reshape(height, width)
                     tgrt_img = tgrt[0, ix].detach().cpu().numpy().reshape(height, width)
                 else:
                     height, width = fcst.size(-2), fcst.size(-1)
-                    fcst_img = (
-                        fcst[0, 0, ix].detach().cpu().numpy().reshape(height, width)
-                    )
-                    tgrt_img = (
-                        tgrt[0, 0, ix].detach().cpu().numpy().reshape(height, width)
-                    )
-
-                plot(var, open(plot_fcst_path, mode="wb"), fcst_img)
-                plot(var, open(plot_tgrt_path, mode="wb"), tgrt_img)
+                    fcst_img = fcst[0, 0, ix].detach().cpu().numpy().reshape(height, width)
+                    tgrt_img = tgrt[0, 0, ix].detach().cpu().numpy().reshape(height, width)
+                self.artifacts_to_log[f"{var}_fcst_{ix}"] = {"var": var, "data": fcst_img}
+                self.artifacts_to_log[f"{var}_tgt_{ix}"] = {"var": var, "data": tgrt_img}
 
         # for bas, var in enumerate(self.model.setting.vars_out):
         #     if inputs[var].dim() == 4:
@@ -458,16 +347,14 @@ class LightningModel(ltn.LightningModule):
             prog_bar=True,
         )
 
-        with open(
-            os.path.join(self.logger.log_dir, "val_rmse.json"),
-            "w",
-        ) as f:
-            json.dump(self.mseByVar, f)
-        with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
-            json.dump(self.accByVar, f)
+        if hasattr(self.trainer, "is_global_zero") and self.trainer.is_global_zero:
+            with open(os.path.join(self.logger.log_dir, "val_rmse.json"), "w") as f:
+                json.dump(self.mseByVar, f)
+            with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
+                json.dump(self.accByVar, f)
 
         # Only plot for the first batch in CI mode
-        if not self.ci or batch_idx == 0 and self.opt.plot == "true":
+        if getattr(self.opt, "plot", "false") == "true" and (not self.ci or batch_idx == 0):
             self.plot(inputs, results, targets, indexes, batch_idx, mode="eval")
 
     def test_step(self, batch, batch_idx):
@@ -512,10 +399,11 @@ class LightningModel(ltn.LightningModule):
             prog_bar=True,
         )
 
-        with open(os.path.join(self.logger.log_dir, "test_rmse.json"), "w") as f:
-            json.dump(self.mseByVar, f)
-        with open(os.path.join(self.logger.log_dir, "test_acc.json"), "w") as f:
-            json.dump(self.accByVar, f)
+        if hasattr(self.trainer, "is_global_zero") and self.trainer.is_global_zero:
+            with open(os.path.join(self.logger.log_dir, "test_rmse.json"), "w") as f:
+                json.dump(self.mseByVar, f)
+            with open(os.path.join(self.logger.log_dir, "test_acc.json"), "w") as f:
+                json.dump(self.accByVar, f)
 
         self.plot(inputs, results, targets, indexies, batch_idx, mode="test")
 

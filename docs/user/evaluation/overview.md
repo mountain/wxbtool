@@ -82,14 +82,6 @@ RMSE = sqrt(mean((predicted - actual)²))
 
 Lower RMSE values indicate better performance.
 
-### Mean Absolute Error (MAE)
-
-Measures the average magnitude of errors without considering their direction.
-
-```
-MAE = mean(|predicted - actual|)
-```
-
 ### Anomaly Correlation Coefficient (ACC)
 
 Measures the correlation between predicted and observed anomalies (deviations from climatology).
@@ -105,6 +97,20 @@ ACC ranges from -1 to 1, with values closer to 1 indicating better performance.
 For GAN models, CRPS evaluates probabilistic forecasts by comparing the predicted probability distribution to the observations.
 
 Lower CRPS values indicate better ensemble performance.
+
+## Plots and Artifacts (-p/--plot)
+
+When running training and testing with PyTorch Lightning:
+- Setting -p/--plot to true on wxb train enables image artifact generation (inputs, forecast vs target, anomaly figures for ACC).
+- Artifacts are saved by a universal logging callback under logger.log_dir/plots (fallback to ./plots if the logger has no log_dir).
+- In distributed runs (torchrun), only global rank 0 writes images to avoid clobbering.
+
+JSON artifacts written during evaluation:
+- Validation: val_rmse.json and val_acc.json
+- Test: test_rmse.json and test_acc.json
+These files live under logger.log_dir and contain per-variable, per-day values keyed by epoch as specified by the training loop.
+
+Note: Backtesting (wxb backtest) also produces output/{YYYY-MM-DD}/var_day_rmse.json when writing NetCDF outputs. See the Backtesting section below.
 
 ## Spatial Analysis
 
