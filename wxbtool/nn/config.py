@@ -13,12 +13,15 @@ def detect_torchrun() -> Dict[str, Union[bool, int]]:
     world_size = int(os.environ.get("WORLD_SIZE", "1"))
     local_rank = int(os.environ.get("LOCAL_RANK", os.environ.get("SLURM_LOCALID", "0")))
     rank = int(os.environ.get("RANK", os.environ.get("SLURM_PROCID", "0")))
+    local_world_size = int(os.environ.get("LOCAL_WORLD_SIZE", os.environ.get("SLURM_NTASKS_PER_NODE", "1")))
+    # torchrun typically sets LOCAL_WORLD_SIZE to processes per node
     is_torchrun = world_size > 1 or "TORCHELASTIC_MIN_REPLICAS" in os.environ
     return {
         "is_torchrun": is_torchrun,
         "world_size": world_size,
         "local_rank": local_rank,
         "rank": rank,
+        "local_world_size": local_world_size,
     }
 
 
@@ -123,9 +126,28 @@ def configure_trainer(
 
     # Derive devices
     if ctx["is_torchrun"]:
-        devices: Union[int, Sequence[int]] = 1
+        # Under torchrun, one process per device has already been spawned.
+        # Lightning expects devices (per-node processes) * num_nodes == WORLD_SIZE.
+        local_world_size = int(ctx.get("local_world_size", 1))  # type: ignore[arg-type]
+        devices: Union[int, Sequence[int]] = local_world_size
         auto_strategy = "ddp_find_unused_parameters_true"
-        num_nodes = getattr(opt, "num_nodes", None)
+        env_world = int(ctx.get("world_size", 1))  # type: ignore[arg-type]
+        opt_num_nodes = getattr(opt, "num_nodes", None)
+
+        if opt_num_nodes is None or opt_num_nodes <= 0:
+            num_nodes = max(1, env_world // local_world_size)
+        else:
+            num_nodes = int(opt_num_nodes)
+            expected = local_world_size * num_nodes
+            if expected != env_world:
+                _log.warning(
+                    "devices (%s) * num_nodes (%s) != WORLD_SIZE (%s); overriding num_nodes to %s",
+                    local_world_size,
+                    num_nodes,
+                    env_world,
+                    env_world // local_world_size,
+                )
+                num_nodes = max(1, env_world // local_world_size)
     else:
         if requested_count is None:
             # No -g specified: default to single device
