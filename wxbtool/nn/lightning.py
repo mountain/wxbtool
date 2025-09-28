@@ -525,47 +525,53 @@ class GANModel(LightningModel):
         return self.generator.forecast_error(rmse)
 
     def compute_crps(self, predictions, targets):
-        # Simplified CRPS computation for CI
+        """
+        predictions: (B, 15, T, 32, 64) - 多时间步预测
+        targets: (B, 15, T, 32, 64) - 多时间步真实值
+        """
         if self.ci:
             return 0.1, 0.5
 
-        # Original implementation
-        ensemble_size, channels, height, width = predictions.shape
-
-        num_pixels = channels * height * width
-        predictions_reshaped = predictions.reshape(
-            ensemble_size, num_pixels
-        )  # [ensemble_size, num_pixels]
-        targets_reshaped = targets.reshape(
-            ensemble_size, num_pixels
-        )  # [ensemble_size, num_pixels]
-
-        abs_errors = th.abs(
-            predictions_reshaped - targets_reshaped
-        )  # [ensemble_size, num_pixels]
-        mean_abs_errors = abs_errors.mean(dim=0)  # [num_pixels]
-
-        predictions_a = predictions_reshaped.unsqueeze(
-            1
-        )  # [ensemble_size, 1, num_pixels]
-        predictions_b = predictions_reshaped.unsqueeze(
-            0
-        )  # [1, ensemble_size, num_pixels]
-        pairwise_diff = th.abs(
-            predictions_a - predictions_b
-        )  # [ensemble_size, ensemble_size, num_pixels]
-        mean_pairwise_diff = pairwise_diff.mean(dim=(0, 1))  # [num_pixels]
-
-        # Calculate CRPS using the formula
-        crps = mean_abs_errors - 0.5 * mean_pairwise_diff  # [num_pixels]
-        absorb = 0.5 * mean_pairwise_diff / (mean_abs_errors + 1e-7)
-        self.crps = crps.reshape(-1, 1, height, width)
-        self.absorb = absorb.reshape(-1, 1, height, width)
-
-        # Average CRPS over all pixels and the batch
-        crps_mean = crps.mean()
-        absb_mean = absorb.mean()
-
+        batch_size, channels, time_steps, height, width = predictions.shape
+        
+        # 初始化存储各时间步的CRPS
+        crps_list = []
+        absorb_list = []
+        
+        # 对每个时间步分别计算CRPS
+        for t in range(time_steps):
+            pred_t = predictions[:, :, t, :, :]  # (B, 15, 32, 64)
+            target_t = targets[:, :, t, :, :]    # (B, 15, 32, 64)
+            
+            # 使用原有的单时间步计算方法
+            ensemble_size, channels, height, width = pred_t.shape
+            num_pixels = channels * height * width
+            
+            predictions_reshaped = pred_t.reshape(ensemble_size, num_pixels)
+            targets_reshaped = target_t.reshape(ensemble_size, num_pixels)
+            
+            abs_errors = th.abs(predictions_reshaped - targets_reshaped)
+            mean_abs_errors = abs_errors.mean(dim=0)
+            
+            predictions_a = predictions_reshaped.unsqueeze(1)
+            predictions_b = predictions_reshaped.unsqueeze(0)
+            pairwise_diff = th.abs(predictions_a - predictions_b)
+            mean_pairwise_diff = pairwise_diff.mean(dim=(0, 1))
+            
+            crps_t = mean_abs_errors - 0.5 * mean_pairwise_diff
+            absorb_t = 0.5 * mean_pairwise_diff / (mean_abs_errors + 1e-7)
+            
+            crps_list.append(crps_t.reshape(-1, 1, height, width))
+            absorb_list.append(absorb_t.reshape(-1, 1, height, width))
+        
+        # 合并所有时间步的结果
+        self.crps = th.stack(crps_list, dim=2)  # (B, 1, T, 32, 64)
+        self.absorb = th.stack(absorb_list, dim=2)  # (B, 1, T, 32, 64)
+        
+        # 计算整体平均CRPS
+        crps_mean = th.mean(th.stack([crps_t.mean() for crps_t in crps_list]))
+        absb_mean = th.mean(th.stack([absorb_t.mean() for absorb_t in absorb_list]))
+        
         return crps_mean, absb_mean
 
     def training_step(self, batch, batch_idx):
@@ -574,7 +580,7 @@ class GANModel(LightningModel):
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
+        inputs["seed"] = th.randn_like(inputs["data"][:, :,:1, :, :], dtype=th.float32)
 
         g_optimizer, d_optimizer = self.optimizers()
 
@@ -632,7 +638,7 @@ class GANModel(LightningModel):
         inputs, targets, indexies = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
+        inputs["seed"] = th.randn_like(inputs["data"][:, :,:1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(
             inputs, forecast, targets, indexes=indexies, mode="eval"
@@ -719,7 +725,7 @@ class GANModel(LightningModel):
         inputs, targets, indexies = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        inputs["seed"] = th.randn_like(inputs["data"][:, :1, :, :], dtype=th.float32)
+        inputs["seed"] = th.randn_like(inputs["data"][:, :,:1, :, :], dtype=th.float32)
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(
             inputs, forecast, targets, indexes=indexies, mode="test"
