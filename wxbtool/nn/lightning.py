@@ -532,16 +532,26 @@ class GANModel(LightningModel):
         if self.ci:
             return 0.1, 0.5
 
-        batch_size, channels, time_steps, height, width = predictions.shape
-        
+        # Support both 4D (B, T, H, W) and 5D (B, C, T, H, W)
+        if predictions.dim() == 4:
+            predictions5 = predictions.unsqueeze(1)
+            targets5 = targets.unsqueeze(1)
+        elif predictions.dim() == 5:
+            predictions5 = predictions
+            targets5 = targets
+        else:
+            raise ValueError(f"Unsupported predictions dim: {predictions.dim()}")
+
+        batch_size, channels, time_steps, height, width = predictions5.shape
+
         # 初始化存储各时间步的CRPS
         crps_list = []
         absorb_list = []
         
         # 对每个时间步分别计算CRPS
         for t in range(time_steps):
-            pred_t = predictions[:, :, t, :, :]  # (B, 15, 32, 64)
-            target_t = targets[:, :, t, :, :]    # (B, 15, 32, 64)
+            pred_t = predictions5[:, :, t, :, :]  # (B, C, 32, 64)
+            target_t = targets5[:, :, t, :, :]    # (B, C, 32, 64)
             
             # 使用原有的单时间步计算方法
             ensemble_size, channels, height, width = pred_t.shape
@@ -580,7 +590,14 @@ class GANModel(LightningModel):
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        inputs["seed"] = th.randn_like(inputs["data"][:, :,:1, :, :], dtype=th.float32)
+        data = inputs["data"]
+        if data.dim() == 5:
+            seed = th.randn_like(data[:, :, :1, :, :], dtype=th.float32)
+        elif data.dim() == 4:
+            seed = th.randn_like(data[:, :1, :, :], dtype=th.float32)
+        else:
+            seed = th.randn_like(data, dtype=th.float32)
+        inputs["seed"] = seed
 
         g_optimizer, d_optimizer = self.optimizers()
 
@@ -638,7 +655,14 @@ class GANModel(LightningModel):
         inputs, targets, indexies = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        inputs["seed"] = th.randn_like(inputs["data"][:, :,:1, :, :], dtype=th.float32)
+        data = inputs["data"]
+        if data.dim() == 5:
+            seed = th.randn_like(data[:, :, :1, :, :], dtype=th.float32)
+        elif data.dim() == 4:
+            seed = th.randn_like(data[:, :1, :, :], dtype=th.float32)
+        else:
+            seed = th.randn_like(data, dtype=th.float32)
+        inputs["seed"] = seed
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(
             inputs, forecast, targets, indexes=indexies, mode="eval"
@@ -725,7 +749,14 @@ class GANModel(LightningModel):
         inputs, targets, indexies = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        inputs["seed"] = th.randn_like(inputs["data"][:, :,:1, :, :], dtype=th.float32)
+        data = inputs["data"]
+        if data.dim() == 5:
+            seed = th.randn_like(data[:, :, :1, :, :], dtype=th.float32)
+        elif data.dim() == 4:
+            seed = th.randn_like(data[:, :1, :, :], dtype=th.float32)
+        else:
+            seed = th.randn_like(data, dtype=th.float32)
+        inputs["seed"] = seed
         forecast = self.generator(**inputs)
         forecast_loss = self.loss_fn(
             inputs, forecast, targets, indexes=indexies, mode="test"
