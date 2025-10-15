@@ -596,10 +596,12 @@ class GANModel(LightningModel):
 
     def training_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
-        # self.get_climatology(indexies, "train")
+        g_optimizer, d_optimizer = self.optimizers()
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
+
+        # 根据数据维度创建 seed
         data = inputs["data"]
         if data.dim() == 5:
             seed = th.randn_like(data[:, :, :1, :, :], dtype=th.float32)
@@ -609,53 +611,47 @@ class GANModel(LightningModel):
             seed = th.randn_like(data, dtype=th.float32)
         inputs["seed"] = seed
 
-        g_optimizer, d_optimizer = self.optimizers()
-
+        # --- Generator Update ---
         self.toggle_optimizer(g_optimizer)
+
         forecast = self.generator(**inputs)
-        real_judgement = self.discriminator(**inputs, target=targets["data"])
-        fake_judgement = self.discriminator(**inputs, target=forecast["data"])
-        forecast_loss = self.loss_fn(
-            inputs, forecast, targets, indexes=indexies, mode="train"
-        )
-        generate_loss = self.generator_loss(fake_judgement)
-        total_loss = self.alpha * forecast_loss + (1 - self.alpha) * generate_loss
-        self.manual_backward(total_loss)
+
+        fake_judgement_for_g = self.discriminator(**inputs, target=forecast["data"])
+        generate_loss = self.generator_loss(fake_judgement_for_g)
+        forecast_loss = self.loss_fn(inputs, forecast, targets, indexes=indexies, mode="train")
+        total_g_loss = self.alpha * forecast_loss + (1 - self.alpha) * generate_loss
+
+        self.manual_backward(total_g_loss)
         g_optimizer.step()
         g_optimizer.zero_grad()
-        realness = real_judgement["data"].mean().item()
-        fakeness = fake_judgement["data"].mean().item()
-        self.realness = realness
-        self.fakeness = fakeness
-        self.log("realness", self.realness, prog_bar=True, sync_dist=True)
-        self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
-        self.log("total", total_loss, prog_bar=True, sync_dist=True)
-        self.log("forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.untoggle_optimizer(g_optimizer)
 
+        self.log("total", total_g_loss, prog_bar=True)
+        self.log("forecast", forecast_loss, prog_bar=True)
+
+        # --- Discriminator Update ---
         self.toggle_optimizer(d_optimizer)
-        forecast = self.generator(**inputs)
-        forecast["data"] = forecast[
-            "data"
-        ].detach()  # Detach to avoid generator gradient updates
+
+        fake_data_detached = forecast["data"].detach()
+
         real_judgement = self.discriminator(**inputs, target=targets["data"])
-        fake_judgement = self.discriminator(**inputs, target=forecast["data"])
-        judgement_loss = self.discriminator_loss(real_judgement, fake_judgement)
+        fake_judgement_for_d = self.discriminator(**inputs, target=fake_data_detached)
+
+        judgement_loss = self.discriminator_loss(real_judgement, fake_judgement_for_d)
+
         self.manual_backward(judgement_loss)
         d_optimizer.step()
         d_optimizer.zero_grad()
-        realness = real_judgement["data"].mean().item()
-        fakeness = fake_judgement["data"].mean().item()
-        self.realness = realness
-        self.fakeness = fakeness
-        self.log("realness", self.realness, prog_bar=True, sync_dist=True)
-        self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
-        self.log("judgement", judgement_loss, prog_bar=True, sync_dist=True)
         self.untoggle_optimizer(d_optimizer)
 
-        if self.opt.plot == "true":
-            if batch_idx % 10 == 0:
-                self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
+        realness = real_judgement["data"].mean()
+        fakeness = fake_judgement_for_d["data"].mean()
+        self.log("realness", realness, prog_bar=True, sync_dist=True)
+        self.log("fakeness", fakeness, prog_bar=True, sync_dist=True)
+        self.log("judgement", judgement_loss, prog_bar=True, sync_dist=True)
+
+        if self.opt.plot == "true" and batch_idx % 10 == 0:
+            self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
 
     def validation_step(self, batch, batch_idx):
         # Skip validation for some batches in CI mode or if batch_idx > 2 in any mode
