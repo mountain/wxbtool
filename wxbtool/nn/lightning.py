@@ -490,6 +490,8 @@ class GANModel(LightningModel):
         if opt and hasattr(opt, "alpha"):
             self.alpha = float(opt.alpha)
 
+        self.crpsByVar = {}
+
     def configure_optimizers(self):
         # Separate optimizers for generator and discriminator
         g_optimizer = th.optim.Adam(
@@ -526,13 +528,14 @@ class GANModel(LightningModel):
 
     def compute_crps(self, predictions, targets):
         """
-        predictions: (B, 15, T, 32, 64) - 多时间步预测
-        targets: (B, 15, T, 32, 64) - 多时间步真实值
+        计算逐时间步的 CRPS，并返回形状为 (B, C, T, H, W) 的张量，兼容后续使用:
+          - crps.size(2) 用作时间步个数
+          - crps[:, cidx, tidx] 用作 (B, H, W) 的切片
+        predictions: (B, T, H, W) 或 (B, C, T, H, W)
+        targets:     (B, T, H, W) 或 (B, C, T, H, W)
+        其中 B 在 GAN 的 ensemble_loader 中恰好是集合大小。
         """
-        if self.ci:
-            return 0.1, 0.5
-
-        # Support both 4D (B, T, H, W) and 5D (B, C, T, H, W)
+        # 统一到 5D
         if predictions.dim() == 4:
             predictions5 = predictions.unsqueeze(1)
             targets5 = targets.unsqueeze(1)
@@ -542,47 +545,54 @@ class GANModel(LightningModel):
         else:
             raise ValueError(f"Unsupported predictions dim: {predictions.dim()}")
 
-        batch_size, channels, time_steps, height, width = predictions5.shape
+        B, C, T, H, W = predictions5.shape
 
-        # 初始化存储各时间步的CRPS
-        crps_list = []
-        absorb_list = []
-        
-        # 对每个时间步分别计算CRPS
-        for t in range(time_steps):
-            pred_t = predictions5[:, :, t, :, :]  # (B, C, 32, 64)
-            target_t = targets5[:, :, t, :, :]    # (B, C, 32, 64)
-            
-            # 使用原有的单时间步计算方法
-            ensemble_size, channels, height, width = pred_t.shape
-            num_pixels = channels * height * width
-            
-            predictions_reshaped = pred_t.reshape(ensemble_size, num_pixels)
-            targets_reshaped = target_t.reshape(ensemble_size, num_pixels)
-            
-            abs_errors = th.abs(predictions_reshaped - targets_reshaped)
-            mean_abs_errors = abs_errors.mean(dim=0)
-            
-            predictions_a = predictions_reshaped.unsqueeze(1)
-            predictions_b = predictions_reshaped.unsqueeze(0)
-            pairwise_diff = th.abs(predictions_a - predictions_b)
-            mean_pairwise_diff = pairwise_diff.mean(dim=(0, 1))
-            
-            crps_t = mean_abs_errors - 0.5 * mean_pairwise_diff
-            absorb_t = 0.5 * mean_pairwise_diff / (mean_abs_errors + 1e-7)
-            
-            crps_list.append(crps_t.reshape(-1, 1, height, width))
-            absorb_list.append(absorb_t.reshape(-1, 1, height, width))
-        
-        # 合并所有时间步的结果
-        self.crps = th.stack(crps_list, dim=2)  # (B, 1, T, 32, 64)
-        self.absorb = th.stack(absorb_list, dim=2)  # (B, 1, T, 32, 64)
-        
-        # 计算整体平均CRPS
-        crps_mean = th.mean(th.stack([crps_t.mean() for crps_t in crps_list]))
-        absb_mean = th.mean(th.stack([absorb_t.mean() for absorb_t in absorb_list]))
-        
-        return crps_mean, absb_mean
+        # CI 模式下跳过重计算，返回零张量（形状保持一致，便于后续 .size(2)/索引）
+        if self.ci:
+            zeros = predictions5.new_zeros((B, C, T, H, W))
+            self.crps = zeros
+            self.absorb = zeros
+            return zeros, zeros
+
+        crps_ts = []
+        absb_ts = []
+
+        for t in range(T):
+            # (B, C, H, W) -> (B, P) 其中 P=C*H*W
+            pred_t = predictions5[:, :, t, :, :].contiguous().view(B, C * H * W)
+            targ_t = targets5[:, :, t, :, :].contiguous().view(B, C * H * W)
+
+            # E|F - O|
+            abs_errors = th.abs(pred_t - targ_t)            # (B, P)
+            mean_abs_errors = abs_errors.mean(dim=0)        # (P,)
+
+            # E|F - F'|
+            pa = pred_t.unsqueeze(1)                         # (B, 1, P)
+            pb = pred_t.unsqueeze(0)                         # (1, B, P)
+            pairwise_diff = th.abs(pa - pb)                  # (B, B, P)
+            mean_pairwise_diff = pairwise_diff.mean(dim=(0, 1))  # (P,)
+
+            crps_vec = mean_abs_errors - 0.5 * mean_pairwise_diff     # (P,)
+            absb_vec = 0.5 * mean_pairwise_diff / (mean_abs_errors + 1e-7)  # (P,)
+
+            # 回到 (C, H, W)，并扩展 B 维保持 (B, C, H, W) 以兼容下游索引
+            crps_map = crps_vec.view(C, H, W)               # (C, H, W)
+            absb_map = absb_vec.view(C, H, W)               # (C, H, W)
+
+            crps_exp = crps_map.unsqueeze(0).expand(B, -1, -1, -1).contiguous()  # (B, C, H, W)
+            absb_exp = absb_map.unsqueeze(0).expand(B, -1, -1, -1).contiguous()  # (B, C, H, W)
+
+            crps_ts.append(crps_exp)
+            absb_ts.append(absb_exp)
+
+        crps = th.stack(crps_ts, dim=2)   # (B, C, T, H, W)
+        absb = th.stack(absb_ts, dim=2)   # (B, C, T, H, W)
+
+        # 保存到对象，供需要时使用
+        self.crps = crps
+        self.absorb = absb
+
+        return crps, absb
 
     def training_step(self, batch, batch_idx):
         inputs, targets, indexies = batch
@@ -670,26 +680,21 @@ class GANModel(LightningModel):
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
+        self.log("crps", crps.mean(), prog_bar=True, sync_dist=True)
+        self.log("absb", absb.mean(), prog_bar=True, sync_dist=True)
         crps = self.forecast_error(crps)
 
-        # mse_numerator, mse_denominator = self.compute_mse(targets, forecast)
-        # self.labeled_mse_numerator += mse_numerator
-        # self.labeled_mse_denominator += mse_denominator
-        # rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
-        # rmse = self.forecast_error(rmse)
-
         current_batch_size = forecast["data"].shape[0]
-        total_rmse = 0
-        for variable in self.model.setting.vars_out:
+        for cidx, variable in enumerate(self.model.setting.vars_out):
+            self.crpsByVar[variable] = dict()
             self.mseByVar[variable] = dict()
-            rmse = self.compute_rmse_by_time(targets, forecast, variable)
-            # self.log(f"val_rmse_{variable}", rmse, on_step=False, on_epoch=True,
-            #     batch_size=current_batch_size, sync_dist=True)
-            total_rmse += rmse
-
-            # Calculate the average RMSE across all variables
-
             self.accByVar[variable] = dict()
+
+            self.compute_rmse_by_time(targets, forecast, variable)
+
+            for tidx in range(crps.size(2)):
+                self.crpsByVar[variable][tidx + 1] = float(crps[:, cidx, tidx].mean().item())
+
             prod, fsum, osum = self.calculate_acc(
                 forecast[variable],
                 targets[variable],
@@ -713,33 +718,24 @@ class GANModel(LightningModel):
                 sync_dist=True,
             )
 
-        avg_rmse = total_rmse / len(self.model.setting.vars_out)
-        self.log(
-            "val_rmse",
-            avg_rmse,
-            on_step=False,
-            on_epoch=True,
-            batch_size=current_batch_size,
-            sync_dist=True,
-            prog_bar=True,
-        )
-        with open(os.path.join(self.logger.log_dir, "val_rmse.json"), "w") as f:
-            json.dump(self.mseByVar, f)
-        with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
-            json.dump(self.accByVar, f)
+        if hasattr(self.trainer, "is_global_zero") and self.trainer.is_global_zero:
+            with open(os.path.join(self.logger.log_dir, "val_crps.json"), "w") as f:
+                json.dump(self.crpsByVar, f)
+            with open(os.path.join(self.logger.log_dir, "val_rmse.json"), "w") as f:
+                json.dump(self.mseByVar, f)
+            with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
+                json.dump(self.accByVar, f)
 
         self.realness = real_judgement["data"].mean().item()
         self.fakeness = fake_judgement["data"].mean().item()
         self.log("realness", self.realness, prog_bar=True, sync_dist=True)
         self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
-        self.log("crps", crps, prog_bar=True, sync_dist=True)
-        self.log("absb", absb, prog_bar=True, sync_dist=True)
-        self.log("rmse", rmse, prog_bar=True, sync_dist=True)
         self.log("val_forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
 
-        if self.opt.plot == "true":
-            self.plot(inputs, forecast, targets, indexies, batch_idx, mode="eval")
+        if hasattr(self.trainer, "is_global_zero") and self.trainer.is_global_zero:
+            if self.opt.plot == "true":
+                self.plot(inputs, forecast, targets, indexies, batch_idx, mode="eval")
 
     def test_step(self, batch, batch_idx):
         # Skip test for some batches in CI mode or if batch_idx > 1 in any mode
@@ -810,8 +806,8 @@ class GANModel(LightningModel):
         self.log("realness", self.realness, prog_bar=True, sync_dist=True)
         self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
         self.log("forecast", forecast_loss, prog_bar=True, sync_dist=True)
-        self.log("crps", crps, prog_bar=True, sync_dist=True)
-        self.log("absb", absb, prog_bar=True, sync_dist=True)
+        self.log("crps", crps.mean(), prog_bar=True, sync_dist=True)
+        self.log("absb", absb.mean(), prog_bar=True, sync_dist=True)
         # self.log("acc", acc, prog_bar=True, sync_dist=True)
         self.log("rmse", rmse, prog_bar=True, sync_dist=True)
 
