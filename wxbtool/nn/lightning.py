@@ -477,8 +477,8 @@ class GANModel(LightningModel):
         self.automatic_optimization = False
         self.realness = 0.5
         self.fakeness = 0.5
-        self.alpha = self.register_buffer('alpha', th.tensor(0.5))
         self.crps = None
+        self.register_buffer('alpha', th.tensor(0.5))
 
         self.learning_rate = 1e-4
         self.generator.learning_rate = 1e-4
