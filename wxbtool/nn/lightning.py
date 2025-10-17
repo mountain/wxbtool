@@ -797,12 +797,11 @@ class GANModel(LightningModel):
         if not self.ci or batch_idx == 0:
             self.plot(inputs, forecast, targets, indexies, batch_idx, mode="test")
 
-    def on_validation_epoch_end(self):
-        balance = self.realness - self.fakeness
-        self.log("balance", balance)
-        if abs(balance - self.opt.balance) < self.opt.tolerance:
-            self.trainer.should_stop = True
-
+    def on_fit_start(self):
+        _apply_sn_inplace(self.discriminator)
+        self.discriminator.to(self.device)
+        self.generator.to(self.device)
+    
     def val_dataloader(self):
         if self.model.dataset_eval is None:
             if self.opt.data != "":
@@ -836,8 +835,13 @@ class GANModel(LightningModel):
         )
 
 
-def apply_spectral_norm(m):
-    for name, module in m.named_modules():
-        if isinstance(module, (th.nn.Conv2d, th.nn.Conv3d, th.nn.Linear)):
-            nn_utils.spectral_norm(module)
-    return m
+def _apply_sn_inplace(module: nn.Module):
+    for m in module.modules():
+        if isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.Linear)):
+            try:
+                nn_utils.remove_spectral_norm(m)
+            except Exception:
+                pass
+    for m in module.modules():
+        if isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.Linear)):
+            nn_utils.spectral_norm(m) 
