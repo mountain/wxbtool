@@ -490,8 +490,8 @@ class GANModel(LightningModel):
             self.generator.learning_rate = learning_rate
             self.discriminator.learning_rate = learning_rate / ratio
 
-        if opt and hasattr(opt, "alpha"):
-            self.alpha = float(opt.alpha)
+        # if opt and hasattr(opt, "alpha"):
+        #    self.alpha = float(opt.alpha)
 
         self.crpsByVar = {}
 
