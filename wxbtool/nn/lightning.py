@@ -4,6 +4,7 @@ import lightning as ltn
 import numpy as np
 import torch as th
 import torch.optim as optim
+import torch.nn as nn
 import torch.nn.utils as nn_utils
 
 from collections import defaultdict
