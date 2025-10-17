@@ -477,7 +477,7 @@ class GANModel(LightningModel):
         self.automatic_optimization = False
         self.realness = 0.5
         self.fakeness = 0.5
-        self.alpha = 0.5
+        self.alpha = self.register_buffer('alpha', th.tensor(0.5))
         self.crps = None
 
         self.learning_rate = 1e-4
@@ -657,9 +657,8 @@ class GANModel(LightningModel):
         error = 0.5 - self.fakeness
         new_lr_g = self.generator.learning_rate * (1 + error)
         new_lr_d = self.discriminator.learning_rate * (1 - error)
-        new_alpha = self.alpha * (1 - self.realness + self.fakeness)
 
-        self.alpha = new_alpha
+        self.alpha = self.alpha * (1 - self.realness + self.fakeness)
         for param_group in g_optimizer.param_groups:
             param_group['lr'] = new_lr_g
             self.generator.learning_rate = new_lr_g
