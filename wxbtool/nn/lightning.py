@@ -474,12 +474,15 @@ class GANModel(LightningModel):
         super(GANModel, self).__init__(generator, opt=opt)
         self.generator = generator
         self.discriminator = discriminator
-        self.learning_rate = 1e-4  # Adjusted for GANs
         self.automatic_optimization = False
-        self.realness = 0
-        self.fakeness = 1
+        self.realness = 0.5
+        self.fakeness = 0.5
         self.alpha = 0.5
         self.crps = None
+
+        self.learning_rate = 1e-4
+        self.register_buffer('moving_avg_fakeness', th.tensor(0.5))
+        self.moving_avg_alpha = 0.9
 
         if opt and hasattr(opt, "rate"):
             learning_rate = float(opt.rate)
@@ -588,7 +591,6 @@ class GANModel(LightningModel):
         crps = th.stack(crps_ts, dim=2)   # (B, C, T, H, W)
         absb = th.stack(absb_ts, dim=2)   # (B, C, T, H, W)
 
-        # 保存到对象，供需要时使用
         self.crps = crps
         self.absorb = absb
 
@@ -601,7 +603,7 @@ class GANModel(LightningModel):
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
 
-        # 根据数据维度创建 seed
+        # seed
         data = inputs["data"]
         if data.dim() == 5:
             seed = th.randn_like(data[:, :, :1, :, :], dtype=th.float32)
@@ -652,6 +654,32 @@ class GANModel(LightningModel):
 
         if self.opt.plot == "true" and batch_idx % 10 == 0:
             self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
+
+        # --- Update moving average of fakeness ---
+        current_fakeness = self.fakeness
+        self.moving_avg_fakeness = (
+                self.moving_avg_alpha * self.moving_avg_fakeness +
+                (1 - self.moving_avg_alpha) * current_fakeness
+        )
+
+        # --- TTUR: two-time-scale update rule ---
+        min_lr = 1e-6
+        max_lr = 5e-4
+        error = 0.5 - self.moving_avg_fakeness
+        new_lr_g = self.generator.learning_rate * (1 + error)
+        new_lr_d = self.discriminator.learning_rate * (1 - error)
+        new_lr_g = th.clamp(th.tensor(new_lr_g), min=min_lr, max=max_lr).item()
+        new_lr_d = th.clamp(th.tensor(new_lr_d), min=min_lr, max=max_lr).item()
+
+        for param_group in g_optimizer.param_groups:
+            param_group['lr'] = new_lr_g
+            self.generator.learning_rate = new_lr_g
+        for param_group in d_optimizer.param_groups:
+            param_group['lr'] = new_lr_d
+            self.discriminator.learning_rate = new_lr_d
+
+        self.log("lr_g", new_lr_g, prog_bar=True)
+        self.log("lr_d", new_lr_d, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
         # Skip validation for some batches in CI mode or if batch_idx > 2 in any mode
