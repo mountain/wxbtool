@@ -63,6 +63,7 @@ class UniversalLoggingCallback(pl.Callback):
     # Flush at key moments
     def on_train_batch_end(self, trainer: pl.Trainer, pl_module, outputs, batch, batch_idx: int) -> None:
         self._flush_artifacts(trainer, pl_module)
+        print(flush=True)
 
     def on_validation_epoch_end(self, trainer: pl.Trainer, pl_module) -> None:
         self._flush_artifacts(trainer, pl_module)
