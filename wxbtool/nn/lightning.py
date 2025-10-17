@@ -485,7 +485,7 @@ class GANModel(LightningModel):
         self.discriminator.learning_rate = 1e-4
         self.register_buffer('moving_avg_fakeness', th.tensor(0.5))
         self.register_buffer('moving_avg_realness', th.tensor(0.5))
-        self.moving_avg_alpha = 0.5
+        self.moving_avg_alpha = 0.0
 
         if opt and hasattr(opt, "rate"):
             learning_rate = float(opt.rate)
@@ -673,7 +673,7 @@ class GANModel(LightningModel):
         new_alpha = self.alpha * (1 - self.moving_avg_realness + self.moving_avg_fakeness)
         new_lr_g = th.clamp(th.tensor(new_lr_g), min=1e-6, max=1e-3).item()
         new_lr_d = th.clamp(th.tensor(new_lr_d), min=1e-6, max=1e-3).item()
-        new_alpha = th.clamp(th.tensor(new_alpha), min=0.2, max=0.8).item()
+        new_alpha = th.clamp(th.tensor(new_alpha), min=0.1, max=0.9).item()
 
         self.alpha = new_alpha
         for param_group in g_optimizer.param_groups:
