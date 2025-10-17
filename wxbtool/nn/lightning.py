@@ -481,9 +481,11 @@ class GANModel(LightningModel):
         self.crps = None
 
         self.learning_rate = 1e-4
+        self.generator.learning_rate = 1e-4
+        self.discriminator.learning_rate = 1e-4
         self.register_buffer('moving_avg_fakeness', th.tensor(0.5))
         self.register_buffer('moving_avg_realness', th.tensor(0.5))
-        self.moving_avg_alpha = 0.9
+        self.moving_avg_alpha = 0.5
 
         if opt and hasattr(opt, "rate"):
             learning_rate = float(opt.rate)
@@ -498,11 +500,11 @@ class GANModel(LightningModel):
 
     def configure_optimizers(self):
         # Separate optimizers for generator and discriminator
-        g_optimizer = th.optim.Adam(
-            self.generator.parameters(), lr=self.generator.learning_rate
+        g_optimizer = th.optim.AdamW(
+            self.generator.parameters(), lr=self.generator.learning_rate, weight_decay=0.1, betas=(0.9, 0.95),
         )
-        d_optimizer = th.optim.Adam(
-            self.discriminator.parameters(), lr=self.discriminator.learning_rate
+        d_optimizer = th.optim.AdamW(
+            self.discriminator.parameters(), lr=self.discriminator.learning_rate, weight_decay=0.1, betas=(0.9, 0.95),
         )
         return [g_optimizer, d_optimizer], []
 
