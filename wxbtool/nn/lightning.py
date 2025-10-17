@@ -654,21 +654,27 @@ class GANModel(LightningModel):
             self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
 
         # --- TTUR: two-time-scale update rule ---
-        error = 0.5 - self.fakeness
-        new_lr_g = self.generator.learning_rate * (1 + error)
-        new_lr_d = self.discriminator.learning_rate * (1 - error)
+        self.realness = realness.detach()
+        self.fakeness = fakeness.detach()
 
-        self.alpha = self.alpha * (1 - self.realness + self.fakeness)
-        for param_group in g_optimizer.param_groups:
-            param_group['lr'] = new_lr_g
-            self.generator.learning_rate = new_lr_g
-        for param_group in d_optimizer.param_groups:
-            param_group['lr'] = new_lr_d
-            self.discriminator.learning_rate = new_lr_d
+        error = 0.5 - fakeness.detach()
+        new_lr_g = float(self.generator.learning_rate * (1 + error))
+        new_lr_d = float(self.discriminator.learning_rate * (1 - error))
 
-        self.log("lr_g", new_lr_g, prog_bar=True)
-        self.log("lr_d", new_lr_d, prog_bar=True)
-        self.log("alpha", self.alpha, prog_bar=True)
+        for pg in g_optimizer.param_groups:
+            pg["lr"] = new_lr_g
+        self.generator.learning_rate = new_lr_g
+
+        for pg in d_optimizer.param_groups:
+            pg["lr"] = new_lr_d
+        self.discriminator.learning_rate = new_lr_d
+
+        with th.no_grad():
+            self.alpha.mul_(1 - realness.detach() + fakeness.detach())
+
+        self.log("lr_g", new_lr_g, prog_bar=True, sync_dist=True)
+        self.log("lr_d", new_lr_d, prog_bar=True, sync_dist=True)
+        self.log("alpha", self.alpha, prog_bar=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
         # Skip validation for some batches in CI mode or if batch_idx > 2 in any mode
