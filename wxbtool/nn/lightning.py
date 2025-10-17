@@ -475,7 +475,6 @@ class GANModel(LightningModel):
         super(GANModel, self).__init__(generator, opt=opt)
         self.generator = generator
         self.discriminator = discriminator
-        self.discriminator = apply_spectral_norm(self.discriminator) # Hinge + SN
         self.automatic_optimization = False
         self.crps = None
         self.alpha = 0.5
