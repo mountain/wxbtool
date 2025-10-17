@@ -658,9 +658,6 @@ class GANModel(LightningModel):
         new_lr_g = self.generator.learning_rate * (1 + error)
         new_lr_d = self.discriminator.learning_rate * (1 - error)
         new_alpha = self.alpha * (1 - self.realness + self.fakeness)
-        new_lr_g = th.clamp(th.tensor(new_lr_g), min=1e-6, max=1e-3).item()
-        new_lr_d = th.clamp(th.tensor(new_lr_d), min=1e-6, max=1e-3).item()
-        new_alpha = th.clamp(th.tensor(new_alpha), min=0.1, max=0.9).item()
 
         self.alpha = new_alpha
         for param_group in g_optimizer.param_groups:
