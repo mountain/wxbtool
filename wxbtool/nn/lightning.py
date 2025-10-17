@@ -504,9 +504,7 @@ class GANModel(LightningModel):
         d_optimizer = th.optim.Adam(
             self.discriminator.parameters(), lr=self.discriminator.learning_rate
         )
-        g_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(g_optimizer, 37)
-        d_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(d_optimizer, 37)
-        return [g_optimizer, d_optimizer], [g_scheduler, d_scheduler]
+        return [g_optimizer, d_optimizer], []
 
     def generator_loss(self, fake_judgement):
         # Loss for generator (we want the discriminator to predict all generated images as real)
