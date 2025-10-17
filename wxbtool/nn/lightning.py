@@ -657,7 +657,7 @@ class GANModel(LightningModel):
         self.realness = realness.detach()
         self.fakeness = fakeness.detach()
 
-        error = 0.5 - fakeness.detach()
+        error = (0.5 - fakeness.detach()) * 0.1  # scaling factor
         new_lr_g = float(self.generator.learning_rate * (1 + error))
         new_lr_d = float(self.discriminator.learning_rate * (1 - error))
 
