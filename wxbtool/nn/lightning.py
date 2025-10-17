@@ -482,6 +482,7 @@ class GANModel(LightningModel):
 
         self.learning_rate = 1e-4
         self.register_buffer('moving_avg_fakeness', th.tensor(0.5))
+        self.register_buffer('moving_avg_realness', th.tensor(0.5))
         self.moving_avg_alpha = 0.9
 
         if opt and hasattr(opt, "rate"):
@@ -656,21 +657,25 @@ class GANModel(LightningModel):
             self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
 
         # --- Update moving average of fakeness ---
-        current_fakeness = self.fakeness
         self.moving_avg_fakeness = (
                 self.moving_avg_alpha * self.moving_avg_fakeness +
-                (1 - self.moving_avg_alpha) * current_fakeness
+                (1 - self.moving_avg_alpha) * self.fakeness
+        )
+        self.moving_avg_realness = (
+                self.moving_avg_alpha * self.moving_avg_realness +
+                (1 - self.moving_avg_alpha) * self.realness
         )
 
         # --- TTUR: two-time-scale update rule ---
-        min_lr = 1e-6
-        max_lr = 5e-4
         error = 0.5 - self.moving_avg_fakeness
         new_lr_g = self.generator.learning_rate * (1 + error)
         new_lr_d = self.discriminator.learning_rate * (1 - error)
-        new_lr_g = th.clamp(th.tensor(new_lr_g), min=min_lr, max=max_lr).item()
-        new_lr_d = th.clamp(th.tensor(new_lr_d), min=min_lr, max=max_lr).item()
+        new_alpha = self.alpha * (1 - self.moving_avg_realness + self.moving_avg_fakeness)
+        new_lr_g = th.clamp(th.tensor(new_lr_g), min=1e-6, max=1e-3).item()
+        new_lr_d = th.clamp(th.tensor(new_lr_d), min=1e-6, max=1e-3).item()
+        new_alpha = th.clamp(th.tensor(new_alpha), min=0.2, max=0.8).item()
 
+        self.alpha = new_alpha
         for param_group in g_optimizer.param_groups:
             param_group['lr'] = new_lr_g
             self.generator.learning_rate = new_lr_g
@@ -680,6 +685,7 @@ class GANModel(LightningModel):
 
         self.log("lr_g", new_lr_g, prog_bar=True)
         self.log("lr_d", new_lr_d, prog_bar=True)
+        self.log("alpha", self.alpha, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
         # Skip validation for some batches in CI mode or if batch_idx > 2 in any mode
