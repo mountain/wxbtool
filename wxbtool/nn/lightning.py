@@ -483,9 +483,6 @@ class GANModel(LightningModel):
         self.learning_rate = 1e-4
         self.generator.learning_rate = 1e-4
         self.discriminator.learning_rate = 1e-4
-        self.register_buffer('moving_avg_fakeness', th.tensor(0.5))
-        self.register_buffer('moving_avg_realness', th.tensor(0.5))
-        self.moving_avg_alpha = 0.0
 
         if opt and hasattr(opt, "rate"):
             learning_rate = float(opt.rate)
@@ -656,21 +653,11 @@ class GANModel(LightningModel):
         if self.opt.plot == "true" and batch_idx % 10 == 0:
             self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
 
-        # --- Update moving average of fakeness ---
-        self.moving_avg_fakeness = (
-                self.moving_avg_alpha * self.moving_avg_fakeness +
-                (1 - self.moving_avg_alpha) * self.fakeness
-        )
-        self.moving_avg_realness = (
-                self.moving_avg_alpha * self.moving_avg_realness +
-                (1 - self.moving_avg_alpha) * self.realness
-        )
-
         # --- TTUR: two-time-scale update rule ---
-        error = 0.5 - self.moving_avg_fakeness
+        error = 0.5 - self.fakeness
         new_lr_g = self.generator.learning_rate * (1 + error)
         new_lr_d = self.discriminator.learning_rate * (1 - error)
-        new_alpha = self.alpha * (1 - self.moving_avg_realness + self.moving_avg_fakeness)
+        new_alpha = self.alpha * (1 - self.realness + self.fakeness)
         new_lr_g = th.clamp(th.tensor(new_lr_g), min=1e-6, max=1e-3).item()
         new_lr_d = th.clamp(th.tensor(new_lr_d), min=1e-6, max=1e-3).item()
         new_alpha = th.clamp(th.tensor(new_alpha), min=0.1, max=0.9).item()
