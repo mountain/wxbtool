@@ -1,13 +1,13 @@
 import json
 import os
-from collections import defaultdict
-
 import lightning as ltn
 import numpy as np
 import torch as th
 import torch.optim as optim
-from torch.utils.data import DataLoader
+import torch.nn.utils as nn_utils
 
+from collections import defaultdict
+from torch.utils.data import DataLoader
 from wxbtool.data.climatology import ClimatologyAccessor
 from wxbtool.data.dataset import ensemble_loader
 from wxbtool.nn.metrics import (
@@ -473,12 +473,11 @@ class GANModel(LightningModel):
     def __init__(self, generator, discriminator, opt=None):
         super(GANModel, self).__init__(generator, opt=opt)
         self.generator = generator
-        self.discriminator = discriminator
+        # self.discriminator = discriminator
+        self.discriminator = apply_spectral_norm(self.discriminator) # Hinge + SN
         self.automatic_optimization = False
-        self.realness = 0.5
-        self.fakeness = 0.5
         self.crps = None
-        self.register_buffer('alpha', th.tensor(0.5))
+        self.alpha = 0.5
 
         self.learning_rate = 1e-4
         self.generator.learning_rate = 1e-4
@@ -490,8 +489,8 @@ class GANModel(LightningModel):
             self.generator.learning_rate = learning_rate
             self.discriminator.learning_rate = learning_rate / ratio
 
-        # if opt and hasattr(opt, "alpha"):
-        #    self.alpha = float(opt.alpha)
+        if opt and hasattr(opt, "alpha"):
+            self.alpha = float(opt.alpha)
 
         self.crpsByVar = {}
 
@@ -507,22 +506,15 @@ class GANModel(LightningModel):
 
     def generator_loss(self, fake_judgement):
         # Loss for generator (we want the discriminator to predict all generated images as real)
-        return th.nn.functional.binary_cross_entropy_with_logits(
-            fake_judgement["data"],
-            th.ones_like(fake_judgement["data"], dtype=th.float32),
-        )
+        return -fake_judgement["data"].mean()
 
     def discriminator_loss(self, real_judgement, fake_judgement):
         # Loss for discriminator (real images should be classified as real, fake images as fake)
-        real_loss = th.nn.functional.binary_cross_entropy_with_logits(
-            real_judgement["data"],
-            th.ones_like(real_judgement["data"], dtype=th.float32),
-        )
-        fake_loss = th.nn.functional.binary_cross_entropy_with_logits(
-            fake_judgement["data"],
-            th.zeros_like(fake_judgement["data"], dtype=th.float32),
-        )
-        return (real_loss + fake_loss) / 2
+        real = real_judgement["data"]
+        fake = fake_judgement["data"]
+        loss_real = th.relu(1.0 - real).mean()  # max(0, 1 - D(real))
+        loss_fake = th.relu(1.0 + fake).mean()  # max(0, 1 + D(fake))
+        return loss_real + loss_fake
 
     def forecast_error(self, rmse):
         return self.generator.forecast_error(rmse)
@@ -644,37 +636,14 @@ class GANModel(LightningModel):
         d_optimizer.zero_grad()
         self.untoggle_optimizer(d_optimizer)
 
-        realness = real_judgement["data"].mean()
-        fakeness = fake_judgement_for_d["data"].mean()
-        self.log("realness", realness, prog_bar=True, sync_dist=True)
-        self.log("fakeness", fakeness, prog_bar=True, sync_dist=True)
+        critic_real = real_judgement["data"].mean()
+        critic_fake = fake_judgement_for_d["data"].mean()
+        self.log("realness", critic_real, prog_bar=True, sync_dist=True)
+        self.log("fakeness", critic_fake, prog_bar=True, sync_dist=True)
         self.log("judgement", judgement_loss, prog_bar=True, sync_dist=True)
 
         if self.opt.plot == "true" and batch_idx % 10 == 0:
             self.plot(inputs, forecast, targets, indexies, batch_idx, mode="train")
-
-        # --- TTUR: two-time-scale update rule ---
-        self.realness = realness.detach()
-        self.fakeness = fakeness.detach()
-
-        error = (0.5 - fakeness.detach()) * 0.1  # scaling factor
-        new_lr_g = float(self.generator.learning_rate * (1 + error))
-        new_lr_d = float(self.discriminator.learning_rate * (1 - error))
-
-        for pg in g_optimizer.param_groups:
-            pg["lr"] = new_lr_g
-        self.generator.learning_rate = new_lr_g
-
-        for pg in d_optimizer.param_groups:
-            pg["lr"] = new_lr_d
-        self.discriminator.learning_rate = new_lr_d
-
-        with th.no_grad():
-            self.alpha.mul_(1 - realness.detach() + fakeness.detach())
-
-        self.log("lr_g", new_lr_g, prog_bar=True, sync_dist=True)
-        self.log("lr_d", new_lr_d, prog_bar=True, sync_dist=True)
-        self.log("alpha", self.alpha, prog_bar=True, sync_dist=True)
 
     def validation_step(self, batch, batch_idx):
         # Skip validation for some batches in CI mode or if batch_idx > 2 in any mode
@@ -745,10 +714,10 @@ class GANModel(LightningModel):
             with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
                 json.dump(self.accByVar, f)
 
-        self.realness = real_judgement["data"].mean().item()
-        self.fakeness = fake_judgement["data"].mean().item()
-        self.log("realness", self.realness, prog_bar=True, sync_dist=True)
-        self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
+        critic_real = real_judgement["data"].mean().item()
+        critic_fake = fake_judgement["data"].mean().item()
+        self.log("realness", critic_real, prog_bar=True, sync_dist=True)
+        self.log("fakeness", critic_fake, prog_bar=True, sync_dist=True)
         self.log("val_forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
 
@@ -762,6 +731,8 @@ class GANModel(LightningModel):
             return
 
         inputs, targets, indexies = batch
+        current_batch_size = inputs[self.model.setting.vars[0]].shape[0]
+
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
         data = inputs["data"]
@@ -778,57 +749,49 @@ class GANModel(LightningModel):
         )
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
-        self.realness = real_judgement["data"].mean().item()
-        self.fakeness = fake_judgement["data"].mean().item()
+        critic_real = real_judgement["data"].mean().item()
+        critic_fake = fake_judgement["data"].mean().item()
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
 
         total_rmse = 0
-        current_batch_size = forecast["data"].shape[0]
         for variable in self.model.setting.vars_out:
-            rmse = self.compute_rmse(targets, forecast, variable)
-            self.log(
-                f"val_rmse_{variable}",
-                rmse,
-                on_step=False,
-                on_epoch=True,
-                batch_size=current_batch_size,
-                sync_dist=True,
+            self.mseByVar[variable] = dict()
+            self.accByVar[variable] = dict()
+
+            total_rmse += self.compute_rmse_by_time(targets, forecast, variable)
+            prod, fsum, osum = self.calculate_acc(
+                forecast[variable],
+                targets[variable],
+                indexes=indexies,
+                variable=variable,
+                mode="test",
             )
-            total_rmse += rmse
+            self.labeled_acc_prod_term[variable] += prod
+            self.labeled_acc_fsum_term[variable] += fsum
+            self.labeled_acc_osum_term[variable] += osum
 
-            # Calculate the average RMSE across all variables
-            avg_rmse = total_rmse / len(self.model.setting.vars_out)
-            self.log(
-                "val_rmse",
-                avg_rmse,
-                on_step=False,
-                on_epoch=True,
-                batch_size=current_batch_size,
-                sync_dist=True,
-                prog_bar=True,
-            )
+        avg_rmse = total_rmse / len(self.model.setting.vars_out)
+        self.log(
+            "test_rmse",
+            avg_rmse,
+            on_step=False,
+            on_epoch=True,
+            batch_size=current_batch_size,
+            sync_dist=True,
+            prog_bar=True,
+        )
 
-        # self.labeled_mse_numerator += mse_numerator
-        # self.labeled_mse_denominator += mse_denominator
-        # rmse = np.sqrt(self.labeled_mse_numerator / self.labeled_mse_denominator)
+        if hasattr(self.trainer, "is_global_zero") and self.trainer.is_global_zero:
+            with open(os.path.join(self.logger.log_dir, "test_rmse.json"), "w") as f:
+                json.dump(self.mseByVar, f)
+            with open(os.path.join(self.logger.log_dir, "test_acc.json"), "w") as f:
+                json.dump(self.accByVar, f)
 
-        # prod, fsum, osum = self.calculate_acc(
-        #     forecast["data"], targets["data"], indexies, mode="test"
-        # )
-        # self.labeled_acc_prod_term += prod
-        # self.labeled_acc_fsum_term += fsum
-        # self.labeled_acc_osum_term += osum
-        # acc = self.labeled_acc_prod_term / np.sqrt(
-        #     self.labeled_acc_fsum_term * self.labeled_acc_osum_term
-        # )
-
-        self.log("realness", self.realness, prog_bar=True, sync_dist=True)
-        self.log("fakeness", self.fakeness, prog_bar=True, sync_dist=True)
+        self.log("realness", critic_real, prog_bar=True, sync_dist=True)
+        self.log("fakeness", critic_fake, prog_bar=True, sync_dist=True)
         self.log("forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("crps", crps.mean(), prog_bar=True, sync_dist=True)
         self.log("absb", absb.mean(), prog_bar=True, sync_dist=True)
-        # self.log("acc", acc, prog_bar=True, sync_dist=True)
-        self.log("rmse", rmse, prog_bar=True, sync_dist=True)
 
         # Only plot for the first batch in CI mode
         if not self.ci or batch_idx == 0:
@@ -871,3 +834,10 @@ class GANModel(LightningModel):
             batch_size,
             False,
         )
+
+
+def apply_spectral_norm(m):
+    for name, module in m.named_modules():
+        if isinstance(module, (th.nn.Conv2d, th.nn.Conv3d, th.nn.Linear)):
+            nn_utils.spectral_norm(module)
+    return m
