@@ -496,11 +496,11 @@ class GANModel(LightningModel):
 
     def configure_optimizers(self):
         # Separate optimizers for generator and discriminator
-        g_optimizer = th.optim.AdamW(
-            self.generator.parameters(), lr=self.generator.learning_rate, weight_decay=0.0, betas=(0.5, 0.999),
+        g_optimizer = th.optim.Adam(
+            self.generator.parameters(), lr=self.generator.learning_rate, weight_decay=0.0, betas=(0.0, 0.9),
         )
-        d_optimizer = th.optim.AdamW(
-            self.discriminator.parameters(), lr=self.discriminator.learning_rate, weight_decay=0.0, betas=(0.5, 0.999),
+        d_optimizer = th.optim.Adam(
+            self.discriminator.parameters(), lr=self.discriminator.learning_rate, weight_decay=0.0, betas=(0.0, 0.9),
         )
         return [g_optimizer, d_optimizer], []
 
