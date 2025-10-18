@@ -497,10 +497,10 @@ class GANModel(LightningModel):
     def configure_optimizers(self):
         # Separate optimizers for generator and discriminator
         g_optimizer = th.optim.AdamW(
-            self.generator.parameters(), lr=self.generator.learning_rate, weight_decay=0.1, betas=(0.9, 0.95),
+            self.generator.parameters(), lr=self.generator.learning_rate, weight_decay=0.0, betas=(0.5, 0.999),
         )
         d_optimizer = th.optim.AdamW(
-            self.discriminator.parameters(), lr=self.discriminator.learning_rate, weight_decay=0.1, betas=(0.9, 0.95),
+            self.discriminator.parameters(), lr=self.discriminator.learning_rate, weight_decay=0.0, betas=(0.5, 0.999),
         )
         return [g_optimizer, d_optimizer], []
 
@@ -638,8 +638,8 @@ class GANModel(LightningModel):
 
         critic_real = real_judgement["data"].mean()
         critic_fake = fake_judgement_for_d["data"].mean()
-        self.log("realness", critic_real, prog_bar=True, sync_dist=True)
-        self.log("fakeness", critic_fake, prog_bar=True, sync_dist=True)
+        self.log("critic_real", critic_real, prog_bar=True, sync_dist=True)
+        self.log("critic_fake", critic_fake, prog_bar=True, sync_dist=True)
         self.log("judgement", judgement_loss, prog_bar=True, sync_dist=True)
 
         if self.opt.plot == "true" and batch_idx % 10 == 0:
@@ -716,8 +716,8 @@ class GANModel(LightningModel):
 
         critic_real = real_judgement["data"].mean().item()
         critic_fake = fake_judgement["data"].mean().item()
-        self.log("realness", critic_real, prog_bar=True, sync_dist=True)
-        self.log("fakeness", critic_fake, prog_bar=True, sync_dist=True)
+        self.log("critic_real", critic_real, prog_bar=True, sync_dist=True)
+        self.log("critic_fake", critic_fake, prog_bar=True, sync_dist=True)
         self.log("val_forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
 
@@ -787,8 +787,8 @@ class GANModel(LightningModel):
             with open(os.path.join(self.logger.log_dir, "test_acc.json"), "w") as f:
                 json.dump(self.accByVar, f)
 
-        self.log("realness", critic_real, prog_bar=True, sync_dist=True)
-        self.log("fakeness", critic_fake, prog_bar=True, sync_dist=True)
+        self.log("critic_real", critic_real, prog_bar=True, sync_dist=True)
+        self.log("critic_fake", critic_fake, prog_bar=True, sync_dist=True)
         self.log("forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("crps", crps.mean(), prog_bar=True, sync_dist=True)
         self.log("absb", absb.mean(), prog_bar=True, sync_dist=True)
