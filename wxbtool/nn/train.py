@@ -47,14 +47,6 @@ def main(context, opt):
                 model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
             model.generator.learning_rate = generator_lr
             model.discriminator.learning_rate = discriminator_lr
-
-            trainer = configure_trainer(
-                opt,
-                callbacks=[UniversalLoggingCallback()],
-                precision=precision,
-                max_epochs=n_epochs,
-                strategy="ddp_find_unused_parameters_true",
-            )
         else:
             learning_rate = float(opt.rate)
             if opt.load:
@@ -64,27 +56,27 @@ def main(context, opt):
             else:
                 model = LightningModel(mdm.model, opt=opt)
             model.learning_rate = learning_rate
-            checkpoint_callback = ModelCheckpoint(
-                monitor="val_loss",
-                filename="best-{epoch:03d}-{val_loss:.3f}",
-                save_top_k=5,
-                mode="min",
-                dirpath=f"trains/{model.model.name}",
-                save_weights_only=False,
-            )
 
-            callbacks = [
-                EarlyStopping(monitor="val_loss", mode="min", patience=50),
-                checkpoint_callback,
-                UniversalLoggingCallback(),
-            ]
-            trainer = configure_trainer(
-                opt,
-                callbacks=callbacks,
-                precision=precision,
-                max_epochs=n_epochs,
-                strategy="ddp_find_unused_parameters_true",
-            )
+        checkpoint_callback = ModelCheckpoint(
+            monitor="val_loss",
+            filename="best-{epoch:03d}-{val_loss:.3f}",
+            save_top_k=5,
+            mode="min",
+            dirpath=f"trains/{model.model.name}",
+            save_weights_only=False,
+        )
+        callbacks = [
+            EarlyStopping(monitor="val_loss", mode="min", patience=10),
+            checkpoint_callback,
+            UniversalLoggingCallback(),
+        ]
+        trainer = configure_trainer(
+            opt,
+            callbacks=callbacks,
+            precision=precision,
+            max_epochs=n_epochs,
+            strategy="ddp_find_unused_parameters_true",
+        )
 
         trainer.fit(model)
         trainer.test(model=model, dataloaders=model.test_dataloader())
