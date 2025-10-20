@@ -11,9 +11,9 @@ import xarray as xr
 
 import wxbtool.config as config
 from wxbtool.data.dataset import WxDataset
-from wxbtool.nn.lightning import LightningModel
+from wxbtool.lightning.seq2seq import Seq2SeqModel
 from wxbtool.util.plotter import plot
-from wxbtool.nn.config import get_runtime_device, detect_torchrun, is_rank_zero
+from wxbtool.framework.config import get_runtime_device, detect_torchrun, is_rank_zero
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -32,7 +32,7 @@ def main(context, opt):
         sys.path.insert(0, os.getcwd())
         device = get_runtime_device(opt)
         mdm = importlib.import_module(opt.module, package=None)
-        model = LightningModel(mdm.model, opt=opt)
+        model = Seq2SeqModel(mdm.model, opt=opt)
 
         # Load the model checkpoint if provided
         if opt.load:

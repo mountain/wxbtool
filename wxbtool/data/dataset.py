@@ -17,7 +17,7 @@ import requests
 import xarray as xr
 
 from wxbtool.data.path import DataPathManager
-from wxbtool.nn.setting import Setting
+from wxbtool.framework.setting import Setting
 
 m.patch()
 

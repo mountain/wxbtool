@@ -11,7 +11,7 @@ root = Path(__file__).resolve().parents[1] / "tests"
 sys.path.insert(0, str(root))
 os.environ.setdefault("WXBHOME", str(root))
 
-from wxbtool.nn.lightning import LightningModel  # noqa: E402
+from wxbtool.lightning.seq2seq import Seq2SeqModel  # noqa: E402
 
 
 class DummySetting:
@@ -30,7 +30,7 @@ class DummyModel:
 
 def test_compute_rmse_by_time_side_effect():
     model = DummyModel()
-    lightning = LightningModel(model)
+    lightning = Seq2SeqModel(model)
 
     targets = {"test": th.zeros(1, 2, 2, 2)}
     results = {"test": th.ones(1, 2, 2, 2)}

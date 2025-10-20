@@ -59,12 +59,12 @@ Why this matters: the essence of this refactor is a clean separation-of-concerns
             if not getattr(pl_module, "artifacts_to_log", None):
                 return
             if not trainer.is_global_zero:
-                pl_module.artifacts_to_log = {}
+                pl_module.artifacts = {}
                 return
             logger = trainer.logger
             out_dir = getattr(logger, "log_dir", "plots")
             os.makedirs(os.path.join(out_dir, "plots"), exist_ok=True)
-            for tag, fig in pl_module.artifacts_to_log.items():
+            for tag, fig in pl_module.artifacts.items():
                 if isinstance(logger, WandbLogger):
                     logger.experiment.log({tag: wandb.Image(fig)})
                 elif isinstance(logger, TensorBoardLogger):
@@ -72,7 +72,7 @@ Why this matters: the essence of this refactor is a clean separation-of-concerns
                 else:
                     fig.savefig(os.path.join(out_dir, "plots", f"{tag}.png"))
                 plt.close(fig)
-            pl_module.artifacts_to_log = {}
+            pl_module.artifacts = {}
     ```
 
 - Configurator (Training Script / CLI Entrypoint)

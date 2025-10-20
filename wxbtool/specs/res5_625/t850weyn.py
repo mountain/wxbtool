@@ -14,8 +14,8 @@ This spec follows basic settings and discussions in
 import torch as th
 import torch.nn as nn
 
-from wxbtool.nn.model import Base2d
-from wxbtool.nn.setting import Setting
+from wxbtool.framework.model import Base2d
+from wxbtool.framework.setting import Setting
 from wxbtool.norms.meanstd import (
     denorm_t850,
     norm_t2m,

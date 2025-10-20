@@ -10,7 +10,7 @@ import numpy as np
 from scipy.ndimage import zoom
 
 import wxbtool.norms.minmax as minmax
-from wxbtool.nn.resolution import ResolutionConfig
+from wxbtool.framework.resolution import ResolutionConfig
 from wxbtool.util.cmaps import cmaps, var2cmap
 
 data = local()

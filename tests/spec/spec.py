@@ -8,8 +8,8 @@ import torch.nn as nn
 import wxbtool.data.variables as v
 import wxbtool.norms.meanstd as n
 from wxbtool.data.variables import split_name
-from wxbtool.nn.model import Base2d
-from wxbtool.nn.setting import Setting
+from wxbtool.framework.model import Base2d
+from wxbtool.framework.setting import Setting
 from wxbtool.norms.meanstd import denorm_t2m, norm_t2m
 
 mse = nn.MSELoss()

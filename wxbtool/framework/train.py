@@ -5,9 +5,10 @@ import sys
 import torch as th
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
-from wxbtool.nn.lightning import GANModel, LightningModel
-from wxbtool.nn.config import configure_trainer, detect_torchrun
-from wxbtool.nn.callbacks import UniversalLoggingCallback
+from wxbtool.lightning.seq2seq import Seq2SeqModel
+from wxbtool.lightning.gan import GANModel
+from wxbtool.framework.config import configure_trainer, detect_torchrun
+from wxbtool.lightning.callbacks import UniversalLoggingCallback
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -50,16 +51,16 @@ def main(context, opt):
         else:
             learning_rate = float(opt.rate)
             if opt.load:
-                model = LightningModel.load_from_checkpoint(
+                model = Seq2SeqModel.load_from_checkpoint(
                     opt.load, model=mdm.model, opt=opt
                 )
             else:
-                model = LightningModel(mdm.model, opt=opt)
+                model = Seq2SeqModel(mdm.model, opt=opt)
             model.learning_rate = learning_rate
 
         checkpoint_callback = ModelCheckpoint(
             monitor="val_loss",
-            filename="best-{epoch:03d}-{val_loss:.3f}",
+            filename="best-{val_loss:.3f}-{epoch:03d}",
             save_top_k=5,
             mode="min",
             dirpath=f"trains/{model.model.name}",

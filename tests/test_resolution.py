@@ -14,9 +14,9 @@ root = Path(__file__).resolve().parents[1] / "tests"
 sys.path.insert(0, str(root))
 os.environ.setdefault("WXBHOME", str(root))
 
-from wxbtool.nn.resolution import ResolutionConfig  # noqa: E402
-from wxbtool.nn.resolution import ResolutionValidator  # noqa: E402
-from wxbtool.nn.setting import Setting  # noqa: E402
+from wxbtool.framework.resolution import ResolutionConfig  # noqa: E402
+from wxbtool.framework.resolution import ResolutionValidator  # noqa: E402
+from wxbtool.framework.setting import Setting  # noqa: E402
 
 
 class TestResolutionConfig:

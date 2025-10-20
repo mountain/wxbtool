@@ -5,9 +5,10 @@ import sys
 import torch as th
 from lightning.pytorch.callbacks import EarlyStopping
 
-from wxbtool.nn.lightning import GANModel, LightningModel
-from wxbtool.nn.config import configure_trainer, detect_torchrun
-from wxbtool.nn.callbacks import UniversalLoggingCallback
+from wxbtool.lightning.seq2seq import Seq2SeqModel
+from wxbtool.lightning.gan import GANModel
+from wxbtool.framework.config import configure_trainer, detect_torchrun
+from wxbtool.lightning.callbacks import UniversalLoggingCallback
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -31,7 +32,7 @@ def main(context, opt):
         if opt.gan == "true":
             model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
         else:
-            model = LightningModel(mdm.model, opt=opt)
+            model = Seq2SeqModel(mdm.model, opt=opt)
 
         n_epochs = 1
 

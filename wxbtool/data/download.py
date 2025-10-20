@@ -9,7 +9,8 @@ from typing import List, Optional
 
 import cdsapi
 
-from wxbtool.nn.lightning import GANModel, LightningModel
+from wxbtool.lightning.seq2seq import Seq2SeqModel
+from wxbtool.lightning.gan import GANModel
 
 # Configure logging to display information and errors
 logging.basicConfig(
@@ -217,7 +218,7 @@ def main(context, opt):
         if opt.gan == "true":
             model = GANModel(mdm.generator, mdm.discriminator, opt=opt)
         else:
-            model = LightningModel(mdm.model, opt=opt)
+            model = Seq2SeqModel(mdm.model, opt=opt)
         setting = model.model.setting
         resolution = float(setting.resolution.replace("deg", ""))
         variables = setting.vars

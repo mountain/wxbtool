@@ -16,8 +16,8 @@ import torch as th
 import torch.nn as nn
 
 from wxbtool.data.variables import code2var, split_name, vars3d
-from wxbtool.nn.model import Base2d
-from wxbtool.nn.setting import Setting
+from wxbtool.framework.model import Base2d
+from wxbtool.framework.setting import Setting
 from wxbtool.norms.meanstd import denorm_t850, normalizors
 
 mse = nn.MSELoss()

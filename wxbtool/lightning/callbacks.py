@@ -1,42 +1,24 @@
-# -*- coding: utf-8 -*-
-"""
-Universal logging callback to adapt artifacts_to_log to different loggers.
-
-Producer (LightningModule) should populate:
-    self.artifacts_to_log: Dict[str, Dict[str, Any]]
-where each value is a dict containing:
-    - "var": variable name/code (used by util.plotter.plot)
-    - "data": numpy array shaped [H, W] or [1, H, W] (will be reshaped)
-
-This callback will:
-    - On rank-0 only, flush artifacts to the configured logger backend.
-    - Prefer saving PNG files under <logger.log_dir>/plots.
-    - Clear artifacts_to_log after flushing to avoid memory leaks.
-"""
-from __future__ import annotations
-
 import os
-from typing import Any, Dict
-
 import lightning.pytorch as pl
 
-try:
-    from lightning.pytorch.loggers import TensorBoardLogger
-except Exception:  # pragma: no cover
-    TensorBoardLogger = object  # type: ignore
-
+from typing import Any, Dict
 from wxbtool.util.plotter import plot
 
 
 class UniversalLoggingCallback(pl.Callback):
+    def _flush_newline(self, trainer: pl.Trainer) -> None:
+        # Flush a newline to separate logs
+        if hasattr(trainer, "is_global_zero") and trainer.is_global_zero:
+            print(flush=True)
+
     def _flush_artifacts(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
-        artifacts: Dict[str, Dict[str, Any]] = getattr(pl_module, "artifacts_to_log", None)
+        artifacts: Dict[str, Dict[str, Any]] = getattr(pl_module, "artifacts", None)
         if not artifacts:
             return
 
         # Rank-0 only writes/logs artifacts
         if hasattr(trainer, "is_global_zero") and not trainer.is_global_zero:
-            pl_module.artifacts_to_log = {}
+            pl_module.artifacts = {}
             return
 
         logger = getattr(trainer, "logger", None)
@@ -59,16 +41,17 @@ class UniversalLoggingCallback(pl.Callback):
                 print(f"Warning: failed to log artifact {tag}: {ex}")
 
         # Clear after emission
-        pl_module.artifacts_to_log = {}
+        pl_module.artifacts = {}
 
     # Flush at key moments
     def on_train_batch_end(self, trainer: pl.Trainer, pl_module, outputs, batch, batch_idx: int) -> None:
         self._flush_artifacts(trainer, pl_module)
-        if hasattr(trainer, "is_global_zero") and trainer.is_global_zero:
-            print(flush=True)
+        self._flush_newline(trainer)
 
     def on_validation_epoch_end(self, trainer: pl.Trainer, pl_module) -> None:
         self._flush_artifacts(trainer, pl_module)
+        self._flush_newline(trainer)
 
     def on_test_epoch_end(self, trainer: pl.Trainer, pl_module) -> None:
         self._flush_artifacts(trainer, pl_module)
+        self._flush_newline(trainer)
