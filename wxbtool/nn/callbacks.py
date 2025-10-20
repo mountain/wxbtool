@@ -55,9 +55,8 @@ class UniversalLoggingCallback(pl.Callback):
                 os.makedirs(parent_dir, exist_ok=True)
                 with open(file_path, mode="wb") as f:
                     plot(var, f, data)
-            except Exception:  # pragma: no cover - best-effort logging
-                # Fail silently on plotting errors to avoid breaking training
-                pass
+            except Exception as ex:  # pragma: no cover - best-effort logging
+                print(f"Warning: failed to log artifact {tag}: {ex}")
 
         # Clear after emission
         pl_module.artifacts_to_log = {}
