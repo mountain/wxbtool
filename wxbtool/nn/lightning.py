@@ -237,7 +237,7 @@ class LightningModel(ltn.LightningModule):
                 else:
                     height, width = inp.size(-2), inp.size(-1)
                     dat = inp[0, 0, ix].detach().cpu().numpy().reshape(height, width)
-                tag = f"{var}_inp_{ix}"
+                tag = f"{var}_{ix:02d}_inpt"
                 self.artifacts_to_log[tag] = {"var": var, "data": dat}
 
         # Forecast vs Target
@@ -254,8 +254,8 @@ class LightningModel(ltn.LightningModule):
                     height, width = fcst.size(-2), fcst.size(-1)
                     fcst_img = fcst[0, 0, ix].detach().cpu().numpy().reshape(height, width)
                     tgrt_img = tgrt[0, 0, ix].detach().cpu().numpy().reshape(height, width)
-                self.artifacts_to_log[f"{var}_fcst_{ix}"] = {"var": var, "data": fcst_img}
-                self.artifacts_to_log[f"{var}_tgt_{ix}"] = {"var": var, "data": tgrt_img}
+                self.artifacts_to_log[f"{var}_{ix:02d}_fcst"] = {"var": var, "data": fcst_img}
+                self.artifacts_to_log[f"{var}_{ix:02d}_tgrt"] = {"var": var, "data": tgrt_img}
 
         # for bas, var in enumerate(self.model.setting.vars_out):
         #     if inputs[var].dim() == 4:
@@ -722,7 +722,7 @@ class GANModel(LightningModel):
         self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
 
         if hasattr(self.trainer, "is_global_zero") and self.trainer.is_global_zero:
-            if self.opt.plot == "true":
+            if batch_idx == 0:
                 self.plot(inputs, forecast, targets, indexies, batch_idx, mode="eval")
 
     def test_step(self, batch, batch_idx):

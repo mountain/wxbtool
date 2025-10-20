@@ -50,7 +50,9 @@ class UniversalLoggingCallback(pl.Callback):
             try:
                 var = payload["var"]
                 data = payload["data"]
-                file_path = os.path.join(out_dir, f"{tag}.png")
+                file_path = os.path.join(out_dir, var, f"{tag}.png")
+                parent_dir = os.path.dirname(file_path)
+                os.makedirs(parent_dir, exist_ok=True)
                 with open(file_path, mode="wb") as f:
                     plot(var, f, data)
             except Exception:  # pragma: no cover - best-effort logging
