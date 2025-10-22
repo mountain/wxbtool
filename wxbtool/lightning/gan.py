@@ -2,10 +2,8 @@ import json
 import os
 import numpy as np
 import torch as th
-import torch.nn as nn
-import torch.nn.utils as nn_utils
-from torch.utils.data import DataLoader
 
+from torch.utils.data import DataLoader
 from wxbtool.data.dataset import ensemble_loader
 from wxbtool.lightning.base import LightningModel
 
@@ -46,15 +44,22 @@ class GANModel(LightningModel):
 
     def generator_loss(self, fake_judgement):
         # Loss for generator (we want the discriminator to predict all generated images as real)
-        return -fake_judgement["data"].mean()
+        return th.nn.functional.binary_cross_entropy_with_logits(
+            fake_judgement["data"],
+            th.ones_like(fake_judgement["data"], dtype=th.float32),
+        )
 
     def discriminator_loss(self, real_judgement, fake_judgement):
         # Loss for discriminator (real images should be classified as real, fake images as fake)
-        real = real_judgement["data"]
-        fake = fake_judgement["data"]
-        loss_real = th.relu(1.0 - real).mean()  # max(0, 1 - D(real))
-        loss_fake = th.relu(1.0 + fake).mean()  # max(0, 1 + D(fake))
-        return loss_real + loss_fake
+        real_loss = th.nn.functional.binary_cross_entropy_with_logits(
+            real_judgement["data"],
+            th.ones_like(real_judgement["data"], dtype=th.float32),
+        )
+        fake_loss = th.nn.functional.binary_cross_entropy_with_logits(
+            fake_judgement["data"],
+            th.zeros_like(fake_judgement["data"], dtype=th.float32),
+        )
+        return (real_loss + fake_loss) / 2
 
     def forecast_error(self, rmse):
         return self.generator.forecast_error(rmse)
@@ -166,10 +171,10 @@ class GANModel(LightningModel):
         d_optimizer.zero_grad()
         self.untoggle_optimizer(d_optimizer)
 
-        critic_real = real_judgement["data"].mean()
-        critic_fake = fake_judgement_for_d["data"].mean()
-        self.log("critic_real", critic_real, prog_bar=True, sync_dist=True)
-        self.log("critic_fake", critic_fake, prog_bar=True, sync_dist=True)
+        realness = real_judgement["data"].mean()
+        fakeness = fake_judgement_for_d["data"].mean()
+        self.log("realness", realness, prog_bar=True, sync_dist=True)
+        self.log("fakeness", fakeness, prog_bar=True, sync_dist=True)
         self.log("judgement", judgement_loss, prog_bar=True, sync_dist=True)
 
         if self.opt.plot == "true" and batch_idx % 10 == 0:
@@ -244,10 +249,10 @@ class GANModel(LightningModel):
             with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
                 json.dump(self.accByVar, f)
 
-        critic_real = real_judgement["data"].mean().item()
-        critic_fake = fake_judgement["data"].mean().item()
-        self.log("critic_real", critic_real, prog_bar=True, sync_dist=True)
-        self.log("critic_fake", critic_fake, prog_bar=True, sync_dist=True)
+        realness = real_judgement["data"].mean().item()
+        fakeness = fake_judgement["data"].mean().item()
+        self.log("realness", realness, prog_bar=True, sync_dist=True)
+        self.log("fakeness", fakeness, prog_bar=True, sync_dist=True)
         self.log("val_forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("val_loss", forecast_loss, prog_bar=True, sync_dist=True)
 
@@ -278,8 +283,8 @@ class GANModel(LightningModel):
         )
         real_judgement = self.discriminator(**inputs, target=targets["data"])
         fake_judgement = self.discriminator(**inputs, target=forecast["data"])
-        critic_real = real_judgement["data"].mean().item()
-        critic_fake = fake_judgement["data"].mean().item()
+        realness = real_judgement["data"].mean().item()
+        fakeness = fake_judgement["data"].mean().item()
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
 
         total_rmse = 0
@@ -316,8 +321,8 @@ class GANModel(LightningModel):
             with open(os.path.join(self.logger.log_dir, "test_acc.json"), "w") as f:
                 json.dump(self.accByVar, f)
 
-        self.log("critic_real", critic_real, prog_bar=True, sync_dist=True)
-        self.log("critic_fake", critic_fake, prog_bar=True, sync_dist=True)
+        self.log("realness", realness, prog_bar=True, sync_dist=True)
+        self.log("fakeness", fakeness, prog_bar=True, sync_dist=True)
         self.log("forecast", forecast_loss, prog_bar=True, sync_dist=True)
         self.log("crps", crps.mean(), prog_bar=True, sync_dist=True)
         self.log("absb", absb.mean(), prog_bar=True, sync_dist=True)
@@ -327,7 +332,6 @@ class GANModel(LightningModel):
             self.plot(inputs, forecast, targets, indexies, batch_idx, mode="test")
 
     def on_fit_start(self):
-        _apply_sn_inplace(self.discriminator)
         self.discriminator.to(self.device)
         self.generator.to(self.device)
 
@@ -379,15 +383,3 @@ class GANModel(LightningModel):
             batch_size,
             False,
         )
-
-
-def _apply_sn_inplace(module: nn.Module):
-    for m in module.modules():
-        if isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.Linear)):
-            try:
-                nn_utils.remove_spectral_norm(m)
-            except Exception:
-                pass
-    for m in module.modules():
-        if isinstance(m, (nn.Conv1d, nn.Conv2d, nn.Conv3d, nn.Linear)):
-            nn_utils.spectral_norm(m) 
