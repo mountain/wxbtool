@@ -1,18 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Metrics utilities for wxbtool.
-
-This module provides logger-agnostic, shape-normalized metrics that operate on
-PyTorch tensors and return tensors or Python floats suitable for Lightning logging.
-
-Conventions:
-- Spatial grid is (H, W).
-- Deterministic forecasts and observations are normalized to [B, 1, P, H, W].
-- Area weights are broadcastable to [1, 1, 1, H, W].
-- All computations occur on the device/dtype of the input tensors.
-"""
-from __future__ import annotations
-
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -22,14 +7,6 @@ from wxbtool.norms.meanstd import denormalizors
 
 
 def _ensure_5d(x: th.Tensor, pred_span: int) -> th.Tensor:
-    """
-    Normalize tensor shapes to [B, 1, P, H, W].
-
-    Accepts inputs shaped:
-    - [B, P, H, W] -> add channel dim -> [B, 1, P, H, W]
-    - [B, 1, P, H, W] -> returned unchanged
-    - [B, H, W] -> interpreted as P==1 -> [B, 1, 1, H, W]
-    """
     if x.dim() == 5:
         return x
     if x.dim() == 4:
@@ -50,19 +27,6 @@ def rmse_weighted(
     pred_span: int,
     denorm_key: Optional[str] = None,
 ) -> th.Tensor:
-    """
-    Compute global area-weighted RMSE over all forecast days.
-
-    Args:
-        forecast: Forecast tensor (any of [B, P, H, W], [B,1,P,H,W], [B,H,W]).
-        target: Observation tensor (same broadcastable shape as forecast).
-        weights: Area weights broadcastable to [1,1,1,H,W].
-        pred_span: Prediction span (P).
-        denorm_key: If provided, apply denormalization using denormalizors[key].
-
-    Returns:
-        Scalar tensor RMSE on the same device/dtype as input tensors.
-    """
     device = forecast.device
     dtype = forecast.dtype
     f = _ensure_5d(forecast, pred_span).to(device=device, dtype=dtype)
@@ -97,13 +61,6 @@ def rmse_by_time(
     pred_span: int,
     denorm_key: Optional[str] = None,
 ) -> Tuple[th.Tensor, List[float]]:
-    """
-    Compute area-weighted RMSE per-day and overall.
-
-    Returns:
-        overall_rmse: scalar tensor
-        per_day_rmse: list of Python floats length=P
-    """
     device = forecast.device
     dtype = forecast.dtype
     f = _ensure_5d(forecast, pred_span).to(device=device, dtype=dtype)
@@ -149,18 +106,6 @@ def acc_anomaly_by_time(
     *,
     weights: np.ndarray,
 ) -> Tuple[List[float], float, float, float]:
-    """
-    Compute ACC per-day and return the three aggregated terms for epoch-level ACC.
-
-    Args:
-        f_anomaly: Forecast anomalies [B,1,P,H,W] (numpy).
-        o_anomaly: Observation anomalies [B,1,P,H,W] (numpy).
-        weights: Area weights [H,W] or [1,1,1,H,W] (numpy).
-
-    Returns:
-        per_day_acc: list of floats length=P
-        prod_sum, fsum_sum, osum_sum: floats for aggregation
-    """
     if weights.ndim == 2:
         H, W = weights.shape
         w = weights.reshape(1, 1, 1, H, W)
@@ -192,44 +137,45 @@ def acc_anomaly_by_time(
 def crps_ensemble(
     predictions: th.Tensor,
     targets: th.Tensor,
+    vars: List[str]
 ) -> Tuple[th.Tensor, th.Tensor]:
-    """
-    Simplified CRPS on per-pixel ensemble for a single horizon.
+    if predictions.dim() == 4:
+        predictions = predictions.unsqueeze(1)
+        targets = targets.unsqueeze(1)
+    if predictions.dim() != 5:
+        raise ValueError(f"Unsupported predictions dim: {predictions.dim()}")
 
-    Args:
-        predictions: [S, C, H, W] or [B,S,C,H,W] (will be flattened over batch).
-        targets: [S, C, H, W] or [B,S,C,H,W] (same shape requirements).
+    B, C, T, H, W = predictions.shape
+    crps_results, absb_results = {}, {}
+    for cidx, var in enumerate(vars):
+        crps_ts, absb_ts = [], []
+        for tidx in range(T):
+            # (B, C, H, W) -> (B, P) 其中 P=H*W
+            pred_t = predictions[:, cidx, tidx, :, :].contiguous().view(B, H * W)
+            targ_t = targets[:, cidx, tidx, :, :].contiguous().view(B, H * W)
+            pred_t = denormalizors[var](pred_t)
+            targ_t = denormalizors[var](targ_t)
 
-    Returns:
-        crps_mean: scalar tensor
-        absorb_mean: scalar tensor (0.5*E|Y-Y'| / (E|Y-x|+eps))
-    """
-    if predictions.dim() == 5:
-        # [B,S,C,H,W] -> [B*S, C, H, W]
-        B, S, C, H, W = predictions.shape
-        preds = predictions.reshape(B * S, C, H, W)
-        targs = targets.reshape(B * S, C, H, W)
-    elif predictions.dim() == 4:
-        preds = predictions
-        targs = targets
-    else:
-        raise ValueError("predictions must be [S,C,H,W] or [B,S,C,H,W]")
+            # E|F - O|
+            abs_errors = th.abs(pred_t - targ_t)  # (B, P)
+            mean_abs_errors = abs_errors.mean(dim=0)  # (P,)
 
-    S = preds.shape[0]
-    num_pix = preds.shape[1] * preds.shape[2] * preds.shape[3]
+            # E|F - F'|
+            pa = pred_t.unsqueeze(1)  # (B, 1, P)
+            pb = pred_t.unsqueeze(0)  # (1, B, P)
+            pairwise_diff = th.abs(pa - pb)  # (B, B, P)
+            mean_pairwise_diff = pairwise_diff.mean(dim=(0, 1))  # (P,)
 
-    preds_2d = preds.reshape(S, num_pix)
-    targs_2d = targs.reshape(S, num_pix)
+            crps_vec = mean_abs_errors - 0.5 * mean_pairwise_diff  # (P,)
+            absb_vec = 0.5 * mean_pairwise_diff / (mean_abs_errors + 1e-7)  # (P,)
+            crps = crps_vec.mean().view(1)
+            absb = absb_vec.mean().view(1)
+            crps_ts.append(crps)
+            absb_ts.append(absb)
 
-    abs_errors = th.abs(preds_2d - targs_2d)  # [S, N]
-    mean_abs_errors = abs_errors.mean(dim=0)  # [N]
+        crps = th.cat(crps_ts, dim=0)  # (T)
+        absb = th.cat(absb_ts, dim=0)  # (T)
+        crps_results[var] = crps.detach().cpu().numpy().tolist()
+        absb_results[var] = absb.detach().cpu().numpy().tolist()
 
-    a = preds_2d.unsqueeze(1)  # [S,1,N]
-    b = preds_2d.unsqueeze(0)  # [1,S,N]
-    pairwise = th.abs(a - b)  # [S,S,N]
-    mean_pairwise = pairwise.mean(dim=(0, 1))  # [N]
-
-    crps = mean_abs_errors - 0.5 * mean_pairwise  # [N]
-    absorb = 0.5 * mean_pairwise / (mean_abs_errors + 1e-7)
-
-    return crps.mean(), absorb.mean()
+    return crps_results, absb_results

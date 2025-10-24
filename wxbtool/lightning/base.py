@@ -73,6 +73,9 @@ class LightningModel(ltn.LightningModule):
         loss = self.model.lossfun(input, result, target)
         return loss
 
+    def forecast_error(self, rmse):
+        return rmse
+
     def compute_rmse(self, targets, results, variable):
         tgt_data = targets[variable]
         rst_data = results[variable]
@@ -101,7 +104,7 @@ class LightningModel(ltn.LightningModule):
             self.mseByVar[variable][epoch][day_idx] = rmse_val
         return overall
 
-    def compute_rmse(self, targets, results, indexes):
+    def compute_rmse_by_var(self, targets, results, indexes):
         total_rmse = 0
         for variable in self.model.setting.vars_out:
             self.mseByVar[variable] = dict()
@@ -222,9 +225,6 @@ class LightningModel(ltn.LightningModule):
 
         return prod_sum, fsum_sum, osum_sum
 
-    def forecast_error(self, rmse):
-        return rmse
-
     def forward(self, **inputs):
         return self.model(**inputs)
 
@@ -302,7 +302,7 @@ class LightningModel(ltn.LightningModule):
 
         loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="eval")
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
-        rmse = self.compute_rmse(targets, results, indexes)
+        rmse = self.compute_rmse_by_var(targets, results, indexes)
         self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
 
         if self.is_rank0():
@@ -326,7 +326,7 @@ class LightningModel(ltn.LightningModule):
 
         loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="test")
         self.log("test_loss", loss, sync_dist=True, prog_bar=True)
-        rmse = self.compute_rmse(targets, results, indexes)
+        rmse = self.compute_rmse_by_var(targets, results, indexes)
         self.log("test_rmse", rmse, prog_bar=True, sync_dist=True)
 
         if self.is_rank0():

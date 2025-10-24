@@ -7,7 +7,6 @@ from wxbtool.util.plotter import plot
 
 class UniversalLoggingCallback(pl.Callback):
     def _flush_newline(self, trainer: pl.Trainer) -> None:
-        # Flush a newline to separate logs
         if hasattr(trainer, "is_global_zero") and trainer.is_global_zero:
             print(flush=True)
 
@@ -16,7 +15,6 @@ class UniversalLoggingCallback(pl.Callback):
         if not artifacts:
             return
 
-        # Rank-0 only writes/logs artifacts
         if hasattr(trainer, "is_global_zero") and not trainer.is_global_zero:
             pl_module.artifacts = {}
             return
@@ -26,8 +24,6 @@ class UniversalLoggingCallback(pl.Callback):
         out_dir = os.path.join(log_dir, "plots")
         os.makedirs(out_dir, exist_ok=True)
 
-        # Current implementation: persist PNGs to disk using util.plotter.plot
-        # Tags become filenames.
         for tag, payload in artifacts.items():
             try:
                 var = payload["var"]
@@ -40,10 +36,8 @@ class UniversalLoggingCallback(pl.Callback):
             except Exception as ex:  # pragma: no cover - best-effort logging
                 print(f"Warning: failed to log artifact {tag}: {ex}")
 
-        # Clear after emission
         pl_module.artifacts = {}
 
-    # Flush at key moments
     def on_train_batch_end(self, trainer: pl.Trainer, pl_module, outputs, batch, batch_idx: int) -> None:
         self._flush_artifacts(trainer, pl_module)
         self._flush_newline(trainer)
