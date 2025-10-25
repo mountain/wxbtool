@@ -9,8 +9,8 @@ from typing import List, Optional
 
 import cdsapi
 
-from wxbtool.lightning.seq2seq import Seq2SeqModel
-from wxbtool.lightning.gan import GANModel
+from wxbtool.paradigm.seq2seq import Seq2SeqModel
+from wxbtool.paradigm.gan import GANModel
 
 # Configure logging to display information and errors
 logging.basicConfig(

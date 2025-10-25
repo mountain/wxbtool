@@ -5,10 +5,10 @@ import sys
 import torch as th
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
-from wxbtool.lightning.seq2seq import Seq2SeqModel
-from wxbtool.lightning.gan import GANModel
-from wxbtool.framework.config import configure_trainer, detect_torchrun
-from wxbtool.lightning.callbacks import UniversalLoggingCallback
+from wxbtool.paradigm.seq2seq import Seq2SeqModel
+from wxbtool.paradigm.gan import GANModel
+from wxbtool.core.config import configure_trainer, detect_torchrun
+from wxbtool.core.callbacks import UniversalLoggingCallback
 
 if th.cuda.is_available():
     accelerator = "gpu"

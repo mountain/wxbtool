@@ -7,7 +7,7 @@ import torch.optim as optim
 
 from collections import defaultdict
 from wxbtool.data.climatology import ClimatologyAccessor
-from wxbtool.framework.metrics import (
+from wxbtool.core.metrics import (
     acc_anomaly_by_time,
 )
 from wxbtool.metrics.rmse import RMSE

@@ -5,9 +5,12 @@ from typing import Tuple
 import torch as th
 
 from torch.utils.data import DataLoader
+
+from wxbtool.metrics.crps import CRPS
+from wxbtool.norms.meanstd import denormalizors
 from wxbtool.types import Data, Indexes, Batch, Tensor
 from wxbtool.data.dataset import ensemble_loader
-from wxbtool.lightning.base import LightningModel
+from wxbtool.paradigm.base import LightningModel
 
 
 class GANModel(LightningModel):
@@ -31,7 +34,27 @@ class GANModel(LightningModel):
         if opt and hasattr(opt, "alpha"):
             self.alpha = float(opt.alpha)
 
-        self.crps = None
+        weight = self.model.get_weight(self.device)
+        variables = ['data'] + self.model.setting.vars_out
+        h, w = weight.size(-2), weight.size(-1)
+        self.train_crps = CRPS(
+            self.model.setting.pred_span,
+            weight.view(1, 1, 1, h, w),
+            variables,
+            denormalizors
+        )
+        self.val_crps = CRPS(
+            self.model.setting.pred_span,
+            weight.view(1, 1, 1, h, w),
+            variables,
+            denormalizors
+        )
+        self.test_crps = CRPS(
+            self.model.setting.pred_span,
+            weight.view(1, 1, 1, h, w),
+            variables,
+            denormalizors
+        )
 
     def configure_optimizers(self):
         g_optimizer = th.optim.Adam(
@@ -78,11 +101,6 @@ class GANModel(LightningModel):
         optimizer.step()
         optimizer.zero_grad()
         self.untoggle_optimizer(optimizer)
-
-    def compute_crps(self, predictions, targets):
-        from wxbtool.framework.metrics import crps_ensemble
-        crps, absb = crps_ensemble(predictions, targets, self.generator.setting.vars_out)
-        return crps, absb
 
     def log_loss(self, forecast_loss, total_loss):
         prefix = "" if self.phase == "train" else f"{self.phase}_"
@@ -138,12 +156,10 @@ class GANModel(LightningModel):
 
         forecast = local_data['forecast']
         {"train": self.train_rmse, "val": self.val_rmse, "test": self.test_rmse}[self.phase](forecast, targets)
-        crps, absb = self.compute_crps(forecast["data"], targets["data"])
-        self.crps = crps
+        {"train": self.train_crps, "val": self.val_crps, "test": self.test_crps}[self.phase].update(forecast, targets)
         if self.is_rank0():
             getattr(self, f"{self.phase}_rmse").dump(os.path.join(self.logger.log_dir, f"{self.phase}_rmse.json"))
-            with open(os.path.join(self.logger.log_dir, "val_crps.json"), "w") as f:
-                json.dump(self.crps, f)
+            getattr(self, f"{self.phase}_crps").dump(os.path.join(self.logger.log_dir, f"{self.phase}_crps.json"))
             with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
                 json.dump(self.accByVar, f)
 

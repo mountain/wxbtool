@@ -1,7 +1,8 @@
 import importlib
+import json
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -10,9 +11,9 @@ import xarray as xr
 
 import wxbtool.config as config
 from wxbtool.data.dataset import WxDataset
-from wxbtool.lightning.seq2seq import Seq2SeqModel
+from wxbtool.paradigm.seq2seq import Seq2SeqModel
 from wxbtool.util.plotter import plot
-from wxbtool.framework.config import get_runtime_device, detect_torchrun, is_rank_zero
+from wxbtool.core.config import get_runtime_device, detect_torchrun, is_rank_zero
 
 if th.cuda.is_available():
     accelerator = "gpu"
@@ -71,7 +72,7 @@ def main(context, opt):
         datetime_index = sample_data.time.values.tolist().index(float(day_of_year - 1))
 
         # Get the input data for the specific datetime
-        inputs, _, _ = dataset[datetime_index]
+        inputs, targets, _ = dataset[datetime_index]
 
         # Convert inputs to torch tensors
         inputs = {
@@ -80,12 +81,33 @@ def main(context, opt):
             ).unsqueeze(0)
             for k, v in inputs.items()
         }  # 只取input_span范围
+        targets = {
+            k: th.tensor(v, dtype=th.float32, device=device).unsqueeze(0) for k, v in targets.items()
+        }
 
         inputs = model.model.get_inputs(**inputs)
+        targets = model.model.get_targets(
+            **targets
+        )  # targets必须也得get一次，norm后，才能和compute_drmse适配
 
         # Perform inference
         with th.no_grad():
             results = model(**inputs)
+
+        for variable in model.model.setting.vars_out:
+            model.mseByVar[variable] = dict()
+            model.compute_rmse_by_time(targets, results, variable)
+
+        new_dict = {}
+        for var, epoch_dict in model.mseByVar.items():
+            days_dict = epoch_dict.get(
+                0, {}
+            )  # 取出 epoch=0 这一层, eval下epoch全部都是0
+            new_dict[var] = days_dict.copy()
+            new_dict[var] = {
+                (parser_time + timedelta(days=d)).strftime("%Y-%m-%d"): v
+                for d, v in new_dict[var].items()
+            }  # 把天数转成具体日期
 
         results = model.model.get_forcast(**results)
 
@@ -136,6 +158,8 @@ def main(context, opt):
                     dims=["lat", "lon"],
                 )
             ds.to_netcdf(output_path)
+            with open(os.path.join(output_dir, "var_day_rmse.json"), "w") as f:
+                json.dump(new_dict, f)
         else:
             raise ValueError("Unsupported output format. Use either png or nc.")
 
@@ -152,11 +176,8 @@ def main(context, opt):
 
 def main_gan(context, opt):
     try:
-        ctx = detect_torchrun()
-        if getattr(opt, "gpu", None) != "-1" and not ctx["is_torchrun"]:
-            os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
+        os.environ["CUDA_VISIBLE_DEVICES"] = opt.gpu
         sys.path.insert(0, os.getcwd())
-        device = get_runtime_device(opt)
         mdm = importlib.import_module(opt.module, package=None)
         generator = mdm.generator
 
@@ -165,8 +186,7 @@ def main_gan(context, opt):
             checkpoint = th.load(opt.load)
             generator.load_state_dict(checkpoint["state_dict"])
 
-        # Move to device and set eval mode
-        generator.to(device)
+        # Set the model to evaluation mode
         generator.eval()
 
         # Load the dataset
@@ -190,7 +210,7 @@ def main_gan(context, opt):
 
         # Convert inputs to torch tensors
         inputs = {
-            k: th.tensor(v, dtype=th.float32, device=device).unsqueeze(0) for k, v in inputs.items()
+            k: th.tensor(v, dtype=th.float32).unsqueeze(0) for k, v in inputs.items()
         }
 
         # Perform GAN inference
@@ -201,10 +221,6 @@ def main_gan(context, opt):
                 inputs["noise"] = noise
                 result = generator(**inputs)
                 results.append(result["data"].cpu().numpy())
-
-        # Only rank-0 writes outputs in distributed runs
-        if not is_rank_zero():
-            return
 
         # Save the output
         if opt.output.endswith(".png"):

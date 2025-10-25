@@ -1,5 +1,5 @@
 from torch.utils.data import DataLoader
-from wxbtool.lightning.base import LightningModel
+from wxbtool.paradigm.base import LightningModel
 
 
 class Seq2SeqModel(LightningModel):

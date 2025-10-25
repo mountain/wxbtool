@@ -2,12 +2,12 @@ from arghandler import ArgumentHandler, subcmd
 
 from wxbtool.data.download import main as dnmain
 from wxbtool.data.dsserver import main as dsmain
-from wxbtool.framework.eval import main as eval_main
-from wxbtool.framework.infer import main as infer_main
-from wxbtool.framework.infer import main_gan as inferg_main
-from wxbtool.framework.test import main as ttmain
-from wxbtool.framework.train import main as tnmain
-from wxbtool.framework.config import add_device_arguments
+from wxbtool.core.phase.eval import main as eval_main
+from wxbtool.core.phase.infer import main as infer_main
+from wxbtool.core.phase.infer import main_gan as inferg_main
+from wxbtool.core.phase.test import main as ttmain
+from wxbtool.core.phase.train import main as tnmain
+from wxbtool.core.config import add_device_arguments
 
 
 @subcmd

@@ -6,7 +6,7 @@ import torch
 import xarray as xr
 
 import wxbtool.config as config
-from wxbtool.framework.setting import Setting
+from wxbtool.core.setting import Setting
 from wxbtool.norms.meanstd import normalizors
 
 logger = logging.getLogger()
