@@ -1,11 +1,16 @@
-import logging
 import os
+import logging
+import torch as th
+import lightning.pytorch as pl
+
+from decouple import config
 from typing import Any, Dict, Optional, Sequence, Union
 
-import lightning.pytorch as pl
-import torch as th
 
 _log = logging.getLogger(__name__)
+
+
+root = config("WXBHOME")
 
 
 def detect_torchrun() -> Dict[str, Union[bool, int]]:

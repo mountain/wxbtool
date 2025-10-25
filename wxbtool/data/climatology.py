@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import xarray as xr
 
-import wxbtool.config as config
+import wxbtool.core.config as config
 from wxbtool.core.setting import Setting
 from wxbtool.norms.meanstd import normalizors
 

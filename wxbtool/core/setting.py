@@ -2,7 +2,7 @@ from typing import Tuple
 
 import numpy as np
 
-import wxbtool.config as config
+import wxbtool.core.config as config
 from wxbtool.core.resolution import ResolutionConfig
 
 

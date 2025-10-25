@@ -8,7 +8,7 @@ import pandas as pd
 import torch as th
 import xarray as xr
 
-import wxbtool.config as config
+import wxbtool.core.config as config
 from wxbtool.data.dataset import WxDataset
 from wxbtool.paradigm.seq2seq import Seq2SeqModel
 from wxbtool.util.plot import plot
