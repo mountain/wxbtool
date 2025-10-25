@@ -136,3 +136,4 @@ plots/
 dsserver/
 
 *.ckpt
+*.png

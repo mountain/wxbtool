@@ -73,6 +73,10 @@ def denorm_tcc(tcc):
     return tcc
 
 
+def identical(x):
+    return x
+
+
 normalizors = {
     "geopotential": norm_gpt,
     "temperature": norm_tmp,
@@ -83,7 +87,9 @@ normalizors = {
     "toa_incident_solar_radiation": norm_tisr,
     "total_cloud_cover": norm_tcc,
     "2m_temperature": norm_tmp,
-    "test_variable": lambda x: x,
+    "test_variable": identical,
+    "test": identical,
+    "data": identical,
 }
 
 
@@ -97,7 +103,9 @@ denormalizors = {
     "toa_incident_solar_radiation": denorm_tisr,
     "total_cloud_cover": denorm_tcc,
     "2m_temperature": denorm_tmp,
-    "test_variable": lambda x: x,
+    "test_variable": identical,
+    "test": identical,
+    "data": identical,
 }
 
 min_values = {
@@ -111,6 +119,8 @@ min_values = {
     "total_cloud_cover": 0,
     "2m_temperature": 223,
     "test_variable": 0,
+    "test": 0,
+    "data": 0,
 }
 
 max_values = {
@@ -124,4 +134,6 @@ max_values = {
     "total_cloud_cover": 1,
     "2m_temperature": 318,
     "test_variable": 1,
+    "test": 1,
+    "data": 1,
 }

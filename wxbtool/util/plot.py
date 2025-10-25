@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.ndimage import zoom
 
-import wxbtool.norms.minmax as minmax
+import wxbtool.norms.meanstd as meanstd
 from wxbtool.core.resolution import ResolutionConfig
 from wxbtool.util.cmaps import cmaps, var2cmap
 
@@ -79,12 +79,9 @@ class Plotter:
         year=2000,
         doy=0,
         save_path=None,
+        vmin=None,
+        vmax=None,
     ):
-        import wxbtool.data.variables as variables
-
-        vmin = minmax.min_values[variables.code2var[code]]
-        vmax = minmax.max_values[variables.code2var[code]]
-
         fig, axes = plt.subplots(
             1,
             3,
@@ -171,6 +168,8 @@ def plot_image(
     input_data_high = bicubic_upsample(input_data, scale=(lat_scale, lon_scale))
     truth_high = bicubic_upsample(truth, scale=(lat_scale, lon_scale))
     forecast_high = bicubic_upsample(forecast, scale=(lat_scale, lon_scale))
+    mean = meanstd.means[code]
+    std = meanstd.stds[code]
 
     lon_high = np.linspace(0, 360, base_shape[1] * lon_scale)
     lat_high = np.linspace(-90, 90, base_shape[0] * lat_scale)
@@ -186,4 +185,6 @@ def plot_image(
         year=year,
         doy=doy,
         save_path=save_path,
+        vmin=mean - 3 * std,
+        vmax=mean + 3 * std,
     )

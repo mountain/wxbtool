@@ -3,6 +3,7 @@ import lightning as ltn
 import torch as th
 import torch.optim as optim
 
+from wxbtool.core.decorators import ci_short_circuit
 from wxbtool.core.plotter import Plotter
 from wxbtool.metrics.acc import ACC
 from wxbtool.metrics.rmse import RMSE
@@ -13,26 +14,11 @@ class LightningModel(ltn.LightningModule):
     def __init__(self, model, opt=None):
         super(LightningModel, self).__init__()
         self.model = model
-        self.learning_rate = 1e-3
-
         self.opt = opt
-        # CI flag
-        self.ci = (
-            True
-            if (
-                opt
-                and hasattr(opt, "test")
-                and opt.test == "true"
-                and hasattr(opt, "ci")
-                and opt.ci
-            )
-            else False
-        )
 
+        self.learning_rate = 1e-3
         if opt and hasattr(opt, "rate"):
             self.learning_rate = float(opt.rate)
-
-        self.artifacts = {}
 
         self.train_rmse = self.build_metrics(RMSE)
         self.val_rmse = self.build_metrics(RMSE)
@@ -47,7 +33,11 @@ class LightningModel(ltn.LightningModule):
         climateology_accessors = {
             "test": self.test_acc.climatology_accessor,
         }
+
+        self.artifacts = {}
         self.plotter = Plotter(self, climateology_accessors)
+
+        self.ci = True if opt and hasattr(opt, "test") and opt.test == "true" else False
 
     def is_rank0(self):
         if hasattr(self.trainer, "is_global_zero"):
@@ -91,17 +81,13 @@ class LightningModel(ltn.LightningModule):
         return self.model(**inputs)
 
     def plot(self, inputs, results, targets, indexies, batch_idx, mode):
-        if self.ci or mode == "test":
-            return
-        if getattr(self.opt, "plot", "false") != "true":
-            return
-
         self.plotter.plot_date(inputs, self.model.setting.vars_in, self.model.setting.input_span, "inpt")
         self.plotter.plot_date(results, self.model.setting.vars_out, self.model.setting.pred_span, "fcst")
         self.plotter.plot_date(targets, self.model.setting.vars_out, self.model.setting.pred_span, "tgrt")
         if mode == "test":
             self.plotter.plot_map(inputs, targets, results, indexies, batch_idx, mode)
 
+    @ci_short_circuit
     def training_step(self, batch, batch_idx):
         inputs, targets, indexes = batch
 
@@ -122,10 +108,8 @@ class LightningModel(ltn.LightningModule):
 
         return loss
 
+    @ci_short_circuit
     def validation_step(self, batch, batch_idx):
-        if self.ci and batch_idx > 0:
-            return
-
         inputs, targets, indexes = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
@@ -143,10 +127,8 @@ class LightningModel(ltn.LightningModule):
             self.val_acc.dump(os.path.join(self.logger.log_dir, "val_acc.json"))
             self.plot(inputs, results, targets, indexes, batch_idx, mode="eval")
 
+    @ci_short_circuit
     def test_step(self, batch, batch_idx):
-        if self.ci and batch_idx > 0:
-            return
-
         inputs, targets, indexes = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)

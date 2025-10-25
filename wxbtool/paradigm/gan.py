@@ -5,6 +5,7 @@ import torch as th
 
 from torch.utils.data import DataLoader
 
+from wxbtool.core.decorators import ci_short_circuit, ci_batch_injection
 from wxbtool.metrics.crps import CRPS
 from wxbtool.types import Data, Indexes, Batch, Tensor
 from wxbtool.data.dataset import ensemble_loader
@@ -144,6 +145,7 @@ class GANModel(LightningModel):
             getattr(self, f"{self.phase}_crps").dump(os.path.join(self.logger.log_dir, f"{self.phase}_crps.json"))
             self.plot(inputs, forecast, targets, indexes, batch_idx, mode="eval")
 
+    @ci_short_circuit
     def training_step(self, batch: Batch, batch_idx: int) -> None:
         self.phase = "train"
         inputs, targets, indexes = batch
@@ -154,19 +156,15 @@ class GANModel(LightningModel):
         self.with_optimizer(g_optimizer, g_block)
         self.with_optimizer(d_optimizer, d_block)
 
+    @ci_short_circuit
     def validation_step(self, batch, batch_idx):
-        if (self.ci and batch_idx > 0) or batch_idx > 2:
-            return
-
         self.phase = "val"
         inputs, targets, indexes = batch
         inputs, targets, local_data = self.prepare_for_step(inputs, targets)
         self.compute_all(inputs, targets, local_data, indexes, batch_idx)
 
+    @ci_short_circuit
     def test_step(self, batch, batch_idx):
-        if (self.ci and batch_idx > 0) or batch_idx > 1:
-            return
-
         self.phase = "test"
         inputs, targets, indexes = batch
         inputs, targets, local_data = self.prepare_for_step(inputs, targets)
@@ -185,6 +183,7 @@ class GANModel(LightningModel):
 
         return checkpoint
 
+    @ci_batch_injection(batch_size_ci=2)
     def train_dataloader(self):
         if self.model.dataset_train is None:
             if self.opt.data != "":
@@ -192,9 +191,8 @@ class GANModel(LightningModel):
             else:
                 self.model.load_dataset("train", "server")
 
-        batch_size = 5 if self.ci else self.opt.batch_size
-        num_workers = 2 if self.ci else self.opt.n_cpu
-
+        batch_size = self.opt.batch_size
+        num_workers = self.opt.n_cpu
         return DataLoader(
             self.model.dataset_train,
             batch_size=batch_size,
@@ -202,6 +200,7 @@ class GANModel(LightningModel):
             shuffle=True,
         )
 
+    @ci_batch_injection(batch_size_ci=2)
     def val_dataloader(self):
         if self.model.dataset_eval is None:
             if self.opt.data != "":
@@ -209,14 +208,14 @@ class GANModel(LightningModel):
             else:
                 self.model.load_dataset("train", "server")
 
-        batch_size = 5 if self.ci else self.opt.batch_size
-
+        batch_size = self.opt.batch_size
         return ensemble_loader(
             self.model.dataset_eval,
             batch_size,
             False,
         )
 
+    @ci_batch_injection(batch_size_ci=2)
     def test_dataloader(self):
         if self.model.dataset_test is None:
             if self.opt.data != "":
@@ -224,8 +223,7 @@ class GANModel(LightningModel):
             else:
                 self.model.load_dataset("train", "server")
 
-        batch_size = 5 if self.ci else self.opt.batch_size
-
+        batch_size = self.opt.batch_size
         return ensemble_loader(
             self.model.dataset_test,
             batch_size,

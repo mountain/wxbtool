@@ -1,4 +1,4 @@
-from wxbtool.norms.minmax import denormalizors
+from wxbtool.norms.meanstd import denormalizors
 from wxbtool.util.plot import plot_image
 
 
@@ -20,12 +20,12 @@ class Plotter:
                 self.model.artifacts[f"{var}_{ix:02d}_{key}"] = {"var": var, "data": dat}
 
     def plot_map(self, inputs, targets, results, indexies, batch_idx, mode):
-        if inputs[self.model.setting.vars_out[0]].dim() == 4:
+        if inputs[self.model.model.setting.vars_out[0]].dim() == 4:
             zero_slice = 0, 0
         else:
             zero_slice = 0, 0, 0
 
-        for bas, var in enumerate(self.model.setting.vars_out):
+        for bas, var in enumerate(self.model.model.setting.vars_out):
             input_data = inputs[var][zero_slice].detach().cpu().numpy()
             truth = targets[var][zero_slice].detach().cpu().numpy()
             forecast = results[var][zero_slice].detach().cpu().numpy()
