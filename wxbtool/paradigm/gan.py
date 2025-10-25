@@ -1,4 +1,3 @@
-import json
 import os
 from typing import Tuple
 
@@ -7,7 +6,6 @@ import torch as th
 from torch.utils.data import DataLoader
 
 from wxbtool.metrics.crps import CRPS
-from wxbtool.norms.meanstd import denormalizors
 from wxbtool.types import Data, Indexes, Batch, Tensor
 from wxbtool.data.dataset import ensemble_loader
 from wxbtool.paradigm.base import LightningModel
@@ -34,27 +32,9 @@ class GANModel(LightningModel):
         if opt and hasattr(opt, "alpha"):
             self.alpha = float(opt.alpha)
 
-        weight = self.model.get_weight(self.device)
-        variables = ['data'] + self.model.setting.vars_out
-        h, w = weight.size(-2), weight.size(-1)
-        self.train_crps = CRPS(
-            self.model.setting.pred_span,
-            weight.view(1, 1, 1, h, w),
-            variables,
-            denormalizors
-        )
-        self.val_crps = CRPS(
-            self.model.setting.pred_span,
-            weight.view(1, 1, 1, h, w),
-            variables,
-            denormalizors
-        )
-        self.test_crps = CRPS(
-            self.model.setting.pred_span,
-            weight.view(1, 1, 1, h, w),
-            variables,
-            denormalizors
-        )
+        self.train_crps = self.build_metrics(CRPS)
+        self.val_crps = self.build_metrics(CRPS)
+        self.test_crps = self.build_metrics(CRPS)
 
     def configure_optimizers(self):
         g_optimizer = th.optim.Adam(
@@ -156,13 +136,12 @@ class GANModel(LightningModel):
 
         forecast = local_data['forecast']
         {"train": self.train_rmse, "val": self.val_rmse, "test": self.test_rmse}[self.phase](forecast, targets)
+        {"train": self.train_acc, "val": self.val_acc, "test": self.test_acc}[self.phase].update(forecast, targets, indexes)
         {"train": self.train_crps, "val": self.val_crps, "test": self.test_crps}[self.phase].update(forecast, targets)
         if self.is_rank0():
             getattr(self, f"{self.phase}_rmse").dump(os.path.join(self.logger.log_dir, f"{self.phase}_rmse.json"))
+            getattr(self, f"{self.phase}_acc").dump(os.path.join(self.logger.log_dir, f"{self.phase}_acc.json"))
             getattr(self, f"{self.phase}_crps").dump(os.path.join(self.logger.log_dir, f"{self.phase}_crps.json"))
-            with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
-                json.dump(self.accByVar, f)
-
             self.plot(inputs, forecast, targets, indexes, batch_idx, mode="eval")
 
     def training_step(self, batch: Batch, batch_idx: int) -> None:
@@ -196,6 +175,15 @@ class GANModel(LightningModel):
     def on_fit_start(self):
         self.discriminator.to(self.device)
         self.generator.to(self.device)
+
+    def on_save_checkpoint(self, checkpoint):
+        super().on_save_checkpoint(checkpoint)
+
+        self.train_crps.reset()
+        self.val_crps.reset()
+        self.test_crps.reset()
+
+        return checkpoint
 
     def train_dataloader(self):
         if self.model.dataset_train is None:

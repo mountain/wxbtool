@@ -12,7 +12,7 @@ import xarray as xr
 import wxbtool.config as config
 from wxbtool.data.dataset import WxDataset
 from wxbtool.paradigm.seq2seq import Seq2SeqModel
-from wxbtool.util.plotter import plot
+from wxbtool.util.plot import plot
 from wxbtool.core.config import get_runtime_device, detect_torchrun, is_rank_zero
 
 if th.cuda.is_available():

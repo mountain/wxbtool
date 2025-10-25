@@ -63,7 +63,7 @@ def plot(var, fileobj, data, spatial_shape=None):
     imsave(fileobj, colorize(data, imgdata(spatial_shape), cmap_id, spatial_shape))
 
 
-class Ploter:
+class Plotter:
     def __init__(self, lon, lat):
         self.lon = lon
         self.lat = lat
@@ -176,8 +176,8 @@ def plot_image(
     lat_high = np.linspace(-90, 90, base_shape[0] * lat_scale)
     lon_grid, lat_grid = np.meshgrid(lon_high, lat_high)
 
-    ploter = Ploter(lon_grid, lat_grid)
-    ploter.plot(
+    plotter = Plotter(lon_grid, lat_grid)
+    plotter.plot(
         code,
         input_data_high,
         truth_high,

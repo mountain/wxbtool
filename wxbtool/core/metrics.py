@@ -1,59 +1,6 @@
-from typing import List, Optional, Tuple, Sequence, Dict, Callable, Any, Mapping
-
-import numpy as np
-import torch as th
+from typing import Sequence, Dict, Callable, Any, Mapping
 from torch import Tensor
 from torchmetrics import Metric
-
-from wxbtool.norms.meanstd import denormalizors
-
-
-def _ensure_5d(x: th.Tensor, pred_span: int) -> th.Tensor:
-    if x.dim() == 5:
-        return x
-    if x.dim() == 4:
-        # Assume [B, C, H, W]
-        B, C, H, W = x.shape
-        return x.view(B, C, 1, H, W)
-    if x.dim() == 3:
-        # Assume [B, H, W]
-        B, H, W = x.shape
-        return x.view(B, 1, 1, H, W)
-    raise ValueError(f"Unsupported tensor shape for metrics: {tuple(x.shape)}")
-
-
-def acc_anomaly_by_time(
-    f_anomaly: np.ndarray,
-    o_anomaly: np.ndarray,
-    *,
-    weights: np.ndarray,
-) -> Tuple[List[float], float, float, float]:
-    if weights.ndim == 2:
-        H, W = weights.shape
-        w = weights.reshape(1, 1, 1, H, W)
-    else:
-        w = weights
-
-    B, C, P, H, W = f_anomaly.shape
-    per_day: List[float] = []
-    prod_sum = 0.0
-    fsum_sum = 0.0
-    osum_sum = 0.0
-
-    for d in range(P):
-        fa = f_anomaly[:, :, d, :, :]
-        oa = o_anomaly[:, :, d, :, :]
-        prod = float(np.sum(w * fa * oa))
-        fsum = float(np.sum(w * fa**2))
-        osum = float(np.sum(w * oa**2))
-        acc = prod / (np.sqrt(fsum * osum) + 1e-12)
-        per_day.append(acc)
-
-        prod_sum += prod
-        fsum_sum += fsum
-        osum_sum += osum
-
-    return per_day, prod_sum, fsum_sum, osum_sum
 
 
 class WXBMetric(Metric):
@@ -65,6 +12,8 @@ class WXBMetric(Metric):
     def __init__(
         self,
         temporal_span: int,
+        temporal_step: int,
+        temporal_shift: int,
         spatio_weight: Tensor,
         variables: Sequence[str],
         denormalizers: Dict[str, Callable],
@@ -76,9 +25,19 @@ class WXBMetric(Metric):
             raise ValueError(f"Expected argument `pred_span` to be an integer but got {temporal_span}")
         self.temporal_span = temporal_span
 
+        if not isinstance(temporal_step, int):
+            raise ValueError(f"Expected argument `temporal_step` to be an integer but got {temporal_step}")
+        self.temporal_step = temporal_step
+
+        if not isinstance(temporal_shift, int):
+            raise ValueError(f"Expected argument `temporal_shift` to be an integer but got {temporal_shift}")
+        self.temporal_shift = temporal_shift
+
         if not isinstance(spatio_weight, Tensor):
             raise ValueError(f"Expected argument `weight` to be a tensor but got {spatio_weight}")
         self.spatio_weight = spatio_weight
+        self.spatio_height = spatio_weight.size(-2)
+        self.spatio_width = spatio_weight.size(-1)
 
         if not isinstance(variables, Sequence):
             raise ValueError(f"Expected argument `variables` to be a sequence but got {variables}")

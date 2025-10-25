@@ -1,7 +1,7 @@
 import torch
 
-from torch import Tensor, tensor
-from collections.abc import Sequence, Mapping
+from torch import Tensor
+from collections.abc import Sequence
 from typing import Any, Dict, Callable
 from wxbtool.types import Data
 from wxbtool.core.metrics import WXBMetric
@@ -11,12 +11,14 @@ class CRPS(WXBMetric):
     def __init__(
         self,
         temporal_span: int,
+        temporal_step: int,
+        temporal_shift: int,
         spatio_weight: Tensor,
         variables: Sequence[str],
         denormalizers: Dict[str, Callable],
         **kwargs: Any,
     ) -> None:
-        super().__init__(temporal_span, spatio_weight, variables, denormalizers, **kwargs)
+        super().__init__(temporal_span, temporal_step, temporal_shift, spatio_weight, variables, denormalizers, **kwargs)
 
         for variable in variables:
             for t_shift in range(self.temporal_span):

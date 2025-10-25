@@ -2,7 +2,7 @@ import os
 import lightning.pytorch as pl
 
 from typing import Any, Dict
-from wxbtool.util.plotter import plot
+from wxbtool.util.plot import plot
 
 
 class UniversalLoggingCallback(pl.Callback):
