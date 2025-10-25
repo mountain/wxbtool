@@ -19,7 +19,7 @@ class Plotter:
                     dat = item[0, 0, ix].detach().cpu().numpy().reshape(height, width)
                 self.model.artifacts[f"{var}_{ix:02d}_{key}"] = {"var": var, "data": dat}
 
-    def plot_map(self, inputs, targets, results, indexies, batch_idx, mode):
+    def plot_map(self, inputs, targets, results, indexes, batch_idx, mode, path):
         if inputs[self.model.model.setting.vars_out[0]].dim() == 4:
             zero_slice = 0, 0
         else:
@@ -38,7 +38,7 @@ class Plotter:
                 truth=truth,
                 forecast=forecast,
                 title=var,
-                year=self.climatology_accessors[mode].yr_indexer[indexies[0]],
-                doy=self.climatology_accessors[mode].doy_indexer[indexies[0]],
-                save_path="%s_%02d.png" % (var, batch_idx),
+                year=self.climatology_accessors[mode].yr_indexer[indexes[0]],
+                doy=self.climatology_accessors[mode].doy_indexer[indexes[0]],
+                save_path="%s/%s_%02d.png" % (path, var, batch_idx),
             )

@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 from wxbtool.core.decorators import ci_short_circuit, ci_batch_injection
 from wxbtool.metrics.crps import CRPS
-from wxbtool.types import Data, Indexes, Batch, Tensor
+from wxbtool.core.types import Data, Indexes, Batch, Tensor
 from wxbtool.data.dataset import ensemble_loader
 from wxbtool.paradigm.base import LightningModel
 

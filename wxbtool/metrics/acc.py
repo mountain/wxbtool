@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from typing import Any, Dict, Callable
 
 from wxbtool.data.climatology import ClimatologyAccessor
-from wxbtool.types import Data, Indexes
+from wxbtool.core.types import Data, Indexes
 from wxbtool.core.metrics import WXBMetric
 
 

@@ -3,7 +3,7 @@ import torch
 from torch import Tensor, tensor
 from collections.abc import Sequence
 from typing import Any, Dict, Callable
-from wxbtool.types import Data
+from wxbtool.core.types import Data
 from wxbtool.core.metrics import WXBMetric
 
 
