@@ -8,10 +8,9 @@ import torch.optim as optim
 from collections import defaultdict
 from wxbtool.data.climatology import ClimatologyAccessor
 from wxbtool.framework.metrics import (
-    rmse_by_time as metrics_rmse_by_time,
-    rmse_weighted as metrics_rmse_weighted,
     acc_anomaly_by_time,
 )
+from wxbtool.metrics.rmse import RMSE
 from wxbtool.norms.meanstd import denormalizors
 from wxbtool.util.plotter import plot_image
 
@@ -39,17 +38,36 @@ class LightningModel(ltn.LightningModule):
         if opt and hasattr(opt, "rate"):
             self.learning_rate = float(opt.rate)
 
-        self.climatology_accessors = {}
         self.data_home = os.environ.get("WXBHOME", "data")
+        self.climatology_accessors = {}
+        self.artifacts = {}
 
         self.labeled_acc_prod_term = {var: 0 for var in self.model.setting.vars_out}
         self.labeled_acc_fsum_term = {var: 0 for var in self.model.setting.vars_out}
         self.labeled_acc_osum_term = {var: 0 for var in self.model.setting.vars_out}
-
-        self.mseByVar = defaultdict()
         self.accByVar = defaultdict()
 
-        self.artifacts = {}
+        weight = self.model.get_weight(self.device)
+        variables = ['data'] + self.model.setting.vars_out
+        h, w = weight.size(-2), weight.size(-1)
+        self.train_rmse = RMSE(
+            self.model.setting.pred_span,
+            weight.view(1, 1, 1, h, w),
+            variables,
+            denormalizors
+        )
+        self.val_rmse = RMSE(
+            self.model.setting.pred_span,
+            weight.view(1, 1, 1, h, w),
+            variables,
+            denormalizors
+        )
+        self.test_rmse = RMSE(
+            self.model.setting.pred_span,
+            weight.view(1, 1, 1, h, w),
+            variables,
+            denormalizors
+        )
 
     def is_rank0(self):
         if hasattr(self.trainer, "is_global_zero"):
@@ -75,55 +93,6 @@ class LightningModel(ltn.LightningModule):
 
     def forecast_error(self, rmse):
         return rmse
-
-    def compute_rmse(self, targets, results, variable):
-        tgt_data = targets[variable]
-        rst_data = results[variable]
-        pred_span = self.model.setting.pred_span
-        weight = self.model.weight
-        return metrics_rmse_weighted(
-            rst_data, tgt_data, weights=weight, pred_span=pred_span, denorm_key=variable
-        )
-
-    def compute_rmse_by_time(
-        self,
-        targets: dict[str, th.Tensor],
-        results: dict[str, th.Tensor],
-        variable: str,
-    ) -> th.Tensor:
-        tgt_data = targets[variable]
-        rst_data = results[variable]
-        pred_span = self.model.setting.pred_span
-        weight = self.model.weight
-        overall, per_day = metrics_rmse_by_time(
-            rst_data, tgt_data, weights=weight, pred_span=pred_span, denorm_key=variable
-        )
-        epoch = self.current_epoch
-        self.mseByVar.setdefault(variable, {}).setdefault(epoch, {})
-        for day_idx, rmse_val in enumerate(per_day, start=1):
-            self.mseByVar[variable][epoch][day_idx] = rmse_val
-        return overall
-
-    def compute_rmse_by_var(self, targets, results, indexes):
-        total_rmse = 0
-        for variable in self.model.setting.vars_out:
-            self.mseByVar[variable] = dict()
-            self.accByVar[variable] = dict()
-
-            total_rmse += self.compute_rmse_by_time(targets, results, variable)
-            prod, fsum, osum = self.calculate_acc(
-                results[variable],
-                targets[variable],
-                indexes=indexes,
-                variable=variable,
-                mode="eval",
-            )
-            self.labeled_acc_prod_term[variable] += prod
-            self.labeled_acc_fsum_term[variable] += fsum
-            self.labeled_acc_osum_term[variable] += osum
-
-        avg_rmse = total_rmse / len(self.model.setting.vars_out)
-        return avg_rmse
 
     def get_climatology_accessor(self, mode):
         # Skip climatology in CI mode
@@ -286,6 +255,11 @@ class LightningModel(ltn.LightningModule):
 
         loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="train")
         self.log("train_loss", loss, prog_bar=True, sync_dist=True)
+        self.train_rmse(results, targets)
+        self.log("train_rmse", self.train_rmse, prog_bar=True, sync_dist=True)
+
+        if self.is_rank0():
+            self.train_rmse.dump(os.path.join(self.logger.log_dir, "train_rmse.json"))
 
         return loss
 
@@ -302,12 +276,11 @@ class LightningModel(ltn.LightningModule):
 
         loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="eval")
         self.log("val_loss", loss, prog_bar=True, sync_dist=True)
-        rmse = self.compute_rmse_by_var(targets, results, indexes)
-        self.log("val_rmse", rmse, prog_bar=True, sync_dist=True)
+        self.val_rmse(results, targets)
+        self.log("val_rmse", self.val_rmse, prog_bar=True, sync_dist=True)
 
         if self.is_rank0():
-            with open(os.path.join(self.logger.log_dir, "val_rmse.json"), "w") as f:
-                json.dump(self.mseByVar, f)
+            self.val_rmse.dump(os.path.join(self.logger.log_dir, "val_rmse.json"))
             with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
                 json.dump(self.accByVar, f)
 
@@ -326,12 +299,11 @@ class LightningModel(ltn.LightningModule):
 
         loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="test")
         self.log("test_loss", loss, sync_dist=True, prog_bar=True)
-        rmse = self.compute_rmse_by_var(targets, results, indexes)
-        self.log("test_rmse", rmse, prog_bar=True, sync_dist=True)
+        self.test_rmse(results, targets)
+        self.log("test_rmse", self.test_rmse, prog_bar=True, sync_dist=True)
 
         if self.is_rank0():
-            with open(os.path.join(self.logger.log_dir, "test_rmse.json"), "w") as f:
-                json.dump(self.mseByVar, f)
+            self.test_rmse.dump(os.path.join(self.logger.log_dir, "test_rmse.json"))
             with open(os.path.join(self.logger.log_dir, "test_acc.json"), "w") as f:
                 json.dump(self.accByVar, f)
 
@@ -341,5 +313,8 @@ class LightningModel(ltn.LightningModule):
         self.labeled_acc_prod_term = {var: 0 for var in self.model.setting.vars_out}
         self.labeled_acc_fsum_term = {var: 0 for var in self.model.setting.vars_out}
         self.labeled_acc_osum_term = {var: 0 for var in self.model.setting.vars_out}
+
+        self.train_rmse.reset()
+        self.val_rmse.reset()
 
         return checkpoint

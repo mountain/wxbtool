@@ -351,6 +351,10 @@ def denorm_q925(q925):
     return q925 * 0.005071411533793075 + 0.006030511206541306
 
 
+def identical(x):
+    return x
+
+
 normalizors = {
     "t2m": norm_t2m,
     "tcc": norm_tcc,
@@ -393,7 +397,8 @@ normalizors = {
     "q700": norm_q700,
     "q850": norm_q850,
     "q925": norm_q925,
-    "test": lambda x: x,
+    "test": identical,
+    "data": identical,
 }
 
 
@@ -439,7 +444,8 @@ denormalizors = {
     "q700": denorm_q700,
     "q850": denorm_q850,
     "q925": denorm_q925,
-    "test": lambda x: x,
+    "test": identical,
+    "data": identical,
 }
 
 # Registry APIs for normalizers/denormalizers

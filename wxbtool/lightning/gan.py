@@ -1,18 +1,13 @@
 import json
 import os
-from typing import Tuple, Dict, List
+from typing import Tuple
 
 import torch as th
 
 from torch.utils.data import DataLoader
+from wxbtool.types import Data, Indexes, Batch, Tensor
 from wxbtool.data.dataset import ensemble_loader
 from wxbtool.lightning.base import LightningModel
-
-
-Tensor = th.Tensor
-Data = Dict[str, Tensor]
-Indexes = List[int]
-Batch = Tuple[Data, Data, Indexes]
 
 
 class GANModel(LightningModel):
@@ -142,14 +137,13 @@ class GANModel(LightningModel):
         self.compute_discriminator_loss(inputs, targets, local_data)
 
         forecast = local_data['forecast']
-        self.compute_rmse_by_var(targets, forecast, indexes)
+        {"train": self.train_rmse, "val": self.val_rmse, "test": self.test_rmse}[self.phase](forecast, targets)
         crps, absb = self.compute_crps(forecast["data"], targets["data"])
         self.crps = crps
         if self.is_rank0():
+            getattr(self, f"{self.phase}_rmse").dump(os.path.join(self.logger.log_dir, f"{self.phase}_rmse.json"))
             with open(os.path.join(self.logger.log_dir, "val_crps.json"), "w") as f:
                 json.dump(self.crps, f)
-            with open(os.path.join(self.logger.log_dir, "val_rmse.json"), "w") as f:
-                json.dump(self.mseByVar, f)
             with open(os.path.join(self.logger.log_dir, "val_acc.json"), "w") as f:
                 json.dump(self.accByVar, f)
 

@@ -10,8 +10,9 @@ def _ensure_5d(x: th.Tensor, pred_span: int) -> th.Tensor:
     if x.dim() == 5:
         return x
     if x.dim() == 4:
-        # Assume [B, P, H, W]
-        return x.unsqueeze(1)
+        # Assume [B, C, H, W]
+        B, C, H, W = x.shape
+        return x.view(B, C, 1, H, W)
     if x.dim() == 3:
         # Assume [B, H, W]
         B, H, W = x.shape
