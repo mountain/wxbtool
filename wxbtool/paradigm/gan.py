@@ -136,9 +136,9 @@ class GANModel(LightningModel):
         self.compute_discriminator_loss(inputs, targets, local_data)
 
         forecast = local_data['forecast']
-        {"train": self.train_rmse, "val": self.val_rmse, "test": self.test_rmse}[self.phase](forecast, targets)
-        {"train": self.train_acc, "val": self.val_acc, "test": self.test_acc}[self.phase].update(forecast, targets, indexes)
-        {"train": self.train_crps, "val": self.val_crps, "test": self.test_crps}[self.phase].update(forecast, targets)
+        # {"train": self.train_rmse, "val": self.val_rmse, "test": self.test_rmse}[self.phase](forecast, targets)
+        # {"train": self.train_acc, "val": self.val_acc, "test": self.test_acc}[self.phase].update(forecast, targets, indexes)
+        # {"train": self.train_crps, "val": self.val_crps, "test": self.test_crps}[self.phase].update(forecast, targets)
         if self.is_rank0():
             getattr(self, f"{self.phase}_rmse").dump(os.path.join(self.logger.log_dir, f"{self.phase}_rmse.json"))
             getattr(self, f"{self.phase}_acc").dump(os.path.join(self.logger.log_dir, f"{self.phase}_acc.json"))
