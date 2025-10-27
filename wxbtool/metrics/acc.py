@@ -61,37 +61,39 @@ class ACC(WXBMetric):
     def update(self, forecasts: Data, targets: Data, indexes: Indexes) -> None:
         climatology = self.climatology(indexes)
         for variable in self.variables:
-            for t_shift in range(self.temporal_span):
-                denorm = self.denormalizers[variable]
-                pred = denorm(forecasts[variable].detach())[:, :, t_shift:t_shift+1]
-                trgt = denorm(targets[variable].detach())[:, :, t_shift:t_shift+1]
-                clim = climatology[variable].detach()[:, :, t_shift:t_shift+1]
-                self.spatio_weight = self.spatio_weight.to(pred.device)
+            if variable != "data" and variable != "test" and variable != "seed":
+                for t_shift in range(self.temporal_span):
+                    denorm = self.denormalizers[variable]
+                    pred = denorm(forecasts[variable].detach())[:, :, t_shift:t_shift+1]
+                    trgt = denorm(targets[variable].detach())[:, :, t_shift:t_shift+1]
+                    clim = climatology[variable].detach()[:, :, t_shift:t_shift+1]
+                    self.spatio_weight = self.spatio_weight.to(pred.device)
 
-                anomaly_f = pred - clim
-                anomaly_o = trgt - clim
+                    anomaly_f = pred - clim
+                    anomaly_o = trgt - clim
 
-                prod = self._sum_(self.spatio_weight * anomaly_f * anomaly_o)[0, 0]
-                fsum = self._sum_(self.spatio_weight * anomaly_f ** 2)[0, 0]
-                osum = self._sum_(self.spatio_weight * anomaly_o ** 2)[0, 0]
+                    prod = self._sum_(self.spatio_weight * anomaly_f * anomaly_o)[0, 0]
+                    fsum = self._sum_(self.spatio_weight * anomaly_f ** 2)[0, 0]
+                    osum = self._sum_(self.spatio_weight * anomaly_o ** 2)[0, 0]
 
-                attr = f"{variable}:prod:{t_shift:03d}"
-                self._incr_(attr, prod)
-                attr = f"{variable}:fsum:{t_shift:03d}"
-                self._incr_(attr, fsum)
-                attr = f"{variable}:osum:{t_shift:03d}"
-                self._incr_(attr, osum)
+                    attr = f"{variable}:prod:{t_shift:03d}"
+                    self._incr_(attr, prod)
+                    attr = f"{variable}:fsum:{t_shift:03d}"
+                    self._incr_(attr, fsum)
+                    attr = f"{variable}:osum:{t_shift:03d}"
+                    self._incr_(attr, osum)
 
     def compute(self) -> Tensor:
         acc_list = torch.zeros(len(self.variables), self.temporal_span)
         for index, variable in enumerate(self.variables):
-            for t_shift in range(self.temporal_span):
-                prod = self._get_(f"{variable}:prod:{t_shift:03d}")
-                fsum = self._get_(f"{variable}:fsum:{t_shift:03d}")
-                osum = self._get_(f"{variable}:osum:{t_shift:03d}")
-                acc = prod / (torch.sqrt(fsum * osum) + 1e-12)
-                self._set_(f"{variable}:acc:{t_shift:03d}", acc)
-                acc_list[index, t_shift] = acc
+            if variable != "data" and variable != "test" and variable != "seed":
+                for t_shift in range(self.temporal_span):
+                    prod = self._get_(f"{variable}:prod:{t_shift:03d}")
+                    fsum = self._get_(f"{variable}:fsum:{t_shift:03d}")
+                    osum = self._get_(f"{variable}:osum:{t_shift:03d}")
+                    acc = prod / (torch.sqrt(fsum * osum) + 1e-12)
+                    self._set_(f"{variable}:acc:{t_shift:03d}", acc)
+                    acc_list[index, t_shift] = acc
         return acc_list.mean()
 
     def dump(self, path:str) -> None:
