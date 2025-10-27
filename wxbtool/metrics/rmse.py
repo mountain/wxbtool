@@ -53,8 +53,6 @@ class RMSE(WXBMetric):
         return rmse_list.mean()
 
     def dump(self, path:str) -> None:
-        self.compute()
-
         result = {}
         for variable in self.variables:
             if variable != "data" and variable != "test" and variable != "seed":

@@ -175,14 +175,29 @@ class GANModel(LightningModel):
         self.discriminator.to(self.device)
         self.generator.to(self.device)
 
-    def on_save_checkpoint(self, checkpoint):
-        super().on_save_checkpoint(checkpoint)
+    def on_train_epoch_end(self):
+        super().on_train_epoch_end()
+        if self.is_rank0():
+            log_dir = self.logger.log_dir
+            self.train_crps.dump(os.path.join(log_dir, "train_crps.json"))
 
-        self.train_crps.reset()
         self.val_crps.reset()
-        self.test_crps.reset()
 
-        return checkpoint
+    def on_validation_epoch_end(self):
+        super().on_validation_epoch_end()
+        if self.is_rank0():
+            log_dir = self.logger.log_dir
+            self.val_crps.dump(os.path.join(log_dir, "val_crps.json"))
+
+        self.val_crps.reset()
+
+    def on_test_epoch_end(self):
+        super().on_test_epoch_end()
+        if self.is_rank0():
+            log_dir = self.logger.log_dir
+            self.test_crps.dump(os.path.join(log_dir, "test_crps.json"))
+
+        self.test_crps.reset()
 
     @ci_batch_injection(batch_size_ci=2)
     def train_dataloader(self):

@@ -151,13 +151,29 @@ class LightningModel(ltn.LightningModule):
     def on_fit_start(self):
         self.model.to(self.device)
 
-    def on_save_checkpoint(self, checkpoint):
+    def on_train_epoch_end(self):
+        if self.is_rank0():
+            log_dir = self.logger.log_dir
+            self.train_rmse.dump(os.path.join(log_dir, "train_rmse.json"))
+            self.train_acc.dump(os.path.join(log_dir, "train_acc.json"))
+
         self.train_rmse.reset()
-        self.val_rmse.reset()
-        self.test_rmse.reset()
-
         self.train_acc.reset()
-        self.val_acc.reset()
-        self.test_acc.reset()
 
-        return checkpoint
+    def on_validation_epoch_end(self):
+        if self.is_rank0():
+            log_dir = self.logger.log_dir
+            self.val_rmse.dump(os.path.join(log_dir, "val_rmse.json"))
+            self.val_acc.dump(os.path.join(log_dir, "val_acc.json"))
+
+        self.val_rmse.reset()
+        self.val_acc.reset()
+
+    def on_test_epoch_end(self):
+        if self.is_rank0():
+            log_dir = self.logger.log_dir
+            self.test_rmse.dump(os.path.join(log_dir, "test_rmse.json"))
+            self.test_acc.dump(os.path.join(log_dir, "test_acc.json"))
+
+        self.test_rmse.reset()
+        self.test_acc.reset()
