@@ -91,8 +91,8 @@ class GANModel(LightningModel):
             self.log(f"{prefix}forecast", forecast_loss, prog_bar=True)
 
     def log_judgement(self, real_judgement, fake_judgement, judgement_loss):
-        realness = real_judgement["data"].mean().item()
-        fakeness = fake_judgement["data"].mean().item()
+        realness = th.sigmoid(real_judgement["data"]).mean().item()
+        fakeness = th.sigmoid(fake_judgement["data"]).mean().item()
         self.log("realness", realness, prog_bar=True, sync_dist=True)
         self.log("fakeness", fakeness, prog_bar=True, sync_dist=True)
         self.log("judgement", judgement_loss, prog_bar=True, sync_dist=True)
