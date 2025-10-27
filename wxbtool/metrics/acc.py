@@ -63,9 +63,10 @@ class ACC(WXBMetric):
         for variable in self.variables:
             for t_shift in range(self.temporal_span):
                 denorm = self.denormalizers[variable]
-                pred = denorm(forecasts[variable].detach())[:, :, t_shift:t_shift+1].to(self.device)
-                trgt = denorm(targets[variable].detach())[:, :, t_shift:t_shift+1].to(self.device)
-                clim = climatology[variable].detach()[:, :, t_shift:t_shift+1].to(self.device)
+                pred = denorm(forecasts[variable].detach())[:, :, t_shift:t_shift+1]
+                trgt = denorm(targets[variable].detach())[:, :, t_shift:t_shift+1]
+                clim = climatology[variable].detach()[:, :, t_shift:t_shift+1]
+                self.spatio_weight = self.spatio_weight.to(pred.device)
 
                 anomaly_f = pred - clim
                 anomaly_o = trgt - clim

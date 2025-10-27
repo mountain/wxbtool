@@ -150,12 +150,6 @@ class LightningModel(ltn.LightningModule):
 
     def on_fit_start(self):
         self.model.to(self.device)
-        self.train_rmse.to(self.device)
-        self.val_rmse.to(self.device)
-        self.test_rmse.to(self.device)
-        self.train_acc.to(self.device)
-        self.val_acc.to(self.device)
-        self.test_acc.to(self.device)
 
     def on_save_checkpoint(self, checkpoint):
         self.train_rmse.reset()
