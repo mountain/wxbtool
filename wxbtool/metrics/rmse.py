@@ -29,8 +29,8 @@ class RMSE(WXBMetric):
     def update(self, forecasts: Data, targets: Data) -> None:
         for variable in self.variables:
             denorm = self.denormalizers[variable]
-            pred = denorm(forecasts[variable].detach())
-            trgt = denorm(targets[variable].detach())
+            pred = denorm(forecasts[variable].detach()).to(self.device)
+            trgt = denorm(targets[variable].detach()).to(self.device)
             sum_weighted_squared_error = self._sum_(self.spatio_weight * (trgt - pred) ** 2)
             total = self._sum_(self.spatio_weight * torch.ones_like(trgt))
 

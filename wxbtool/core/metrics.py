@@ -51,14 +51,17 @@ class WXBMetric(Metric):
         return repr(self.compute())
 
     def _get_(self, attr:str) -> Tensor:
-        return getattr(self, attr)
+        return getattr(self, attr).to(self.device)
 
     def _set_(self, attr:str, value:Tensor) -> None:
+        value = value.to(self.device)
         setattr(self, attr, value)
 
     def _incr_(self, attr:str, value:Tensor) -> None:
+        value = value.to(self.device)
         setattr(self, attr, getattr(self, attr) + value)
 
     def _sum_(self, value:Tensor) -> Tensor:
+        value = value.to(self.device)
         # summarizing among spatio dimensions and batch
         return value.sum(dim=-1).sum(dim=-1).sum(dim=0)
