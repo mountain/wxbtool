@@ -111,7 +111,7 @@ class GANModel(LightningModel):
         local_data['fake_data'] = fake_data
         local_data['forecast'] = forecast
         if self.opt.plot == "true" and batch_idx % 10 == 0 and self.is_rank0():
-            self.plot(inputs, fake_data, targets, indexes, batch_idx, mode="train")
+            self.plot(inputs, forecast, targets, indexes, batch_idx, mode="train")
         return forecast
 
     def compute_generator_loss(self, inputs:Data, targets:Data, local_data:Data, indexes:Indexes, batch_idx:int) -> Tensor:
