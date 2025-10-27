@@ -171,8 +171,11 @@ class GANModel(LightningModel):
         self.compute_all(inputs, targets, local_data, indexes, batch_idx)
 
     def on_fit_start(self):
+        super().on_fit_start()
         self.discriminator.to(self.device)
         self.generator.to(self.device)
+        self.val_crps.to(self.device)
+        self.test_crps.to(self.device)
 
     def on_save_checkpoint(self, checkpoint):
         super().on_save_checkpoint(checkpoint)
