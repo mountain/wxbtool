@@ -36,8 +36,14 @@ class CRPS(WXBMetric):
         for variable in self.variables:
             for t_shift in range(self.temporal_span):
                 denorm = self.denormalizers[variable]
-                pred = denorm(forecasts[variable].detach())[:, 0, t_shift, :, :].flatten(start_dim=1)
-                trgt = denorm(targets[variable].detach())[:, 0, t_shift, :, :].flatten(start_dim=1)
+                pred = denorm(forecasts[variable].detach())
+                trgt = denorm(targets[variable].detach())
+                if pred.dim() == 4:
+                    pred = pred[:, t_shift,:,:].flatten(start_dim=1)
+                    trgt = trgt[:, t_shift,:,:].flatten(start_dim=1)
+                else:
+                    pred = pred[:, 0, t_shift,:,:].flatten(start_dim=1)
+                    trgt = trgt[:, 0, t_shift,:,:].flatten(start_dim=1)
 
                 pa = pred.unsqueeze(1)  # (B, 1, P)
                 pb = pred.unsqueeze(0)  # (1, B, P)

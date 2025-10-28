@@ -112,8 +112,6 @@ class GANModel(LightningModel):
         fake_data = forecast["data"].detach()
         local_data['fake_data'] = fake_data
         local_data['forecast'] = forecast
-        if self.opt.plot == "true" and batch_idx % 10 == 0 and self.is_rank0():
-            self.plot(inputs, forecast, targets, indexes, mode="train")
         return forecast
 
     def compute_generator_loss(self, inputs:Data, targets:Data, local_data:Data, indexes:Indexes, batch_idx:int) -> Tensor:
@@ -136,7 +134,9 @@ class GANModel(LightningModel):
     def compute_all(self, inputs:Data, targets:Data, local_data:Data, indexes:Indexes, batch_idx:int):
         self.compute_generator_loss(inputs, targets, local_data, indexes, batch_idx)
         self.compute_discriminator_loss(inputs, targets, local_data)
+        self.log_all(inputs, targets, local_data, indexes)
 
+    def log_all(self, inputs:Data, targets:Data, local_data:Data, indexes:Indexes):
         forecast = local_data['forecast']
         {"train": self.train_rmse, "val": self.val_rmse, "test": self.test_rmse}[self.phase](forecast, targets)
         {"train": self.train_acc, "val": self.val_acc, "test": self.test_acc}[self.phase](forecast, targets, indexes)
@@ -145,7 +145,8 @@ class GANModel(LightningModel):
             getattr(self, f"{self.phase}_rmse").dump(os.path.join(self.logger.log_dir, f"{self.phase}_rmse.json"))
             getattr(self, f"{self.phase}_acc").dump(os.path.join(self.logger.log_dir, f"{self.phase}_acc.json"))
             getattr(self, f"{self.phase}_crps").dump(os.path.join(self.logger.log_dir, f"{self.phase}_crps.json"))
-            self.plot(inputs, forecast, targets, indexes, mode=self.phase)
+            phase = self.phase if self.phase != "val" else "eval"
+            self.plot(inputs, forecast, targets, indexes, mode=phase)
 
     @ci_short_circuit
     def training_step(self, batch: Batch, batch_idx: int) -> None:
@@ -157,6 +158,7 @@ class GANModel(LightningModel):
         g_optimizer, d_optimizer = self.optimizers()
         self.with_optimizer(g_optimizer, g_block)
         self.with_optimizer(d_optimizer, d_block)
+        self.log_all(inputs, targets, local_data, indexes)
 
     @ci_short_circuit
     def validation_step(self, batch, batch_idx):

@@ -32,7 +32,7 @@ class LightningModel(ltn.LightningModule):
 
         climateology_accessors = {
             "train": self.train_acc.climatology_accessor,
-            "val": self.val_acc.climatology_accessor,
+            "eval": self.val_acc.climatology_accessor,
             "test": self.test_acc.climatology_accessor,
         }
 
