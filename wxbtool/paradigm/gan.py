@@ -111,7 +111,7 @@ class GANModel(LightningModel):
         local_data['fake_data'] = fake_data
         local_data['forecast'] = forecast
         if self.opt.plot == "true" and batch_idx % 10 == 0 and self.is_rank0():
-            self.plot(inputs, forecast, targets, indexes, batch_idx, mode="train")
+            self.plot(inputs, forecast, targets, indexes, mode="train")
         return forecast
 
     def compute_generator_loss(self, inputs:Data, targets:Data, local_data:Data, indexes:Indexes, batch_idx:int) -> Tensor:
@@ -143,7 +143,7 @@ class GANModel(LightningModel):
             getattr(self, f"{self.phase}_rmse").dump(os.path.join(self.logger.log_dir, f"{self.phase}_rmse.json"))
             getattr(self, f"{self.phase}_acc").dump(os.path.join(self.logger.log_dir, f"{self.phase}_acc.json"))
             getattr(self, f"{self.phase}_crps").dump(os.path.join(self.logger.log_dir, f"{self.phase}_crps.json"))
-            self.plot(inputs, forecast, targets, indexes, batch_idx, mode="eval")
+            self.plot(inputs, forecast, targets, indexes, mode="eval")
 
     @ci_short_circuit
     def training_step(self, batch: Batch, batch_idx: int) -> None:
