@@ -134,7 +134,7 @@ class GANModel(LightningModel):
     def compute_all(self, inputs:Data, targets:Data, local_data:Data, indexes:Indexes, batch_idx:int):
         self.compute_generator_loss(inputs, targets, local_data, indexes, batch_idx)
         self.compute_discriminator_loss(inputs, targets, local_data)
-        self.log_all(inputs, targets, local_data, indexes)
+        self.log_all(inputs, targets, local_data, indexes, batch_idx)
 
     def log_all(self, inputs:Data, targets:Data, local_data:Data, indexes:Indexes, batch_idx: int):
         forecast = local_data['forecast']
