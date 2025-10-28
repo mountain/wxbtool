@@ -47,8 +47,9 @@ class CRPS(WXBMetric):
                 crps_samples = mean_abs_errors - 0.5 * mean_pairwise_diff  # Shape: [P]
 
                 self.spatio_weight = self.spatio_weight.to(pred.device)
+                weight_flat = self.spatio_weight.flatten()
 
-                weighted_crps_sum = (self.spatio_weight * crps_samples).sum()
+                weighted_crps_sum = (weight_flat * crps_samples).sum()
 
                 total_weight = (self.spatio_weight * torch.ones_like(crps_samples)).sum()
 
