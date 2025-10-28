@@ -294,6 +294,9 @@ def backtest(parser, context, args):
         required=True,
         help="output file format, either png or nc",
     )
+    parser.add_argument(
+        "-p", "--plot", type=str, default="true", help="plot testing result"
+    )
     opt = parser.parse_args(args)
 
     eval_main(context, opt)

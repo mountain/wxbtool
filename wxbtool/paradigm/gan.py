@@ -44,7 +44,9 @@ class GANModel(LightningModel):
         d_optimizer = th.optim.Adam(
             self.discriminator.parameters(), lr=self.discriminator.learning_rate, weight_decay=0.0, betas=(0.0, 0.9),
         )
-        return [g_optimizer, d_optimizer], []
+        g_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(g_optimizer, 53)
+        d_scheduler = th.optim.lr_scheduler.CosineAnnealingLR(d_optimizer, 53)
+        return [g_optimizer, d_optimizer], [g_scheduler, d_scheduler]
 
     def generator_loss(self, fake_judgement):
         return th.nn.functional.binary_cross_entropy_with_logits(

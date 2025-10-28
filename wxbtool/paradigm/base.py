@@ -31,6 +31,8 @@ class LightningModel(ltn.LightningModule):
         self.test_acc.build_indexers(self.model.setting.years_test)
 
         climateology_accessors = {
+            "train": self.train_acc.climatology_accessor,
+            "val": self.val_acc.climatology_accessor,
             "test": self.test_acc.climatology_accessor,
         }
 
