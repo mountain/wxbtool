@@ -42,8 +42,8 @@ class UniversalLoggingCallback(pl.Callback):
                     os.makedirs(parent_dir, exist_ok=True)
 
                     input_data = data
-                    truth_data = payload[tag.replace("_input", "_truth")]["data"]
-                    forecast_data = payload[tag.replace("_input", "_forecast")]["data"]
+                    truth_data = artifacts[tag.replace("_input", "_truth")]["data"]
+                    forecast_data = artifacts[tag.replace("_input", "_forecast")]["data"]
                     year = payload.get("year", None)
                     doy = payload.get("doy", None)
                     plot_image(
