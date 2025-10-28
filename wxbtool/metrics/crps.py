@@ -36,8 +36,8 @@ class CRPS(WXBMetric):
         for variable in self.variables:
             for t_shift in range(self.temporal_span):
                 denorm = self.denormalizers[variable]
-                pred = denorm(forecasts[variable].detach())[:, :, t_shift]  # Shape: [B, P]
-                trgt = denorm(targets[variable].detach())[:, :, t_shift]  # Shape: [B, P]
+                pred = denorm(forecasts[variable].detach())[:, :, t_shift].flatten()  # Shape: [B, P]
+                trgt = denorm(targets[variable].detach())[:, :, t_shift].flatten()  # Shape: [B, P]
 
                 pa = pred.unsqueeze(1)  # (B, 1, P)
                 pb = pred.unsqueeze(0)  # (1, B, P)
@@ -50,8 +50,7 @@ class CRPS(WXBMetric):
                 weight_flat = self.spatio_weight.flatten()
 
                 weighted_crps_sum = (weight_flat * crps_samples).sum()
-
-                total_weight = (self.spatio_weight * torch.ones_like(crps_samples)).sum()
+                total_weight = (weight_flat * torch.ones_like(crps_samples)).sum()
 
                 attr = f"{variable}:crps_sum:{t_shift:03d}"
                 self._incr_(attr, weighted_crps_sum)
