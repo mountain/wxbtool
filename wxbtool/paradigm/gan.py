@@ -143,7 +143,7 @@ class GANModel(LightningModel):
             getattr(self, f"{self.phase}_rmse").dump(os.path.join(self.logger.log_dir, f"{self.phase}_rmse.json"))
             getattr(self, f"{self.phase}_acc").dump(os.path.join(self.logger.log_dir, f"{self.phase}_acc.json"))
             getattr(self, f"{self.phase}_crps").dump(os.path.join(self.logger.log_dir, f"{self.phase}_crps.json"))
-            self.plot(inputs, forecast, targets, indexes, mode="eval")
+            self.plot(inputs, forecast, targets, indexes, mode=self.phase)
 
     @ci_short_circuit
     def training_step(self, batch: Batch, batch_idx: int) -> None:

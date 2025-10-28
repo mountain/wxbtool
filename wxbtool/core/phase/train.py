@@ -67,7 +67,7 @@ def main(context, opt):
             save_weights_only=False,
         )
         callbacks = [
-            EarlyStopping(monitor="val_loss", mode="min", patience=10),
+            EarlyStopping(monitor="val_loss", mode="min", patience=53),
             checkpoint_callback,
             UniversalLoggingCallback(),
         ]
