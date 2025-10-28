@@ -86,7 +86,8 @@ class LightningModel(ltn.LightningModule):
         self.plotter.plot_date(inputs, self.model.setting.vars_in, self.model.setting.input_span, "inpt")
         self.plotter.plot_date(results, self.model.setting.vars_out, self.model.setting.pred_span, "fcst")
         self.plotter.plot_date(targets, self.model.setting.vars_out, self.model.setting.pred_span, "tgrt")
-        self.plotter.plot_map(inputs, targets, results, indexes, mode)
+        if mode == "test":
+            self.plotter.plot_map(inputs, targets, results, indexes, mode)
 
     @ci_short_circuit
     def training_step(self, batch, batch_idx):
