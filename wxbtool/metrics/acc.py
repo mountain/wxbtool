@@ -1,7 +1,7 @@
 import os
 import torch
 
-from torch import Tensor, tensor  # 统一使用 tensor(0.0)
+from torch import Tensor, tensor
 from collections.abc import Sequence
 from typing import Any, Dict, Callable
 
