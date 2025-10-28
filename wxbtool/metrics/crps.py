@@ -50,7 +50,7 @@ class CRPS(WXBMetric):
                 weight_flat = self.spatio_weight.flatten()  # Shape: [P]
 
                 weighted_crps_sum = (weight_flat * crps_samples).sum()
-                total_weight = (weight_flat * torch.ones_like(crps_samples)).sum()
+                total_weight = weight_flat.sum()
 
                 attr = f"{variable}:crps_sum:{t_shift:03d}"
                 self._incr_(attr, weighted_crps_sum)
