@@ -127,7 +127,8 @@ class LightningModel(ltn.LightningModule):
         if self.is_rank0():
             self.val_rmse.dump(os.path.join(self.logger.log_dir, "val_rmse.json"))
             self.val_acc.dump(os.path.join(self.logger.log_dir, "val_acc.json"))
-            self.plot(inputs, results, targets, indexes, mode="eval")
+            if batch_idx % 10 == 0:
+                self.plot(inputs, results, targets, indexes, mode="eval")
 
     @ci_short_circuit
     def test_step(self, batch, batch_idx):
