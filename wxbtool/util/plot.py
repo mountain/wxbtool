@@ -81,6 +81,7 @@ class Plotter:
         save_path=None,
         vmin=None,
         vmax=None,
+        artifacts=None,
     ):
         fig, axes = plt.subplots(
             1,

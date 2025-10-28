@@ -1,5 +1,4 @@
 from wxbtool.norms.meanstd import denormalizors
-from wxbtool.util.plot import plot_image
 
 
 class Plotter:
@@ -17,9 +16,9 @@ class Plotter:
                 else:
                     height, width = item.size(-2), item.size(-1)
                     dat = item[0, 0, ix].detach().cpu().numpy().reshape(height, width)
-                self.model.artifacts[f"{var}_{ix:02d}_{key}"] = {"var": var, "data": dat}
+                self.model.artifacts[f"{var}_{ix:02d}_{key}"] = {"var": var, "data": dat, "type": "data", "kind": key}
 
-    def plot_map(self, inputs, targets, results, indexes, batch_idx, mode, path):
+    def plot_map(self, inputs, targets, results, indexes, mode):
         if inputs[self.model.model.setting.vars_out[0]].dim() == 4:
             zero_slice = 0, 0
         else:
@@ -32,13 +31,10 @@ class Plotter:
             input_data = denormalizors[var](input_data)
             forecast = denormalizors[var](forecast)
             truth = denormalizors[var](truth)
-            plot_image(
-                var,
-                input_data=input_data,
-                truth=truth,
-                forecast=forecast,
-                title=var,
-                year=self.climatology_accessors[mode].yr_indexer[indexes[0]],
-                doy=self.climatology_accessors[mode].doy_indexer[indexes[0]],
-                save_path="%s/%s_%02d.png" % (path, var, batch_idx),
-            )
+
+            year = self.climatology_accessors[mode].yr_indexer[indexes[0]]
+            doy = self.climatology_accessors[mode].doy_indexer[indexes[0]]
+
+            self.model.artifacts[f"{var}_{year:4d}_{doy:03d}_input"] = {"var": var, "data": input_data, "year": year, "doy": doy, "type": "map", "kind": "input"}
+            self.model.artifacts[f"{var}_{year:4d}_{doy:03d}_truth"] = {"var": var, "data": truth, "year": year, "doy": doy, "type": "map", "kind": "truth"}
+            self.model.artifacts[f"{var}_{year:4d}_{doy:03d}_forecast"] = {"var": var, "data": forecast, "year": year, "doy": doy, "type": "map", "kind": "forecast"}

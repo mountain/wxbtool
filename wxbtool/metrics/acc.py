@@ -1,8 +1,7 @@
 import os
-
 import torch
 
-from torch import Tensor
+from torch import Tensor, tensor  # 统一使用 tensor(0.0)
 from collections.abc import Sequence
 from typing import Any, Dict, Callable
 
@@ -13,16 +12,17 @@ from wxbtool.core.metrics import WXBMetric
 
 class ACC(WXBMetric):
     def __init__(
-        self,
-        temporal_span: int,
-        temporal_step: int,
-        temporal_shift: int,
-        spatio_weight: Tensor,
-        variables: Sequence[str],
-        denormalizers: Dict[str, Callable],
-        **kwargs: Any,
+            self,
+            temporal_span: int,
+            temporal_step: int,
+            temporal_shift: int,
+            spatio_weight: Tensor,
+            variables: Sequence[str],
+            denormalizers: Dict[str, Callable],
+            **kwargs: Any,
     ) -> None:
-        super().__init__(temporal_span, temporal_step, temporal_shift, spatio_weight, variables, denormalizers, **kwargs)
+        super().__init__(temporal_span, temporal_step, temporal_shift, spatio_weight, variables, denormalizers,
+                         **kwargs)
 
         data_home = os.environ.get("WXBHOME", "data")
         self.climatology_accessor = ClimatologyAccessor(home=f"{data_home}/climatology")
@@ -30,13 +30,14 @@ class ACC(WXBMetric):
         for variable in variables:
             for t_shift in range(self.temporal_span):
                 attr = f"{variable}:acc:{t_shift:03d}"
-                self.add_state(attr, default=torch.zeros(1), dist_reduce_fx="sum")
+                self.add_state(attr, default=tensor(0.0), dist_reduce_fx="mean")
+
                 attr = f"{variable}:prod:{t_shift:03d}"
-                self.add_state(attr, default=torch.zeros(1), dist_reduce_fx="sum")
+                self.add_state(attr, default=tensor(0.0), dist_reduce_fx="sum")
                 attr = f"{variable}:fsum:{t_shift:03d}"
-                self.add_state(attr, default=torch.zeros(1), dist_reduce_fx="sum")
+                self.add_state(attr, default=tensor(0.0), dist_reduce_fx="sum")
                 attr = f"{variable}:osum:{t_shift:03d}"
-                self.add_state(attr, default=torch.zeros(1), dist_reduce_fx="sum")
+                self.add_state(attr, default=tensor(0.0), dist_reduce_fx="sum")
 
     def build_indexers(self, years: Sequence[int]) -> None:
         self.climatology_accessor.build_indexers(years)
@@ -54,7 +55,7 @@ class ACC(WXBMetric):
             data.append(torch.tensor(clim))
         data = torch.cat(data, dim=2)  # B, C, T, H, W
         for var_index, variable in enumerate(clean_variables):
-            result[variable] = data[:, var_index : var_index + 1, :, :, :]
+            result[variable] = data[:, var_index: var_index + 1, :, :, :]
         result["data"] = data
         return result
 
@@ -64,9 +65,9 @@ class ACC(WXBMetric):
             if variable != "data" and variable != "test" and variable != "seed":
                 for t_shift in range(self.temporal_span):
                     denorm = self.denormalizers[variable]
-                    pred = denorm(forecasts[variable].detach())[:, :, t_shift:t_shift+1]
-                    trgt = denorm(targets[variable].detach())[:, :, t_shift:t_shift+1]
-                    clim = climatology[variable].detach()[:, :, t_shift:t_shift+1]
+                    pred = denorm(forecasts[variable].detach())[:, :, t_shift:t_shift + 1]
+                    trgt = denorm(targets[variable].detach())[:, :, t_shift:t_shift + 1]
+                    clim = climatology[variable].detach()[:, :, t_shift:t_shift + 1]
                     pred = pred.to(clim.device)
                     trgt = trgt.to(clim.device)
                     self.spatio_weight = self.spatio_weight.to(clim.device)
@@ -74,9 +75,9 @@ class ACC(WXBMetric):
                     anomaly_f = pred - clim
                     anomaly_o = trgt - clim
 
-                    prod = self._sum_(self.spatio_weight * anomaly_f * anomaly_o)[0, 0]
-                    fsum = self._sum_(self.spatio_weight * anomaly_f ** 2)[0, 0]
-                    osum = self._sum_(self.spatio_weight * anomaly_o ** 2)[0, 0]
+                    prod = self._sum_(self.spatio_weight * anomaly_f * anomaly_o).sum()
+                    fsum = self._sum_(self.spatio_weight * anomaly_f ** 2).sum()
+                    osum = self._sum_(self.spatio_weight * anomaly_o ** 2).sum()
 
                     attr = f"{variable}:prod:{t_shift:03d}"
                     self._incr_(attr, prod)
@@ -93,12 +94,15 @@ class ACC(WXBMetric):
                     prod = self._get_(f"{variable}:prod:{t_shift:03d}")
                     fsum = self._get_(f"{variable}:fsum:{t_shift:03d}")
                     osum = self._get_(f"{variable}:osum:{t_shift:03d}")
-                    acc = prod / (torch.sqrt(fsum * osum) + 1e-12)
+
+                    denominator = torch.sqrt(fsum * osum) + 1e-12
+
+                    acc = prod / denominator
                     self._set_(f"{variable}:acc:{t_shift:03d}", acc)
                     acc_list[index, t_shift] = acc
         return acc_list.mean()
 
-    def dump(self, path:str) -> None:
+    def dump(self, path: str) -> None:
         result = {}
         for variable in self.variables:
             if variable != "data" and variable != "test" and variable != "seed":
