@@ -161,6 +161,9 @@ def test(parser, context, args):
     parser.add_argument(
         "-O", "--optimize", action="store_true", help="use optimized testing for CI"
     )
+    parser.add_argument(
+        "-p", "--plot", type=str, default="true", help="plot testing result"
+    )
     opt = parser.parse_args(args)
 
     ttmain(context, opt)
