@@ -261,5 +261,5 @@ class GANModel(LightningModel):
         for key in keys_to_reshape:
             if key in state_dict:
                 param = state_dict[key]
-                if param.dim() == 2 and param.shape == torch.Size([32, 64]):
+                if param.dim() == 2 and param.shape == th.Size([32, 64]):
                     state_dict[key] = param.view(1, 1, 1, 32, 64)
