@@ -36,6 +36,8 @@ def main(context, opt):
 
         n_epochs = 1
 
+        precision = "bf16-mixed" if accelerator == "gpu" else "32"
+
         # Use optimized settings for CI mode
         if is_optimized:
             patience = 2  # More aggressive early stopping
@@ -43,7 +45,7 @@ def main(context, opt):
             limit_test_batches = 2  # Limit testing to first 2 batches
             trainer = configure_trainer(
                 opt,
-                precision=32,
+                precision=precision,
                 max_epochs=n_epochs,
                 callbacks=[
                     EarlyStopping(monitor="val_loss", mode="min", patience=patience),
@@ -55,7 +57,7 @@ def main(context, opt):
         else:
             trainer = configure_trainer(
                 opt,
-                precision=32,
+                precision=precision,
                 max_epochs=n_epochs,
                 callbacks=[
                     EarlyStopping(monitor="val_loss", mode="min", patience=30),
