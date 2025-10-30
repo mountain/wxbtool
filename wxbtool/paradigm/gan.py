@@ -250,3 +250,16 @@ class GANModel(LightningModel):
             batch_size,
             False,
         )
+
+    def on_load_checkpoint(self, checkpoint):
+        state_dict = checkpoint['state_dict']
+        keys_to_reshape = [
+            'model.phi', 'model.theta', 'model.weight',
+            'generator.phi', 'generator.theta', 'generator.weight'
+        ]
+
+        for key in keys_to_reshape:
+            if key in state_dict:
+                param = state_dict[key]
+                if param.dim() == 2 and param.shape == torch.Size([32, 64]):
+                    state_dict[key] = param.view(1, 1, 1, 32, 64)
