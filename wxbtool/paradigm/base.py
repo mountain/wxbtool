@@ -151,6 +151,9 @@ class LightningModel(ltn.LightningModule):
 
     def on_fit_start(self):
         self.model.to(self.device)
+        for n, b in self.named_buffers():
+            if b.device.type == "cpu":
+                print(f"[WARN] CPU buffer before train: {n}, shape={tuple(b.shape)}, dtype={b.dtype}")
 
     def on_train_epoch_end(self):
         if self.is_rank0():
