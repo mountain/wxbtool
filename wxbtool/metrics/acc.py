@@ -42,17 +42,17 @@ class ACC(WXBMetric):
     def build_indexers(self, years: Sequence[int]) -> None:
         self.climatology_accessor.build_indexers(years)
 
-    def climatology(self, indexes: Indexes) -> Data:
+    def climatology(self, indexes: Indexes, device: torch.device, dtype: torch.dtype) -> Data:
         batch_size = len(indexes)
         result, data = {}, []
         clean_variables = [var for var in self.variables if var != "data" and var != "seed"]
         for ix in range(self.temporal_span):
             delta = ix * self.temporal_step
-            shifts = list([idx + delta + self.temporal_shift for idx in indexes])  # shift to the forecast time
+            shifts = [idx + delta + self.temporal_shift for idx in indexes]
             clim = self.climatology_accessor.get_climatology(clean_variables, shifts).reshape(
                 batch_size, len(clean_variables), 1, self.spatio_height, self.spatio_width
             )
-            data.append(torch.tensor(clim))
+            data.append(torch.as_tensor(clim, device=device, dtype=dtype))
         data = torch.cat(data, dim=2)  # B, C, T, H, W
         for var_index, variable in enumerate(clean_variables):
             result[variable] = data[:, var_index: var_index + 1, :, :, :]
@@ -60,7 +60,12 @@ class ACC(WXBMetric):
         return result
 
     def update(self, forecasts: Data, targets: Data, indexes: Indexes) -> None:
-        climatology = self.climatology(indexes)
+        var0 = next(v for v in self.variables if v not in ("data", "test", "seed"))
+        ref = forecasts[var0]
+        device, dtype = ref.device, ref.dtype
+        climatology = self.climatology(indexes, device=device, dtype=dtype)
+        weight = self.spatio_weight.to(device=device, dtype=dtype)
+
         for variable in self.variables:
             if variable != "data" and variable != "test" and variable != "seed":
                 for t_shift in range(self.temporal_span):
@@ -70,14 +75,13 @@ class ACC(WXBMetric):
                     clim = climatology[variable].detach()[:, :, t_shift:t_shift + 1]
                     pred = pred.to(clim.device)
                     trgt = trgt.to(clim.device)
-                    self.spatio_weight = self.spatio_weight.to(clim.device)
 
                     anomaly_f = pred - clim
                     anomaly_o = trgt - clim
 
-                    prod = self._sum_(self.spatio_weight * anomaly_f * anomaly_o).sum()
-                    fsum = self._sum_(self.spatio_weight * anomaly_f ** 2).sum()
-                    osum = self._sum_(self.spatio_weight * anomaly_o ** 2).sum()
+                    prod = self._sum_(weight * anomaly_f * anomaly_o).sum()
+                    fsum = self._sum_(weight * anomaly_f ** 2).sum()
+                    osum = self._sum_(weight * anomaly_o ** 2).sum()
 
                     attr = f"{variable}:prod:{t_shift:03d}"
                     self._incr_(attr, prod)
