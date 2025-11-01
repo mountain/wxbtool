@@ -189,7 +189,7 @@ def configure_trainer(
         accelerator=accelerator,
         devices=devices,
         precision=precision,
-        strategy=DDPStrategy(broadcast_buffers=False, find_unused_parameters=True),
+        strategy=DDPStrategy(find_unused_parameters=True),
         max_epochs=max_epochs,
         callbacks=list(callbacks) if callbacks else None,
         num_nodes=num_nodes,
