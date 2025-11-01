@@ -6,6 +6,7 @@ import lightning.pytorch as pl
 from decouple import config
 from typing import Any, Dict, Optional, Sequence, Union
 
+from lightning.pytorch.strategies import DDPStrategy
 
 _log = logging.getLogger(__name__)
 
@@ -188,7 +189,7 @@ def configure_trainer(
         accelerator=accelerator,
         devices=devices,
         precision=precision,
-        strategy=final_strategy,
+        strategy=DDPStrategy(broadcast_buffers=False),
         max_epochs=max_epochs,
         callbacks=list(callbacks) if callbacks else None,
         num_nodes=num_nodes,
