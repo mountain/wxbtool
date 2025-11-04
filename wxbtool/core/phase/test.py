@@ -48,7 +48,6 @@ def main(context, opt):
                 precision=precision,
                 max_epochs=n_epochs,
                 callbacks=[
-                    EarlyStopping(monitor="val_loss", mode="min", patience=patience),
                     UniversalLoggingCallback(),
                 ],
                 limit_val_batches=limit_val_batches,
@@ -60,7 +59,6 @@ def main(context, opt):
                 precision=precision,
                 max_epochs=n_epochs,
                 callbacks=[
-                    EarlyStopping(monitor="val_loss", mode="min", patience=30),
                     UniversalLoggingCallback(),
                 ],
             )
