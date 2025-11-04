@@ -12,10 +12,10 @@ class Plotter:
             for ix in range(span):
                 if item.dim() == 4:
                     height, width = item.size(-2), item.size(-1)
-                    dat = item[0, ix].detach().cpu().numpy().reshape(height, width)
+                    dat = item[0, ix].detach().float().cpu().numpy().reshape(height, width)
                 else:
                     height, width = item.size(-2), item.size(-1)
-                    dat = item[0, 0, ix].detach().cpu().numpy().reshape(height, width)
+                    dat = item[0, 0, ix].detach().float().cpu().numpy().reshape(height, width)
                 self.model.artifacts[f"{var}_{ix:02d}_{key}"] = {"var": var, "data": dat, "type": "data", "kind": key}
 
     def plot_map(self, inputs, targets, results, indexes, mode):
@@ -25,9 +25,9 @@ class Plotter:
             zero_slice = 0, 0, 0
 
         for bas, var in enumerate(self.model.model.setting.vars_out):
-            input_data = inputs[var][zero_slice].detach().cpu().numpy()
-            truth = targets[var][zero_slice].detach().cpu().numpy()
-            forecast = results[var][zero_slice].detach().cpu().numpy()
+            input_data = inputs[var][zero_slice].detach().float().cpu().numpy()
+            truth = targets[var][zero_slice].detach().float().cpu().numpy()
+            forecast = results[var][zero_slice].detach().float().cpu().numpy()
             input_data = denormalizors[var](input_data)
             forecast = denormalizors[var](forecast)
             truth = denormalizors[var](truth)
