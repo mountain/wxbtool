@@ -59,7 +59,7 @@ class ACC(WXBMetric):
         result["data"] = data
         return result
 
-    def update(self, forecasts: Data, targets: Data, indexes: Indexes) -> None:
+    def update(self, forecasts: Data, targets: Data, indexes: Indexes, **kwargs) -> None:
         var0 = next(v for v in self.variables if v not in ("data", "test", "seed"))
         ref = forecasts[var0]
         device, dtype = ref.device, ref.dtype
@@ -76,12 +76,16 @@ class ACC(WXBMetric):
                     pred = pred.to(clim.device)
                     trgt = trgt.to(clim.device)
 
-                    #for equivariant training
-                    if pred.size(0) != clim.size(0):
-                        equi = []
-                        for ix in range(pred.size(-1)):
-                            equi.append(torch.roll(clim, shifts=1, dims=0))
-                        clim = torch.cat(equi, dim=0)
+                    if "enable_da" in kwargs and kwargs["enable_da"]:
+                        lng_shift = kwargs["lng_shift"]
+                        flip_status = kwargs["flip_status"]
+                        clim_data = []
+                        for ix, (shift, flip) in enumerate(zip(lng_shift, flip_status)):
+                            slice = torch.roll(clim[ix:ix+1], shifts=shift, dims=-1)
+                            if flip == 1:
+                                slice = torch.flip(slice, dims=(-2,-1))
+                            clim_data.append(slice)
+                        clim = torch.cat(clim_data, dim=0)
 
                     anomaly_f = pred - clim
                     anomaly_o = trgt - clim
