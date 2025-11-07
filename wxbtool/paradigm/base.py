@@ -4,6 +4,7 @@ import torch as th
 import torch.optim as optim
 
 from wxbtool.core.decorators import ci_short_circuit
+from wxbtool.core.model import Model
 from wxbtool.core.plotter import Plotter
 from wxbtool.metrics.acc import ACC
 from wxbtool.metrics.rmse import RMSE
@@ -13,7 +14,7 @@ from wxbtool.norms.meanstd import denormalizors
 class LightningModel(ltn.LightningModule):
     def __init__(self, model, opt=None):
         super(LightningModel, self).__init__()
-        self.model = model
+        self.model : Model = model
         self.opt = opt
 
         self.learning_rate = 1e-3
@@ -94,7 +95,7 @@ class LightningModel(ltn.LightningModule):
         inputs, targets, indexes = batch
 
         if self.model.enable_da:
-            key0 = [k for k in inputs.keys() if k!="seed"][0]
+            key0 = inputs.keys()[0]
             self.model.update_da_status(batch=inputs[key0].size(0))
 
         inputs = self.model.get_inputs(**inputs)

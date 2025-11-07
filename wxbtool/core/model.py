@@ -14,7 +14,6 @@ from wxbtool.data.constants import (
     load_slt,
 )
 from wxbtool.data.dataset import WxDataset, WxDatasetClient
-from wxbtool.util.evaluation import Evaluator
 
 
 def cast(element):
@@ -23,10 +22,14 @@ def cast(element):
     return tensor
 
 
-class Model2d(nn.Module):
-    def __init__(self, setting):
+class Model(nn.Module):
+    def __init__(self, setting, enable_da=False):
         super().__init__()
         self.setting = setting
+
+        self.enable_da = enable_da
+        self.lng_shift = []
+        self.flip_status = []
 
         self.dataset_train, self.dataset_test, self.dataset_eval = None, None, None
         self.train_size = -1
@@ -170,12 +173,6 @@ class Model2d(nn.Module):
             self.prepare_constant()
         return self._constant_size
 
-
-class Base2d(Model2d):
-    def __init__(self, setting, enable_da=False):
-        super().__init__(setting)
-        self.enable_da = enable_da
-
     def update_da_status(self, batch):
         if self.enable_da and self.training:
             self.lng_shift = []
@@ -183,6 +180,32 @@ class Base2d(Model2d):
             for _ in range(batch):
                 self.lng_shift.append(random.randint(0, 64))
                 self.flip_status.append(random.randint(0, 1))
+
+    def augment_data(self, data):
+        raise NotImplementedError()
+
+    def get_augmented_constant(self, input_data):
+        raise NotImplementedError()
+
+    def get_inputs(self, **kwargs):
+        raise NotImplementedError()
+
+    def get_targets(self, **kwargs):
+        raise NotImplementedError()
+
+    def get_results(self, **kwargs):
+        raise NotImplementedError()
+
+    def forward(self, *args, **kwargs):
+        raise NotImplementedError()
+
+    def lossfun(self, inputs, result, target):
+        raise NotImplementedError()
+
+
+class Base2d(Model):
+    def __init__(self, setting, enable_da=False):
+        super().__init__(setting, enable_da)
 
     def augment_data(self, data):
         if self.enable_da and self.training:
@@ -199,13 +222,13 @@ class Base2d(Model2d):
             data = th.cat(augmented, dim=0)
         return data
 
-    def get_augmented_constant(self, input):
+    def get_augmented_constant(self, input_data):
         constant = self.constant.repeat(
-            input.size()[0], 1, 1, 1
+            input_data.size()[0], 1, 1, 1
         )
         constant = self.augment_data(constant)
-        phi = self.phi.repeat(input.size()[0], 1, 1, 1)
-        theta = self.theta.repeat(input.size()[0], 1, 1, 1)
+        phi = self.phi.repeat(input_data.size()[0], 1, 1, 1)
+        theta = self.theta.repeat(input_data.size()[0], 1, 1, 1)
         cos_phi = th.cos(phi)
         sin_phi = th.sin(phi)
         cos_theta = th.cos(theta)
@@ -213,28 +236,8 @@ class Base2d(Model2d):
         constant = th.cat((constant, sin_phi, cos_phi, sin_theta, cos_theta), dim=1)
         return constant
 
-    def get_inputs(self, **kwargs):
-        raise NotImplementedError()
-        return {}, None
 
-    def get_targets(self, **kwargs):
-        raise NotImplementedError()
-        return {}, None
-
-    def get_results(self, **kwargs):
-        raise NotImplementedError()
-        return {}, None
-
-    def forward(self, *args, **kwargs):
-        raise NotImplementedError()
-        return {}
-
-    def lossfun(self, inputs, result, target):
-        raise NotImplementedError()
-        return 0.0
-
-
-class Base3d(Base2d):
+class Base3d(Model):
     def __init__(self, setting, enable_da=False):
         super().__init__(setting, enable_da)
 
@@ -265,23 +268,3 @@ class Base3d(Base2d):
         sin_theta = th.sin(theta)
         constant = th.cat((constant, sin_phi, cos_phi, sin_theta, cos_theta), dim=1)
         return constant
-
-    def get_inputs(self, **kwargs):
-        raise NotImplementedError()
-        return {}, None
-
-    def get_targets(self, **kwargs):
-        raise NotImplementedError()
-        return {}, None
-
-    def get_results(self, **kwargs):
-        raise NotImplementedError()
-        return {}, None
-
-    def forward(self, *args, **kwargs):
-        raise NotImplementedError()
-        return {}
-
-    def lossfun(self, inputs, result, target):
-        raise NotImplementedError()
-        return 0.0
