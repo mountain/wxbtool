@@ -95,7 +95,7 @@ class LightningModel(ltn.LightningModule):
         inputs, targets, indexes = batch
 
         if self.model.enable_da:
-            key0 = next(inputs.keys())
+            key0 = list(inputs.keys())[0]
             self.model.update_da_status(batch=inputs[key0].size(0))
 
         inputs = self.model.get_inputs(**inputs)
