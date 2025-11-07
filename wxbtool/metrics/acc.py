@@ -76,6 +76,13 @@ class ACC(WXBMetric):
                     pred = pred.to(clim.device)
                     trgt = trgt.to(clim.device)
 
+                    #for equivariant training
+                    if pred.size(0) != clim.size(0):
+                        equi = []
+                        for ix in range(pred.size(-1)):
+                            equi.append(torch.roll(clim, shifts=1, dims=0))
+                        clim = torch.cat(equi, dim=0)
+
                     anomaly_f = pred - clim
                     anomaly_o = trgt - clim
 
