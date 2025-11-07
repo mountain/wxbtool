@@ -7,7 +7,6 @@ import torch as th
 import torch.nn as nn
 
 from wxbtool.data.constants import (
-    load_area_weight,
     load_lat2d,
     load_lon2d,
     load_lsm,
@@ -29,17 +28,8 @@ class Model2d(nn.Module):
         super().__init__()
         self.setting = setting
 
-        self.constant_cache = {}
-        self.weight_cache = {}
-        self.phi_cache = {}
-        self.theta_cache = {}
-        self.x_cache = {}
-        self.y_cache = {}
-
         self.grid_equi = th.zeros(1, 48, 48, 2)
         self.grid_polr = th.zeros(1, 48, 48, 2)
-        self.grid_equi_cache = {}
-        self.grid_polr_cache = {}
 
         self.eva = Evaluator(setting.resolution, setting.root)
 
@@ -57,36 +47,20 @@ class Model2d(nn.Module):
         lsm = cast(load_lsm(self.setting.resolution, self.setting.root))
         slt = cast(load_slt(self.setting.resolution, self.setting.root))
         oro = cast(load_orography(self.setting.resolution, self.setting.root))
-        aw = cast(load_area_weight(self.setting.resolution, self.setting.root))
-
         phi = cast(load_lat2d(self.setting.resolution, self.setting.root)) * np.pi / 180
         theta = (
             cast(load_lon2d(self.setting.resolution, self.setting.root)) * np.pi / 180
         )
-        x, y = np.meshgrid(np.linspace(0, 1, num=32), np.linspace(0, 1, num=64))
-        x = cast(x)
-        y = cast(y)
-
-        lsm.requires_grad = False
-        slt.requires_grad = False
-        oro.requires_grad = False
-        aw.requires_grad = False
-        phi.requires_grad = False
-        theta.requires_grad = False
-        x.requires_grad = False
-        y.requires_grad = False
 
         dt = th.cos(phi)
-        self.weight = dt / dt.mean()
-
         lsm = ((lsm - 0.33707827) / 0.45900375).view(1, 1, 32, 64)
         slt = ((slt - 0.67920434) / 1.1688842).view(1, 1, 32, 64)
         oro = ((oro - 379.4976) / 859.87225).view(1, 1, 32, 64)
-        self.constant = th.cat((lsm, slt, oro), dim=1)
-        self.phi = phi
-        self.theta = theta
-        self.x = x
-        self.y = y
+
+        self.register_buffer("weight", dt / dt.mean())
+        self.register_buffer("constant", th.cat((lsm, slt, oro), dim=1))
+        self.register_buffer("phi", phi)
+        self.register_buffer("theta", theta)
 
     def load_dataset(self, phase, mode, **kwargs):
         if mode == "server":
@@ -194,58 +168,6 @@ class Model2d(nn.Module):
             logger.info("eval dataset key: %s", self.dataset_eval.hashcode)
         if self.dataset_test:
             logger.info("test dataset key: %s", self.dataset_test.hashcode)
-
-    def get_constant(self, input, device):
-        if device not in self.constant_cache:
-            if not hasattr(self, "constant"):
-                self.prepare_constant()
-            self.constant_cache[device] = self.constant.to(device)
-        return self.constant_cache[device]
-
-    def get_weight(self, device):
-        if device not in self.weight_cache:
-            if not hasattr(self, "weight"):
-                self.prepare_constant()
-            self.weight_cache[device] = self.weight.to(device)
-        return self.weight_cache[device]
-
-    def get_phi(self, device):
-        if device not in self.phi_cache:
-            if not hasattr(self, "phi"):
-                self.prepare_constant()
-            self.phi_cache[device] = self.phi.to(device)
-        return self.phi_cache[device]
-
-    def get_theta(self, device):
-        if device not in self.theta_cache:
-            if not hasattr(self, "theta"):
-                self.prepare_constant()
-            self.theta_cache[device] = self.theta.to(device)
-        return self.theta_cache[device]
-
-    def get_x(self, device):
-        if device not in self.x_cache:
-            if not hasattr(self, "x"):
-                self.prepare_constant()
-            self.x_cache[device] = self.x.to(device)
-        return self.x_cache[device]
-
-    def get_y(self, device):
-        if device not in self.y_cache:
-            if not hasattr(self, "y"):
-                self.prepare_constant()
-            self.y_cache[device] = self.y.to(device)
-        return self.y_cache[device]
-
-    def get_grid_equi(self, device):
-        if device not in self.grid_equi_cache:
-            self.grid_equi_cache[device] = self.grid_equi.to(device)
-        return self.grid_equi_cache[device]
-
-    def get_grid_polr(self, device):
-        if device not in self.grid_polr_cache:
-            self.grid_polr_cache[device] = self.grid_polr.to(device)
-        return self.grid_polr_cache[device]
 
     def constant_size(self):
         if not hasattr(self, "_constant_size"):
