@@ -93,6 +93,10 @@ class LightningModel(ltn.LightningModule):
     def training_step(self, batch, batch_idx):
         inputs, targets, indexes = batch
 
+        if self.model.enable_da:
+            key0 = [k for k in inputs.keys() if k!="seed"][0]
+            self.model.update_da_status(batch=inputs[key0].size(0))
+
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
         results = self.forward(indexes=indexes, **inputs)
