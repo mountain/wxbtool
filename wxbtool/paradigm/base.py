@@ -99,17 +99,16 @@ class LightningModel(ltn.LightningModule):
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        results = self.forward(indexes=indexes,
-                enable_da=self.model.enable_da,
-                lng_shift=self.model.lng_shift,
-                flip_status=self.model.flip_status,
-                **inputs)
+        results = self.forward(indexes=indexes, **inputs)
 
         loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="train")
         self.log("train_loss", loss, prog_bar=True, sync_dist=True)
         self.train_rmse(results, targets)
         self.log("train_rmse", self.train_rmse, prog_bar=True, sync_dist=True)
-        self.train_acc(results, targets, indexes)
+        self.train_acc(results, targets, indexes,
+                enable_da=self.model.enable_da,
+                lng_shift=self.model.lng_shift,
+                flip_status=self.model.flip_status)
         self.log("train_acc", self.train_acc, prog_bar=True, sync_dist=True)
 
         if self.is_rank0():
