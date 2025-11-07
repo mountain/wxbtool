@@ -50,8 +50,6 @@ class Model2d(nn.Module):
         lsm = ((lsm - 0.33707827) / 0.45900375).view(1, 1, 32, 64)
         slt = ((slt - 0.67920434) / 1.1688842).view(1, 1, 32, 64)
         oro = ((oro - 379.4976) / 859.87225).view(1, 1, 32, 64)
-
-        phi, theta = th.meshgrid(phi, theta)
         phi = phi.view(1, 1, 32, 64)
         theta = theta.view(1, 1, 32, 64)
 
