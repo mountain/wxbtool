@@ -120,6 +120,7 @@ class LightningModel(ltn.LightningModule):
 
     @ci_short_circuit
     def validation_step(self, batch, batch_idx):
+        self.model.clear_da_status()
         inputs, targets, indexes = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
@@ -140,6 +141,7 @@ class LightningModel(ltn.LightningModule):
 
     @ci_short_circuit
     def test_step(self, batch, batch_idx):
+        self.model.clear_da_status()
         inputs, targets, indexes = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)

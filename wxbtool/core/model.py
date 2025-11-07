@@ -181,6 +181,10 @@ class Model(nn.Module):
                 self.lng_shift.append(random.randint(0, 64))
                 self.flip_status.append(random.randint(0, 1))
 
+    def clear_da_status(self):
+        self.lng_shift = []
+        self.flip_status = []
+
     def augment_data(self, data):
         raise NotImplementedError()
 
