@@ -28,17 +28,10 @@ class Model2d(nn.Module):
         super().__init__()
         self.setting = setting
 
-        self.grid_equi = th.zeros(1, 48, 48, 2)
-        self.grid_polr = th.zeros(1, 48, 48, 2)
-
-        self.eva = Evaluator(setting.resolution, setting.root)
-
         self.dataset_train, self.dataset_test, self.dataset_eval = None, None, None
         self.train_size = -1
         self.test_size = -1
         self.eval_size = -1
-
-        self.clipping_threshold = 3.0
 
         # Assume lsm, slt, oro as constant inputs
         self._constant_size = 3
@@ -57,6 +50,10 @@ class Model2d(nn.Module):
         lsm = ((lsm - 0.33707827) / 0.45900375).view(1, 1, 32, 64)
         slt = ((slt - 0.67920434) / 1.1688842).view(1, 1, 32, 64)
         oro = ((oro - 379.4976) / 859.87225).view(1, 1, 32, 64)
+
+        phi, theta = th.meshgrid(phi, theta)
+        phi = phi.view(1, 1, 32, 64)
+        theta = theta.view(1, 1, 32, 64)
 
         self.register_buffer("weight", dt / dt.mean())
         self.register_buffer("constant", th.cat((lsm, slt, oro), dim=1))
@@ -205,12 +202,12 @@ class Base2d(Model2d):
         return data
 
     def get_augmented_constant(self, input):
-        constant = self.get_constant(input, input.device).repeat(
+        constant = self.constant.repeat(
             input.size()[0], 1, 1, 1
         )
         constant = self.augment_data(constant)
-        phi = self.get_phi(input.device).repeat(input.size()[0], 1, 1, 1)
-        theta = self.get_theta(input.device).repeat(input.size()[0], 1, 1, 1)
+        phi = self.phi.repeat(input.size()[0], 1, 1, 1)
+        theta = self.theta.repeat(input.size()[0], 1, 1, 1)
         cos_phi = th.cos(phi)
         sin_phi = th.sin(phi)
         cos_theta = th.cos(theta)
@@ -258,12 +255,12 @@ class Base3d(Base2d):
             data = th.cat(augmented, dim=0)
         return data
 
-    def get_augmented_constant(self, input):
-        b, c, t, w, h = input.size()
-        constant = self.get_constant(input, input.device).repeat(b, 1, t, 1, 1)
+    def get_augmented_constant(self, input_data):
+        b, c, t, w, h = input_data.size()
+        constant = self.constant.view(1, self._constant_size, 1, w, h).repeat(b, 1, t, 1, 1)
         constant = self.augment_data(constant)
-        phi = self.get_phi(input.device).repeat(b, 1, t, 1, 1)
-        theta = self.get_theta(input.device).repeat(b, 1, t, 1, 1)
+        phi = self.phi.view(1, 1, 1, w, h).repeat(b, 1, t, 1, 1)
+        theta = self.theta.view(1, 1, 1, w, h).repeat(b, 1, t, 1, 1)
         cos_phi = th.cos(phi)
         sin_phi = th.sin(phi)
         cos_theta = th.cos(theta)
