@@ -288,7 +288,11 @@ class Base2d(Model2d):
         constant = self.augment_data(constant)
         phi = self.get_phi(input.device).repeat(input.size()[0], 1, 1, 1)
         theta = self.get_theta(input.device).repeat(input.size()[0], 1, 1, 1)
-        constant = th.cat((constant, phi, theta), dim=1)
+        cos_phi = th.cos(phi)
+        sin_phi = th.sin(phi)
+        cos_theta = th.cos(theta)
+        sin_theta = th.sin(theta)
+        constant = th.cat((constant, sin_phi, cos_phi, sin_theta, cos_theta), dim=1)
         return constant
 
     def get_inputs(self, **kwargs):
@@ -337,7 +341,11 @@ class Base3d(Base2d):
         constant = self.augment_data(constant)
         phi = self.get_phi(input.device).repeat(b, 1, t, 1, 1)
         theta = self.get_theta(input.device).repeat(b, 1, t, 1, 1)
-        constant = th.cat((constant, phi, theta), dim=1)
+        cos_phi = th.cos(phi)
+        sin_phi = th.sin(phi)
+        cos_theta = th.cos(theta)
+        sin_theta = th.sin(theta)
+        constant = th.cat((constant, sin_phi, cos_phi, sin_theta, cos_theta), dim=1)
         return constant
 
     def get_inputs(self, **kwargs):
