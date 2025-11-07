@@ -95,14 +95,14 @@ class LightningModel(ltn.LightningModule):
 
         if self.model.enable_da:
             key0 = [k for k in inputs.keys() if k!="seed"][0]
-            self.model.model.update_da_status(batch=inputs[key0].size(0))
+            self.model.update_da_status(batch=inputs[key0].size(0))
 
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
         results = self.forward(indexes=indexes,
-                enable_da=self.model.model.enable_da,
-                lng_shift=inputs.get("lng_shift", None),
-                flip_status=inputs.get("flip_status", None),
+                enable_da=self.model.enable_da,
+                lng_shift=self.model.lng_shift,
+                flip_status=self.model.flip_status,
                 **inputs)
 
         loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="train")

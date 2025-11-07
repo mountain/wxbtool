@@ -86,6 +86,8 @@ class ACC(WXBMetric):
                                 slice = torch.flip(slice, dims=(-2,-1))
                             clim_data.append(slice)
                         clim = torch.cat(clim_data, dim=0)
+                    else:
+                        raise RuntimeError("DA should be enabled in ACC metric when used in DA model.")
 
                     anomaly_f = pred - clim
                     anomaly_o = trgt - clim
