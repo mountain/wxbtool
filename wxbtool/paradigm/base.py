@@ -47,7 +47,7 @@ class LightningModel(ltn.LightningModule):
         return True
 
     def build_metrics(self, metric_class):
-        weight = self.model.get_weight(self.device)
+        weight = self.model.model.weight
         variables = ['data'] + self.model.setting.vars_out
         h, w = weight.size(-2), weight.size(-1)
         return metric_class(
