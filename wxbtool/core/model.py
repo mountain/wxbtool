@@ -42,6 +42,7 @@ class Model2d(nn.Module):
 
         # Assume lsm, slt, oro as constant inputs
         self._constant_size = 3
+        self.prepare_constant()
 
     def prepare_constant(self):
         lsm = cast(load_lsm(self.setting.resolution, self.setting.root))
