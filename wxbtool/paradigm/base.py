@@ -145,7 +145,7 @@ class LightningModel(ltn.LightningModule):
         inputs, targets, indexes = batch
         inputs = self.model.get_inputs(**inputs)
         targets = self.model.get_targets(**targets)
-        results = self.forward(indexies=indexes, **inputs)
+        results = self.forward(indexes=indexes, **inputs)
 
         loss = self.loss_fn(inputs, results, targets, indexes=indexes, mode="test")
         self.log("test_loss", loss, sync_dist=True, prog_bar=True)
