@@ -16,9 +16,9 @@ from wxbtool.core.metrics import WXBMetric
 def plot_seasonal_check(pred_phys, target_phys, clim_phys, variable_name, start_index, t_shift, save_dir="debug_plots"):
     os.makedirs(save_dir, exist_ok=True)
 
-    p_map = pred_phys[0, 0].cpu().detach().numpy()
-    t_map = target_phys[0, 0].cpu().detach().numpy()
-    c_map = clim_phys[0, 0].cpu().detach().numpy()
+    p_map = pred_phys[0, 0].cpu().detach().squeeze().numpy()
+    t_map = target_phys[0, 0].cpu().detach().squeeze().numpy()
+    c_map = clim_phys[0, 0].cpu().detach().squeeze().numpy()
 
     pred_anomaly = p_map - c_map
     target_anomaly = t_map - c_map
