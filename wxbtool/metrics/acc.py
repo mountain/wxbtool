@@ -13,6 +13,62 @@ from wxbtool.core.types import Data, Indexes
 from wxbtool.core.metrics import WXBMetric
 
 
+def plot_seasonal_check(pred_phys, target_phys, clim_phys, variable_name, start_index, t_shift, save_dir="debug_plots"):
+    os.makedirs(save_dir, exist_ok=True)
+
+    p_map = pred_phys[0, 0].cpu().detach().numpy()
+    t_map = target_phys[0, 0].cpu().detach().numpy()
+    c_map = clim_phys[0, 0].cpu().detach().numpy()
+
+    pred_anomaly = p_map - c_map
+    target_anomaly = t_map - c_map
+
+    vmin_raw, vmax_raw = t_map.min(), t_map.max()
+    abs_max = max(np.max(np.abs(pred_anomaly)), np.max(np.abs(target_anomaly)))
+
+    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+
+    # --- Row 1: Forecast Perspective ---
+    # 1. Prediction Raw
+    im1 = axes[0, 0].imshow(p_map, cmap='coolwarm', vmin=vmin_raw, vmax=vmax_raw)
+    axes[0, 0].set_title(f"Forecast (Raw)\nMean: {p_map.mean():.1f}")
+    plt.colorbar(im1, ax=axes[0, 0], fraction=0.046, pad=0.04)
+
+    # 2. Climatology (Reference)
+    im2 = axes[0, 1].imshow(c_map, cmap='coolwarm', vmin=vmin_raw, vmax=vmax_raw)
+    axes[0, 1].set_title(f"Climatology (Day {start_index} + {t_shift})\nMean: {c_map.mean():.1f}")
+    plt.colorbar(im2, ax=axes[0, 1], fraction=0.046, pad=0.04)
+
+    # 3. Forecast Anomaly
+    im3 = axes[0, 2].imshow(pred_anomaly, cmap='RdBu_r', vmin=-abs_max, vmax=abs_max)
+    axes[0, 2].set_title(f"Forecast Anomaly (Pred - Clim)\nMeanAbs: {np.mean(np.abs(pred_anomaly)):.2f}")
+    plt.colorbar(im3, ax=axes[0, 2], fraction=0.046, pad=0.04)
+
+    # --- Row 2: Ground Truth Perspective ---
+    # 4. Target Raw
+    im4 = axes[1, 0].imshow(t_map, cmap='coolwarm', vmin=vmin_raw, vmax=vmax_raw)
+    axes[1, 0].set_title(f"Target (Obs)\nMean: {t_map.mean():.1f}")
+    plt.colorbar(im4, ax=axes[1, 0], fraction=0.046, pad=0.04)
+
+    # 5. Climatology (Copy for easier comparison)
+    im5 = axes[1, 1].imshow(c_map, cmap='coolwarm', vmin=vmin_raw, vmax=vmax_raw)
+    axes[1, 1].set_title(f"Climatology (Same)\nMean: {c_map.mean():.1f}")
+    plt.colorbar(im5, ax=axes[1, 1], fraction=0.046, pad=0.04)
+
+    # 6. Target Anomaly
+    im6 = axes[1, 2].imshow(target_anomaly, cmap='RdBu_r', vmin=-abs_max, vmax=abs_max)
+    axes[1, 2].set_title(f"Target Anomaly (Obs - Clim)\nMeanAbs: {np.mean(np.abs(target_anomaly)):.2f}")
+    plt.colorbar(im6, ax=axes[1, 2], fraction=0.046, pad=0.04)
+
+    # Global Title
+    fig.suptitle(f"Variable: {variable_name} | Start Index: {start_index} | Lead Time: {t_shift} days", fontsize=16)
+
+    plt.tight_layout()
+    filename = f"{save_dir}/debug_{variable_name}_idx{start_index:04d}_lead{t_shift:03d}.png"
+    plt.savefig(filename)
+    plt.close()
+
+
 class ACC(WXBMetric):
     def __init__(
             self,
@@ -109,27 +165,19 @@ class ACC(WXBMetric):
                     attr = f"{variable}:osum:{t_shift:03d}"
                     self._incr_(attr, osum)
 
-                    if variable == "t2m":
-                        t_map = trgt[0, 0, 0].cpu().detach().numpy()
-                        c_map = clim[0, 0, 0].cpu().detach().numpy()
-                        diff_map = t_map - c_map
-                        abs_max = np.max(np.abs(diff_map))  # 用于锁定距平图的颜色范围
-                        plt.figure(figsize=(18, 5))
-                        plt.subplot(1, 3, 1)
-                        plt.title(f"Target (Obs)\nMean: {t_map.mean():.2f}")
-                        plt.imshow(t_map, cmap='coolwarm')
-                        plt.colorbar(fraction=0.046, pad=0.04)
-                        plt.subplot(1, 3, 2)
-                        plt.title(f"Climatology\nMean: {c_map.mean():.2f}")
-                        plt.imshow(c_map, cmap='coolwarm')
-                        plt.colorbar(fraction=0.046, pad=0.04)
-                        plt.subplot(1, 3, 3)
-                        plt.title(f"Anomaly (Obs-Clim)\nMeanAbs: {np.abs(diff_map).mean():.2f}")
-                        plt.imshow(diff_map, cmap='RdBu_r', vmin=-abs_max, vmax=abs_max)
-                        plt.colorbar(fraction=0.046, pad=0.04)
-                        plt.tight_layout()
-                        plt.savefig('debug_maps_%03d.png' % t_shift)
-                        plt.close()
+                    is_first_batch = (indexes[0] == 0) if isinstance(indexes[0], int) else (indexes[0].item() == 0)
+                    if variable == "t2m" and is_first_batch:
+                        start_index = indexes[0]
+                        plot_seasonal_check(
+                            pred_phys=pred,
+                            target_phys=trgt,
+                            clim_phys=clim,
+                            variable_name=variable,
+                            start_index=start_index,
+                            t_shift=t_shift * self.temporal_step + self.temporal_shift,
+                            save_dir="debug_plots"
+                        )
+
 
     def compute(self) -> Tensor:
         acc_list = torch.zeros(len(self.variables), self.temporal_span)
