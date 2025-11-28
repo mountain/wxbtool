@@ -11,6 +11,10 @@ from typing import Any, Dict, Callable
 from wxbtool.data.climatology import ClimatologyAccessor
 from wxbtool.core.types import Data, Indexes
 from wxbtool.core.metrics import WXBMetric
+import os
+import numpy as np
+import torch
+import matplotlib.pyplot as plt
 
 
 def plot_seasonal_check(pred_phys, target_phys, clim_phys, variable_name, start_index, t_shift, save_dir="debug_plots"):
@@ -23,10 +27,24 @@ def plot_seasonal_check(pred_phys, target_phys, clim_phys, variable_name, start_
     pred_anomaly = p_map - c_map
     target_anomaly = t_map - c_map
 
+    v_p = pred_anomaly.flatten()
+    v_t = target_anomaly.flatten()
+
+    # Manual ACC Calculation
+    numerator = np.sum(v_p * v_t)
+    denominator = np.sqrt(np.sum(v_p ** 2)) * np.sqrt(np.sum(v_t ** 2))
+    acc_manual = numerator / (denominator + 1e-12)
+
+    # Manual RMSE Calculation
+    mse = np.mean((v_p - v_t) ** 2)
+    rmse_manual = np.sqrt(mse)
+
+    obs_std = np.std(v_t)
+
     vmin_raw, vmax_raw = t_map.min(), t_map.max()
     abs_max = max(np.max(np.abs(pred_anomaly)), np.max(np.abs(target_anomaly)))
 
-    fig, axes = plt.subplots(2, 3, figsize=(18, 10))
+    fig, axes = plt.subplots(2, 3, figsize=(18, 11))
 
     # --- Row 1: Forecast Perspective ---
     # 1. Prediction Raw
@@ -50,7 +68,7 @@ def plot_seasonal_check(pred_phys, target_phys, clim_phys, variable_name, start_
     axes[1, 0].set_title(f"Target (Obs)\nMean: {t_map.mean():.1f}")
     plt.colorbar(im4, ax=axes[1, 0], fraction=0.046, pad=0.04)
 
-    # 5. Climatology (Copy for easier comparison)
+    # 5. Climatology (Same)
     im5 = axes[1, 1].imshow(c_map, cmap='coolwarm', vmin=vmin_raw, vmax=vmax_raw)
     axes[1, 1].set_title(f"Climatology (Same)\nMean: {c_map.mean():.1f}")
     plt.colorbar(im5, ax=axes[1, 1], fraction=0.046, pad=0.04)
@@ -63,11 +81,22 @@ def plot_seasonal_check(pred_phys, target_phys, clim_phys, variable_name, start_
     # Global Title
     fig.suptitle(f"Variable: {variable_name} | Start Index: {start_index} | Lead Time: {t_shift} days", fontsize=16)
 
-    plt.tight_layout()
+    stats_text = (
+        f"--- Manual Batch Statistics (The Truth) ---\n"
+        f"ACC (Anomaly Corr): {acc_manual:.4f}  |  "
+        f"RMSE (Anomaly): {rmse_manual:.4f}  |  "
+        f"Obs Anomaly Std: {obs_std:.4f}"
+    )
+
+    fig.text(0.5, 0.02, stats_text, ha='center', va='bottom', fontsize=14, fontweight='bold',
+             bbox=dict(boxstyle="round,pad=0.5", fc="#f0f0f0", ec="black", alpha=0.9))
+
+    plt.tight_layout(rect=[0, 0.08, 1, 0.96])
+
     filename = f"{save_dir}/debug_{variable_name}_idx{start_index:04d}_lead{t_shift:03d}.png"
     plt.savefig(filename)
     plt.close()
-
+    # print(f"Saved debug plot with stats: {filename}")
 
 class ACC(WXBMetric):
     def __init__(
