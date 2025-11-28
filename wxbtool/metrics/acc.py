@@ -1,5 +1,8 @@
 import os
+
+import numpy as np
 import torch
+from matplotlib import pyplot as plt
 
 from torch import Tensor, tensor
 from collections.abc import Sequence
@@ -105,6 +108,28 @@ class ACC(WXBMetric):
                     self._incr_(attr, fsum)
                     attr = f"{variable}:osum:{t_shift:03d}"
                     self._incr_(attr, osum)
+
+                    if variable == "t2m" and t_shift == 0:
+                        t_map = trgt[0, 0, 0].cpu().detach().numpy()
+                        c_map = clim[0, 0, 0].cpu().detach().numpy()
+                        diff_map = t_map - c_map
+                        abs_max = np.max(np.abs(diff_map))  # 用于锁定距平图的颜色范围
+                        plt.figure(figsize=(18, 5))
+                        plt.subplot(1, 3, 1)
+                        plt.title(f"Target (Obs)\nMean: {t_map.mean():.2f}")
+                        plt.imshow(t_map, cmap='coolwarm')
+                        plt.colorbar(fraction=0.046, pad=0.04)
+                        plt.subplot(1, 3, 2)
+                        plt.title(f"Climatology\nMean: {c_map.mean():.2f}")
+                        plt.imshow(c_map, cmap='coolwarm')
+                        plt.colorbar(fraction=0.046, pad=0.04)
+                        plt.subplot(1, 3, 3)
+                        plt.title(f"Anomaly (Obs-Clim)\nMeanAbs: {np.abs(diff_map).mean():.2f}")
+                        plt.imshow(diff_map, cmap='RdBu_r', vmin=-abs_max, vmax=abs_max)
+                        plt.colorbar(fraction=0.046, pad=0.04)
+                        plt.tight_layout()
+                        plt.savefig('debug_maps.png')
+                        plt.close()
 
     def compute(self) -> Tensor:
         acc_list = torch.zeros(len(self.variables), self.temporal_span)
