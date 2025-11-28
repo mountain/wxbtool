@@ -70,9 +70,9 @@ class ACC(WXBMetric):
             if variable != "data" and variable != "test" and variable != "seed":
                 for t_shift in range(self.temporal_span):
                     denorm = self.denormalizers[variable]
-                    pred = denorm(forecasts[variable].detach())[:, :, t_shift:t_shift + 1]
-                    trgt = denorm(targets[variable].detach())[:, :, t_shift:t_shift + 1]
-                    clim = climatology[variable].detach()[:, :, t_shift:t_shift + 1]
+                    pred = denorm(forecasts[variable].detach()[:, :, t_shift:t_shift + 1])
+                    trgt = denorm(targets[variable].detach()[:, :, t_shift:t_shift + 1])
+                    clim = denorm(climatology[variable].detach()[:, :, t_shift:t_shift + 1])
                     pred = pred.to(clim.device)
                     trgt = trgt.to(clim.device)
 
@@ -86,6 +86,11 @@ class ACC(WXBMetric):
                                 slice = torch.flip(slice, dims=(-2,-1))
                             clim_data.append(slice)
                         clim = torch.cat(clim_data, dim=0)
+
+                    print(f"Variable: {variable}")
+                    print(f"Pred Mean: {pred.mean().item():.4f}, Std: {pred.std().item():.4f}")
+                    print(f"Clim Mean: {clim.mean().item():.4f}, Std: {clim.std().item():.4f}")
+                    print(f"Diff Mean: {(pred - clim).abs().mean().item():.4f}")
 
                     anomaly_f = pred - clim
                     anomaly_o = trgt - clim
