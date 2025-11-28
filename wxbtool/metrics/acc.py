@@ -109,7 +109,7 @@ class ACC(WXBMetric):
                     attr = f"{variable}:osum:{t_shift:03d}"
                     self._incr_(attr, osum)
 
-                    if variable == "t2m" and t_shift == 0:
+                    if variable == "t2m":
                         t_map = trgt[0, 0, 0].cpu().detach().numpy()
                         c_map = clim[0, 0, 0].cpu().detach().numpy()
                         diff_map = t_map - c_map
@@ -128,7 +128,7 @@ class ACC(WXBMetric):
                         plt.imshow(diff_map, cmap='RdBu_r', vmin=-abs_max, vmax=abs_max)
                         plt.colorbar(fraction=0.046, pad=0.04)
                         plt.tight_layout()
-                        plt.savefig('debug_maps.png')
+                        plt.savefig('debug_maps_%03d.png' % t_shift)
                         plt.close()
 
     def compute(self) -> Tensor:
