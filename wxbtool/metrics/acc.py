@@ -11,10 +11,6 @@ from typing import Any, Dict, Callable
 from wxbtool.data.climatology import ClimatologyAccessor
 from wxbtool.core.types import Data, Indexes
 from wxbtool.core.metrics import WXBMetric
-import os
-import numpy as np
-import torch
-import matplotlib.pyplot as plt
 
 
 def plot_seasonal_check(pred_phys, target_phys, clim_phys, variable_name, start_index, t_shift, save_dir="debug_plots"):
