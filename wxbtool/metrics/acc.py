@@ -191,7 +191,7 @@ class ACC(WXBMetric):
                     self._incr_(attr, osum)
 
                     is_first_batch = (indexes[0] == 0) if isinstance(indexes[0], int) else (indexes[0].item() == 0)
-                    if variable == "t2m" and is_first_batch:
+                    if (variable == "t2m" or  variable == "u850") and is_first_batch:
                         start_index = indexes[0]
                         plot_seasonal_check(
                             pred_phys=pred,
