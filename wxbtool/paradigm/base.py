@@ -70,7 +70,7 @@ class LightningModel(ltn.LightningModule):
             weight_decay=0.1,
             betas=(0.9, 0.95),
         )
-        scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 53)
+        scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 23)
         return [optimizer], [scheduler]
 
     def loss_fn(self, input, result, target, indexes=None, mode="train"):
