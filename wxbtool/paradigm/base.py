@@ -67,8 +67,8 @@ class LightningModel(ltn.LightningModule):
         optimizer = optim.AdamW(
             self.parameters(),
             lr=self.learning_rate,
-            weight_decay=0.01,
-            betas=(0.9, 0.999),
+            weight_decay=0.1,
+            betas=(0.9, 0.95),
         )
         scheduler = th.optim.lr_scheduler.CosineAnnealingLR(optimizer, 53)
         return [optimizer], [scheduler]
