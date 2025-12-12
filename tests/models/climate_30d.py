@@ -23,7 +23,7 @@ class Mdl(ClimateSpec):
         self.cnn = SimpleCNN2d(
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size()
-            + 2,
+            + 4,
             self.setting.pred_span * len(self.setting.vars_out),
         )
 
@@ -36,7 +36,7 @@ class Mdl(ClimateSpec):
         inputs = th.cat((inputs, cnst), dim=1)
 
         # Forward pass through the CNN
-        output = self.cnn(inputs).view(batch_size, self.setting.pred_span, 32, 64)
+        output = self.cnn(inputs).view(batch_size, 1, self.setting.pred_span, 32, 64)
         return {"test": output, "data": output}
 
 
