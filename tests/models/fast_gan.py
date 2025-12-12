@@ -76,7 +76,7 @@ class Mdl(Spec):
         input_channels = (
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size()
-            + 2
+            + 4
             + 1
         )
         output_channels = self.setting.pred_span * len(self.setting.vars_out)
@@ -111,7 +111,7 @@ class Mdl(Spec):
         inputs = th.cat((inputs, cnst, seed), dim=1)
 
         # Forward pass through the CNN
-        output = self.cnn(inputs).view(batch_size, self.setting.pred_span, 32, 64)
+        output = self.cnn(inputs).view(batch_size, 1, self.setting.pred_span, 32, 64)
 
         return {"t2m": output, "data": output}
 
@@ -129,7 +129,7 @@ class Dsc(Spec):
         input_channels = (
             self.setting.input_span * len(self.setting.vars_in)
             + self.constant_size()
-            + 2
+            + 4
             + 2
         )
         output_channels = self.setting.pred_span * len(self.setting.vars_out)
@@ -155,13 +155,14 @@ class Dsc(Spec):
         batch_size = kwargs["data"].size()[0]
         self.update_da_status(batch_size)
 
-        inputs = kwargs["data"]
-        cnst = self.get_augmented_constant(inputs)
+        input_data = kwargs["data"]
+        cnst = self.get_augmented_constant(input_data)
         target = kwargs["target"]
-        inputs = th.cat((inputs, cnst, target), dim=1)
+        target = target.view(batch_size, -1, 32, 64)
+        inputs = th.cat((input_data, cnst, target), dim=1)
 
         # Forward pass through the CNN
-        output = self.mlp(inputs).view(batch_size, self.setting.pred_span, 32, 64)
+        output = self.mlp(inputs).view(batch_size, 1, self.setting.pred_span, 32, 64)
         output = th.sigmoid(output)
 
         return {"t2m": output, "data": output}

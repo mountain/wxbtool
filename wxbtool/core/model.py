@@ -61,6 +61,9 @@ class Model(nn.Module):
         self.register_buffer("phi", phi)
         self.register_buffer("theta", theta)
 
+    def get_weight(self, device):
+        return self.weight.to(device)
+
     def load_dataset(self, phase, mode, **kwargs):
         if mode == "server":
             self.dataset_train, self.dataset_eval, self.dataset_test = (

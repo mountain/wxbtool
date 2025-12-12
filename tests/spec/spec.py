@@ -151,7 +151,7 @@ class Spec(Base2d):
 
     def get_targets(self, **kwargs):
         t2m = n.norm_t2m(
-            kwargs["2m_temperature"].view(-1, self.setting.pred_span, 32, 64)
+            kwargs["2m_temperature"].view(-1, 1, self.setting.pred_span, 32, 64)
         ).float()
 
         return {
