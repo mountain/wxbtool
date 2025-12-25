@@ -60,6 +60,7 @@ wxb forecast -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -g 0 -c 8
 - `-m/--module`: Specifies the model module to load
 - `-g/--gpu`: Specifies which GPU to use for inference
 - `-c/--n_cpu`: Number of CPU threads for data processing
+- `-b/--batch_size`: Size of the batches (default: 64)
 
 ### Time Selection and Output Options
 

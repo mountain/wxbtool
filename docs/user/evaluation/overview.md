@@ -192,21 +192,18 @@ Backtesting evaluates rolling, day-by-day performance starting from a specific i
   ```bash
   wxb backtest -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn -t 2025-01-01 -o forecast.nc
   ```
+  
+  ### Backtest Options
+  
   - `-t/--datetime`: Initialization date in `YYYY-MM-DD` (date only)
-  - `-o/--output`: `png` or `nc`
-
-- Outputs:
-  - Same PNG/NC artifacts as `wxb forecast`
-  - Additionally, when using `.nc`, writes `output/{YYYY-MM-DD}/var_day_rmse.json` containing day-by-day RMSE keyed by calendar date, for each variable in `vars_out`. Example:
-    ```json
-    {
-      "t2m": {
-        "2025-01-01": 2.31,
-        "2025-01-02": 2.45,
-        "2025-01-03": 2.62
-      }
-    }
-    ```
+  - `-o/--output`: Output format, either `png` or `nc`
+  - `-m/--module`: Module of the meteorological model to load
+  - `-g/--gpu`: Index of gpu to use
+  - `-c/--n_cpu`: Number of cpu threads to use during batch generation
+  - `-b/--batch_size`: Size of the batches (default: 64)
+  - `-l/--load`: Dump file of the meteorological model to load
+  - `-d/--data`: HTTP url of the dataset server or binding unix socket
+  - `-p/--plot`: Plot testing result (default: "true")
 
 - Positioning vs `wxb test`:
   - `wxb test`: Bulk evaluation on the test split
