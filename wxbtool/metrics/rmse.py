@@ -24,7 +24,7 @@ class RMSE(WXBMetric):
             for t_shift in range(self.temporal_span):
                 self.add_state(f"{variable}:total:{t_shift:03d}", default=tensor(0.0), dist_reduce_fx="sum")
                 self.add_state(f"{variable}:sum_weighted_squared_error:{t_shift:03d}", default=tensor(0.0), dist_reduce_fx="sum")
-                self.add_state(f"{variable}:rmse:{t_shift:03d}", default=tensor(1), dist_reduce_fx="mean")
+                self.add_state(f"{variable}:rmse:{t_shift:03d}", default=tensor(0.0), dist_reduce_fx="mean")
 
     def update(self, forecasts: Data, targets: Data) -> None:
         for variable in self.variables:
