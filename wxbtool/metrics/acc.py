@@ -12,23 +12,26 @@ from wxbtool.data.climatology import ClimatologyAccessor
 from wxbtool.core.types import Data, Indexes
 from wxbtool.core.metrics import WXBMetric
 
+DEBUG_ACC = False
 
-def plot_seasonal_check(pred_phys, target_phys, clim_phys, variable_name, start_index, t_shift, save_dir="debug_plots"):
+def plot_seasonal_check(pred_phys, target_phys,  clim_phys, weight, variable_name, start_index, t_shift, save_dir="debug_plots"):
     os.makedirs(save_dir, exist_ok=True)
 
     p_map = pred_phys[0, 0].cpu().detach().squeeze().numpy()
     t_map = target_phys[0, 0].cpu().detach().squeeze().numpy()
     c_map = clim_phys[0, 0].cpu().detach().squeeze().numpy()
+    w_map = weight[0, 0].cpu().detach().squeeze().numpy()
 
     pred_anomaly = p_map - c_map
     target_anomaly = t_map - c_map
 
     v_p = pred_anomaly.flatten()
     v_t = target_anomaly.flatten()
+    v_w = w_map.flatten()
 
     # Manual ACC Calculation
-    numerator = np.sum(v_p * v_t)
-    denominator = np.sqrt(np.sum(v_p ** 2)) * np.sqrt(np.sum(v_t ** 2))
+    numerator = np.sum(v_w * v_p * v_t)
+    denominator = np.sqrt(np.sum(v_w * v_p ** 2)) * np.sqrt(np.sum(v_w * v_t ** 2))
     acc_manual = numerator / (denominator + 1e-12)
 
     # Manual RMSE Calculation
@@ -79,7 +82,7 @@ def plot_seasonal_check(pred_phys, target_phys, clim_phys, variable_name, start_
 
     stats_text = (
         f"--- Manual Batch Statistics (The Truth) ---\n"
-        f"ACC (Anomaly Corr): {acc_manual:.4f}  |  "
+        f"wACC (Anomaly Corr): {acc_manual:.4f}  |  "
         f"RMSE (Anomaly): {rmse_manual:.4f}  |  "
         f"Obs Anomaly Std: {obs_std:.4f}"
     )
@@ -133,9 +136,8 @@ class ACC(WXBMetric):
         for ix in range(self.temporal_span):
             delta = ix * self.temporal_step
             shifts = [idx + delta + self.temporal_shift for idx in indexes]
-            clim = self.climatology_accessor.get_climatology(clean_variables, shifts).reshape(
-                batch_size, len(clean_variables), 1, self.spatio_height, self.spatio_width
-            )
+            clim = self.climatology_accessor.get_climatology(clean_variables, shifts)
+            clim = clim.swapaxes(0, 2)
             data.append(torch.as_tensor(clim, device=device, dtype=dtype))
         data = torch.cat(data, dim=2)  # B, C, T, H, W
         for var_index, variable in enumerate(clean_variables):
@@ -170,11 +172,12 @@ class ACC(WXBMetric):
                                 slice = torch.flip(slice, dims=(-2,-1))
                             clim_data.append(slice)
                         clim = torch.cat(clim_data, dim=0)
-
-                    print(f"Variable: {variable}")
-                    print(f"Pred Mean: {pred.mean().item():.4f}, Std: {pred.std().item():.4f}")
-                    print(f"Clim Mean: {clim.mean().item():.4f}, Std: {clim.std().item():.4f}")
-                    print(f"Diff Mean: {(pred - clim).abs().mean().item():.4f}")
+                    if DEBUG_ACC:
+                        print(f"Variable: {variable}")
+                        print(f"Pred Mean: {pred.mean().item():.4f}, Std: {pred.std().item():.4f}")
+                        print(f"Clim Mean: {clim.mean().item():.4f}, Std: {clim.std().item():.4f}")
+                        print(f"Diff Mean: {(pred - clim).abs().mean().item():.4f}")
+                    
 
                     anomaly_f = pred - clim
                     anomaly_o = trgt - clim
@@ -190,18 +193,20 @@ class ACC(WXBMetric):
                     attr = f"{variable}:osum:{t_shift:03d}"
                     self._incr_(attr, osum)
 
-                    is_first_batch = (indexes[0] == 0) if isinstance(indexes[0], int) else (indexes[0].item() == 0)
-                    if (variable == "t2m" or  variable == "u850") and is_first_batch:
-                        start_index = indexes[0]
-                        plot_seasonal_check(
-                            pred_phys=pred,
-                            target_phys=trgt,
-                            clim_phys=clim,
-                            variable_name=variable,
-                            start_index=start_index,
-                            t_shift=t_shift * self.temporal_step + self.temporal_shift,
-                            save_dir="debug_plots"
-                        )
+                    if DEBUG_ACC:
+                        is_first_batch = (indexes[0] == 0) if isinstance(indexes[0], int) else (indexes[0].item() == 0)
+                        if (variable == "t2m" or  variable == "u850") and is_first_batch:
+                            start_index = indexes[0]
+                            plot_seasonal_check(
+                                pred_phys=pred,
+                                target_phys=trgt,
+                                clim_phys=clim,
+                                weight=weight,
+                                variable_name=variable,
+                                start_index=start_index,
+                                t_shift=t_shift * self.temporal_step + self.temporal_shift,
+                                save_dir="debug_plots"
+                            )
 
 
     def compute(self) -> Tensor:

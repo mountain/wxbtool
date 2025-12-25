@@ -28,28 +28,30 @@ class RMSE(WXBMetric):
 
     def update(self, forecasts: Data, targets: Data) -> None:
         for variable in self.variables:
-            denorm = self.denormalizers[variable]
-            pred = denorm(forecasts[variable].detach())
-            trgt = denorm(targets[variable].detach())
-            self.spatio_weight = self.spatio_weight.to(pred.device)
-            sum_weighted_squared_error = self._sum_(self.spatio_weight * (trgt - pred) ** 2)
-            total = self._sum_(self.spatio_weight * torch.ones_like(trgt))
+            if variable != "data" and variable != "test" and variable != "seed":
+                denorm = self.denormalizers[variable]
+                pred = denorm(forecasts[variable].detach())
+                trgt = denorm(targets[variable].detach())
+                self.spatio_weight = self.spatio_weight.to(pred.device)
+                sum_weighted_squared_error = self._sum_(self.spatio_weight * (trgt - pred) ** 2)
+                total = self._sum_(self.spatio_weight * torch.ones_like(trgt))
 
-            for t_shift in range(self.temporal_span):
-                attr = f"{variable}:sum_weighted_squared_error:{t_shift:03d}"
-                self._incr_(attr, sum_weighted_squared_error[:, t_shift].sum())
-                attr = f"{variable}:total:{t_shift:03d}"
-                self._incr_(attr, total[:, t_shift].sum())
+                for t_shift in range(self.temporal_span):
+                    attr = f"{variable}:sum_weighted_squared_error:{t_shift:03d}"
+                    self._incr_(attr, sum_weighted_squared_error[:, t_shift].sum())
+                    attr = f"{variable}:total:{t_shift:03d}"
+                    self._incr_(attr, total[:, t_shift].sum())
 
     def compute(self) -> Tensor:
         rmse_list = torch.zeros(len(self.variables), self.temporal_span)
         for index, variable in enumerate(self.variables):
-            for t_shift in range(self.temporal_span):
-                total = self._get_(f"{variable}:total:{t_shift:03d}")
-                mse = self._get_(f"{variable}:sum_weighted_squared_error:{t_shift:03d}") / total
-                rmse = torch.sqrt(mse)
-                self._set_(f"{variable}:rmse:{t_shift:03d}", rmse)
-                rmse_list[index, t_shift] = rmse
+            if variable != "data" and variable != "test" and variable != "seed":
+                for t_shift in range(self.temporal_span):
+                    total = self._get_(f"{variable}:total:{t_shift:03d}")
+                    mse = self._get_(f"{variable}:sum_weighted_squared_error:{t_shift:03d}") / total
+                    rmse = torch.sqrt(mse)
+                    self._set_(f"{variable}:rmse:{t_shift:03d}", rmse)
+                    rmse_list[index, t_shift] = rmse
         return rmse_list.mean()
 
     def dump(self, path:str) -> None:

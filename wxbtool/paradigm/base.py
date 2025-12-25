@@ -54,7 +54,7 @@ class LightningModel(ltn.LightningModule):
         return metric_class(
             self.model.setting.pred_span,
             self.model.setting.step,
-            self.model.setting.pred_shift,
+            self.model.setting.pred_shift + self.model.setting.input_span - 1,
             weight.view(1, 1, 1, h, w),
             variables,
             denormalizors
