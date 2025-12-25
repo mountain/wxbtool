@@ -232,7 +232,7 @@ class ACC(WXBMetric):
                 result[variable] = {}
                 for t_shift in range(self.temporal_span):
                     acc = self._get_(f"{variable}:acc:{t_shift:03d}")
-                    result[variable][f"{t_shift:03d}"] = float(acc.cpu().numpy())
+                    result[variable][f"{t_shift:03d}"] = acc.cpu().item()
 
         import json
         with open(path, "w") as f:

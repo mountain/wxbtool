@@ -88,7 +88,7 @@ class CRPS(WXBMetric):
                 result[variable] = {}
                 for t_shift in range(self.temporal_span):
                     crps = self._get_(f"{variable}:crps:{t_shift:03d}")
-                    result[variable][f"{t_shift:03d}"] = float(crps.cpu().numpy())
+                    result[variable][f"{t_shift:03d}"] = crps.cpu().item()
 
         import json
         with open(path, "w") as f:
