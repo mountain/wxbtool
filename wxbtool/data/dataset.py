@@ -147,7 +147,7 @@ class WxDataset(Dataset):
                 if not files:
                     raise FileNotFoundError(f"No valid data files found in {var3d_path}")
                 any_file = files[0]
-                sample_data = xr.open_dataarray(f"{var3d_path}/{any_file}")
+                sample_data = xr.open_dataarray(f"{var3d_path}/{any_file}", engine="netcdf4")
                 all_levels = sample_data.level.values.tolist()
             except (FileNotFoundError, IndexError, AttributeError) as e:
                 logger.error(
@@ -368,7 +368,7 @@ class WxDataset(Dataset):
     def load_2ddata(self, data_path, var, accumulated):
         import wxbtool.data.variables as v  # noqa: E402
 
-        with xr.open_dataset(data_path) as ds:
+        with xr.open_dataset(data_path, engine="netcdf4") as ds:
             ds = ds.transpose("time", "lat", "lon")
             if var not in accumulated:
                 accumulated[var] = np.array(ds[v.get_code(var)].data, dtype=np.float32)
@@ -392,7 +392,7 @@ class WxDataset(Dataset):
     def load_3ddata(self, data_path, var, selector, accumulated):
         import wxbtool.data.variables as v  # noqa: E402
 
-        with xr.open_dataset(data_path) as ds:
+        with xr.open_dataset(data_path, engine="netcdf4") as ds:
             ds = ds.transpose("time", "level", "lat", "lon")
             if var not in accumulated:
                 accumulated[var] = np.array(ds[v.get_code(var)].data, dtype=np.float32)[
