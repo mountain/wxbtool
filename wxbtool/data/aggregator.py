@@ -153,7 +153,7 @@ def aggregate_worker(args):
 
 class Aggregator:
     def __init__(self, setting: Setting, src_root: str, 
-                 window_hours: int, alignment: str = 'backward', workers: int = 4):
+                 window_hours: int, alignment: str = 'backward', workers: int = 4, n_lat: int = 32, lon_convention: str = '0-360'):
         self.setting = setting
         self.src_root = src_root
         
@@ -168,6 +168,8 @@ class Aggregator:
         self.window_hours = window_hours
         self.alignment = alignment
         self.workers = workers
+        self.n_lat = n_lat
+        self.lon_convention = lon_convention
         
         # Assume source resolution matches destination resolution for now
         self.resolution = setting.resolution
@@ -235,7 +237,11 @@ class Aggregator:
                     self.alignment,
                     self.resolution,
                     dst_root,
-                    self.src_format
+                    self.resolution,
+                    dst_root,
+                    self.src_format,
+                    self.n_lat,
+                    self.lon_convention
                 ))
 
         logger.info(f"Generated {len(tasks)} tasks. Starting Processing...")
@@ -265,9 +271,9 @@ class Aggregator:
 def execute_aggregation(args):
     """
     Top level wrapper for pickle ability.
-    args: (timestamp, var, src_root, dst_path_format, window_hours, alignment, resolution, dst_root, src_format)
+    args: (timestamp, var, src_root, dst_path_format, window_hours, alignment, resolution, dst_root, src_format, n_lat, lon_convention)
     """
-    (timestamp, var, src_root, dst_path_format, window_hours, alignment, resolution, dst_root, src_format) = args
+    (timestamp, var, src_root, dst_path_format, window_hours, alignment, resolution, dst_root, src_format, n_lat, lon_convention) = args
     
     try:
         # Calculate Window Range
@@ -360,6 +366,55 @@ def execute_aggregation(args):
         # Compute Mean
         mean_val = da.mean(dim='time', keep_attrs=True)
         
+        # Check and crop/interpolate latitude if needed
+        # We handle 'latitude' or 'lat'
+        lat_dim = 'latitude' if 'latitude' in mean_val.dims else 'lat'
+        
+        # 1. Latitude Regridding (33 -> 32)
+        if lat_dim in mean_val.dims and n_lat == 32:
+            current_lat = mean_val.sizes[lat_dim]
+            # Standard WXB 32-point grid: symmetric, excludes poles/equator
+            # Resolution is typically 5.625 for this case
+            # Range: approx -87.1875 to +87.1875
+            # We construct the target grid programmatically
+            try:
+                # Parse resolution float from string like '5.625deg'
+                res_val = float(resolution.replace('deg', ''))
+                
+                # Target grid: centered on intervals of res_val
+                # Start: -90 + res/2
+                # End: 90 - res/2
+                # Count: 32
+                limit = 90.0 - (res_val / 2.0)
+                target_lats = np.linspace(-limit, limit, 32)
+                
+                # Use interpolation
+                mean_val = mean_val.interp({lat_dim: target_lats}, method='linear')
+                
+            except ValueError:
+                 # Fallback/Warning if resolution parsing fails
+                 pass
+
+        # 2. Longitude Handling
+        lon_dim = 'longitude' if 'longitude' in mean_val.dims else 'lon'
+        if lon_dim in mean_val.dims:
+            # Normalize to 0-360 first for consistency
+            # This handles cases where input might be mixed or negative
+            if lon_convention == '0-360':
+                 # If we have negative values, shift them
+                 # xarray often handles this via assign_coords
+                 # Common pattern: (lon % 360)
+                 new_lon = mean_val[lon_dim] % 360
+                 mean_val = mean_val.assign_coords({lon_dim: new_lon})
+                 mean_val = mean_val.sortby(lon_dim)
+                 
+            elif lon_convention == '-180-180':
+                 # Convert 0..360 to -180..180
+                 # Logic: (lon + 180) % 360 - 180
+                 new_lon = (mean_val[lon_dim] + 180) % 360 - 180
+                 mean_val = mean_val.assign_coords({lon_dim: new_lon})
+                 mean_val = mean_val.sortby(lon_dim)
+        
         # Restore time dimension (as length 1)
         mean_val = mean_val.expand_dims('time')
         mean_val.coords['time'] = [timestamp]
@@ -402,6 +457,8 @@ def main(context, opt):
         src_root=opt.src,
         window_hours=opt.window,
         alignment=opt.align,
-        workers=opt.workers
+        workers=opt.workers,
+        n_lat=getattr(opt, 'lat', 32),
+        lon_convention=getattr(opt, 'lon', '0-360')
     )
     aggregator.run()

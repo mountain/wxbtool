@@ -409,6 +409,19 @@ def data_agg(parser, context, args):
         default=4,
         help="number of worker processes",
     )
+    parser.add_argument(
+        "--lat",
+        type=int,
+        default=32,
+        help="target latitude resolution (32 or 33)",
+    )
+    parser.add_argument(
+        "--lon",
+        type=str,
+        default="0-360",
+        choices=["0-360", "-180-180"],
+        help="target longitude convention",
+    )
     opt = parser.parse_args(args)
 
     damain(context, opt)
