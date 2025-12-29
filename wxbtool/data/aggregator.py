@@ -99,7 +99,7 @@ def aggregate_worker(args):
         for f in src_files:
             if os.path.exists(f):
                 try:
-                    ds = xr.open_dataset(f)
+                    ds = xr.open_dataset(f, engine='netcdf4')
                     datasets.append(ds)
                 except Exception as e:
                     pass
@@ -311,7 +311,7 @@ def execute_aggregation(args):
         try:
             # Use chunks to support larger data if needed, but for window aggregation parallel processes 
             # it is better to load explicitly small chunks
-            ds = xr.open_mfdataset(valid_files, combine='by_coords', parallel=False)
+            ds = xr.open_mfdataset(valid_files, combine='by_coords', parallel=False, engine='netcdf4')
         except Exception as e:
             return f"Error opening files: {e}"
 
