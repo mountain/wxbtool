@@ -245,6 +245,11 @@ class Aggregator:
         if errors:
             for e in errors[:10]:
                 logger.error(e)
+                
+        if warnings:
+            logger.warning("First 10 warnings:")
+            for w in warnings[:10]:
+                logger.warning(w)
 
 
 def execute_aggregation(args):
@@ -275,7 +280,7 @@ def execute_aggregation(args):
 
         # Find Files
         # We search with a buffer to be safe
-        search_dates = pd.date_range(start=t_start - timedelta(hours=1), end=t_end + timedelta(hours=1), freq='H')
+        search_dates = pd.date_range(start=t_start - timedelta(hours=1), end=t_end + timedelta(hours=1), freq='h')
         
         src_files = DataPathManager.get_file_paths(
             src_root, var, resolution, src_format, search_dates
@@ -284,7 +289,8 @@ def execute_aggregation(args):
         valid_files = [f for f in src_files if os.path.exists(f)]
         
         if not valid_files:
-            return f"Warning: No files found for {var} {timestamp}"
+            checked_path = src_files[0] if src_files else "No paths generated"
+            return f"Warning: No files found for {var} {timestamp}. Checked: {checked_path}"
 
         # Load
         # We use xarray generic load
@@ -369,7 +375,10 @@ def main(context, opt):
     try:
         spec_module = importlib.import_module(opt.module)
         setting_cls = getattr(spec_module, opt.setting)
-        setting = setting_cls()
+        try:
+            setting = setting_cls()
+        except TypeError:
+            setting = setting_cls(None)
     except Exception as e:
         logger.error(f"Failed to load Setting {opt.setting} from {opt.module}: {e}")
         return
