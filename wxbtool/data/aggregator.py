@@ -155,6 +155,15 @@ class Aggregator:
                  window_hours: int, alignment: str = 'backward', workers: int = 4):
         self.setting = setting
         self.src_root = src_root
+        
+        # Resolve src_root relative to WXBHOME if not found as-is
+        if not os.path.exists(self.src_root) and not os.path.isabs(self.src_root):
+            wxb_home = os.environ.get('WXBHOME')
+            if wxb_home:
+                candidate = os.path.join(wxb_home, self.src_root)
+                if os.path.exists(candidate):
+                    logger.info(f"Resolved src_root '{self.src_root}' to '{candidate}'")
+                    self.src_root = candidate
         self.window_hours = window_hours
         self.alignment = alignment
         self.workers = workers
@@ -290,7 +299,7 @@ def execute_aggregation(args):
         
         if not valid_files:
             checked_path = src_files[0] if src_files else "No paths generated"
-            return f"Warning: No files found for {var} {timestamp}. Checked: {checked_path}"
+            return f"Warning: No files found for {var} {timestamp}. Skipping. Checked: {checked_path}"
 
         # Load
         # We use xarray generic load
