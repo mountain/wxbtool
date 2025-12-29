@@ -416,6 +416,9 @@ def data_agg(parser, context, args):
 
 def main():
     import sys
+    import os
+
+    sys.path.insert(0, os.getcwd())
 
     handler = ArgumentHandler()
     if len(sys.argv) < 2:
