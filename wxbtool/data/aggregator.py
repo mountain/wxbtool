@@ -237,8 +237,6 @@ class Aggregator:
                     self.alignment,
                     self.resolution,
                     dst_root,
-                    self.resolution,
-                    dst_root,
                     self.src_format,
                     self.n_lat,
                     self.lon_convention
