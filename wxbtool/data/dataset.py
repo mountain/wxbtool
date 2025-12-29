@@ -142,7 +142,12 @@ class WxDataset(Dataset):
             try:
                 var3d_path = os.path.join(self.root, first3d)
                 # Filter out hidden files like .DS_Store
-                files = [f for f in os.listdir(var3d_path) if not f.startswith(".")]
+                files = [
+                    f
+                    for f in os.listdir(var3d_path)
+                    if not f.startswith(".")
+                    and os.path.isfile(os.path.join(var3d_path, f))
+                ]
                 files.sort()  # Ensure deterministic order
                 if not files:
                     raise FileNotFoundError(f"No valid data files found in {var3d_path}")
