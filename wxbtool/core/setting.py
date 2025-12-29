@@ -1,3 +1,4 @@
+import os
 from typing import Tuple
 
 import numpy as np
@@ -8,9 +9,7 @@ from wxbtool.core.resolution import ResolutionConfig
 
 class Setting:
     def __init__(self):
-        self.root = (
-            config.root
-        )  # The root path of WeatherBench Dataset, inject from config
+        self.root = os.environ.get("WXBHOME", config.root)  # The root path of WeatherBench Dataset, inject from config
         self.resolution = "5.625deg"  # The spatial resolution of the model
 
         # Dataset organization configuration (Flexible Granularity & Path)
