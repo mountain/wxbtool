@@ -316,6 +316,10 @@ def execute_aggregation(args):
         # For backward window (t-w, t], strict logic might be needed
         # But commonly we just use the inclusive slice
         try:
+             # Standardize time dimension name
+             if 'valid_time' in ds.dims and 'time' not in ds.dims:
+                 ds = ds.rename({'valid_time': 'time'})
+
              # handle possible duplicate times if files overlap
              ds = ds.sel(time=slice(t_start, t_end))
              
