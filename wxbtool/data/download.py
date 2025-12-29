@@ -9,6 +9,8 @@ from typing import List, Optional
 
 import cdsapi
 
+DEFAULT_DATAPATH_FORMAT = "{year}/{month:02d}/{day:02d}/{year}{month:02d}{day:02d}_{hour:02d}.nc"
+
 from wxbtool.paradigm.seq2seq import Seq2SeqModel
 from wxbtool.paradigm.gan import GANModel
 

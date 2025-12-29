@@ -13,6 +13,7 @@ import numpy as np
 from wxbtool.core.setting import Setting
 from wxbtool.data.path import DataPathManager
 from wxbtool.data.variables import get_code, is_var3d
+from wxbtool.data.download import DEFAULT_DATAPATH_FORMAT
 
 logger = logging.getLogger(__name__)
 
@@ -174,7 +175,7 @@ class Aggregator:
         # Hardcoded for now as "guessing" the source format is hard
         # Ideally this should be passed in too, but spec 007 didn't add flag for it.
         # We assume standard WXB hourly structure for source.
-        self.src_format = "{year}/{month:02d}/{day:02d}/{var}_{year}-{month:02d}-{day:02d}T{hour:02d}_{resolution}.nc"
+        self.src_format = DEFAULT_DATAPATH_FORMAT
 
     def run(self):
         """Execute the aggregation process."""
