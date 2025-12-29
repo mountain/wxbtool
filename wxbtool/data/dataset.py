@@ -141,7 +141,12 @@ class WxDataset(Dataset):
             first3d = var3d_list[0]
             try:
                 var3d_path = os.path.join(self.root, first3d)
-                any_file = os.listdir(var3d_path)[0]
+                # Filter out hidden files like .DS_Store
+                files = [f for f in os.listdir(var3d_path) if not f.startswith(".")]
+                files.sort()  # Ensure deterministic order
+                if not files:
+                    raise FileNotFoundError(f"No valid data files found in {var3d_path}")
+                any_file = files[0]
                 sample_data = xr.open_dataarray(f"{var3d_path}/{any_file}")
                 all_levels = sample_data.level.values.tolist()
             except (FileNotFoundError, IndexError, AttributeError) as e:
