@@ -286,13 +286,23 @@ inputs, targets, index = dataset[0]
 wxbtool includes a data download command to fetch the latest ERA5 data:
 
 ```bash
-wxb data-download -m wxbtool.zoo.res5_625.unet.t850d3sm_weyn --coverage weekly
+wxb data-download -m wxbtool.zoo.unet.t850d3sm_weyn --coverage weekly
+```
+
+## Data Aggregation
+
+For climate modeling (S2S), you often need to aggregate high-frequency data (e.g., hourly) into lower-frequency averages (e.g., daily or weekly). Use the `data-agg` command for this:
+
+- **[Data Aggregation Guide](data_agg.md)**: Detailed instructions on creating sliding window datasets.
+
+```bash
+# Example: Create daily averages from hourly data
+wxb data-agg -s SettingDailyAgg --src ./era5 --window 24 --align backward
 ```
 
 Notes:
 - Coverage options: `daily`, `weekly`, `monthly`, or an integer number of days (e.g., `--coverage 10`).
 - Variables, levels, and resolution are inferred from the model's `Setting`.
-- Example output directory structure (subject to your configured layout):
   ```
   era5/{variable}/{YYYY}/{MM}/{DD}/{YYYYMMDD}_{HH}.nc
   ```

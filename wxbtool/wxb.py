@@ -2,6 +2,7 @@ from arghandler import ArgumentHandler, subcmd
 
 from wxbtool.data.download import main as dnmain
 from wxbtool.data.dsserver import main as dsmain
+from wxbtool.data.aggregator import main as damain
 from wxbtool.core.phase.eval import main as eval_main
 from wxbtool.core.phase.infer import main as infer_main
 from wxbtool.core.phase.infer import main_gan as inferg_main
@@ -364,6 +365,53 @@ def data_download(parser, context, args):
     opt = parser.parse_args(args)
 
     dnmain(context, opt)
+
+
+@subcmd("data-agg", help="aggregate high-frequency data to lower-frequency")
+def data_agg(parser, context, args):
+    parser.add_argument(
+        "-m",
+        "--module",
+        type=str,
+        default="wxbtool.specs.res5_625.t850weyn",
+        help="module of the metrological model to load (for Setting)",
+    )
+    parser.add_argument(
+        "-s",
+        "--setting",
+        type=str,
+        default="Setting",
+        help="name of the setting class defining the DESTINATION layout",
+    )
+    parser.add_argument(
+        "--src",
+        type=str,
+        required=True,
+        help="source data root directory",
+    )
+    parser.add_argument(
+        "--window",
+        type=int,
+        required=True,
+        help="window size in hours",
+    )
+    parser.add_argument(
+        "--align",
+        type=str,
+        default="backward",
+        choices=["backward", "forward", "center"],
+        help="window alignment",
+    )
+    parser.add_argument(
+        "-w",
+        "--workers",
+        type=int,
+        default=4,
+        help="number of worker processes",
+    )
+    opt = parser.parse_args(args)
+
+    damain(context, opt)
 
 
 def main():
