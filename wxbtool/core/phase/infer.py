@@ -35,7 +35,7 @@ def main(context, opt):
 
         # Load the model checkpoint if provided
         if opt.load:
-            checkpoint = th.load(opt.load)
+            checkpoint = th.load(opt.load, map_location=device)
             model.load_state_dict(checkpoint["state_dict"])
 
         # Move to device and set eval mode
@@ -162,7 +162,7 @@ def main_gan(context, opt):
 
         # Load the model checkpoint if provided
         if opt.load:
-            checkpoint = th.load(opt.load)
+            checkpoint = th.load(opt.load, map_location=device)
             generator.load_state_dict(checkpoint["state_dict"])
 
         # Move to device and set eval mode
