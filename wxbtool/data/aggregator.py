@@ -174,10 +174,10 @@ class Aggregator:
         # Assume source resolution matches destination resolution for now
         self.resolution = setting.resolution
         
-        # Hardcoded for now as "guessing" the source format is hard
-        # Ideally this should be passed in too, but spec 007 didn't add flag for it.
-        # We assume standard WXB hourly structure for source.
-        self.src_format = DEFAULT_DATAPATH_FORMAT
+        # Prefer the standard WXB hourly layout used in tests and docs:
+        # {year}/{month}/{day}/{var}_{YYYY-MM-DD}T{HH}_{resolution}.nc
+        # This matches tests/test_aggregator.py
+        self.src_format = "{year}/{month:02d}/{day:02d}/{var}_{year}-{month:02d}-{day:02d}T{hour:02d}_{resolution}.nc"
 
     def run(self):
         """Execute the aggregation process."""
@@ -368,50 +368,50 @@ def execute_aggregation(args):
         # We handle 'latitude' or 'lat'
         lat_dim = 'latitude' if 'latitude' in mean_val.dims else 'lat'
         
-        # 1. Latitude Regridding (33 -> 32)
-        if lat_dim in mean_val.dims and n_lat == 32:
+        # 1. Latitude Regridding (only perform common 33->32 case)
+        did_lat_interp = False
+        if lat_dim in mean_val.dims:
             current_lat = mean_val.sizes[lat_dim]
-            # Standard WXB 32-point grid: symmetric, excludes poles/equator
-            # Resolution is typically 5.625 for this case
-            # Range: approx -87.1875 to +87.1875
-            # We construct the target grid programmatically
-            try:
-                # Parse resolution float from string like '5.625deg'
-                res_val = float(resolution.replace('deg', ''))
-                
-                # Target grid: centered on intervals of res_val
-                # Start: -90 + res/2
-                # End: 90 - res/2
-                # Count: 32
-                limit = 90.0 - (res_val / 2.0)
-                target_lats = np.linspace(-limit, limit, 32)
-                
-                # Use interpolation
-                mean_val = mean_val.interp({lat_dim: target_lats}, method='linear')
-                
-            except ValueError:
-                 # Fallback/Warning if resolution parsing fails
-                 pass
+            if current_lat == 33 and n_lat == 32:
+                try:
+                    # Parse resolution float from string like '5.625deg'
+                    res_val = float(resolution.replace('deg', ''))
+                    # Target grid: centered on intervals of res_val
+                    limit = 90.0 - (res_val / 2.0)
+                    target_lats = np.linspace(-limit, limit, 32)
+                    mean_val = mean_val.interp({lat_dim: target_lats}, method='linear')
+                    did_lat_interp = True
+                except ValueError:
+                    # Fallback/Warning if resolution parsing fails
+                    pass
 
-        # 2. Longitude Handling
+        # 2. Longitude Handling (convention conversion only)
         lon_dim = 'longitude' if 'longitude' in mean_val.dims else 'lon'
+        regrid_method_lon = 'unchanged'
         if lon_dim in mean_val.dims:
-            # Normalize to 0-360 first for consistency
-            # This handles cases where input might be mixed or negative
             if lon_convention == '0-360':
-                 # If we have negative values, shift them
-                 # xarray often handles this via assign_coords
-                 # Common pattern: (lon % 360)
-                 new_lon = mean_val[lon_dim] % 360
-                 mean_val = mean_val.assign_coords({lon_dim: new_lon})
-                 mean_val = mean_val.sortby(lon_dim)
-                 
+                new_lon = mean_val[lon_dim] % 360
+                mean_val = mean_val.assign_coords({lon_dim: new_lon})
+                mean_val = mean_val.sortby(lon_dim)
+                regrid_method_lon = 'convention-convert-only'
             elif lon_convention == '-180-180':
-                 # Convert 0..360 to -180..180
-                 # Logic: (lon + 180) % 360 - 180
-                 new_lon = (mean_val[lon_dim] + 180) % 360 - 180
-                 mean_val = mean_val.assign_coords({lon_dim: new_lon})
-                 mean_val = mean_val.sortby(lon_dim)
+                new_lon = (mean_val[lon_dim] + 180) % 360 - 180
+                mean_val = mean_val.assign_coords({lon_dim: new_lon})
+                mean_val = mean_val.sortby(lon_dim)
+                regrid_method_lon = 'convention-convert-only'
+
+        # Standardize dimension names to match dataloader expectations
+        # Dataloader expects dims: ('time','lat','lon') for 2D and ('time','level','lat','lon') for 3D
+        # Rename 'latitude'/'longitude' -> 'lat'/'lon'
+        if 'latitude' in mean_val.dims and 'lat' not in mean_val.dims:
+            mean_val = mean_val.rename({'latitude': 'lat'})
+        if 'longitude' in mean_val.dims and 'lon' not in mean_val.dims:
+            mean_val = mean_val.rename({'longitude': 'lon'})
+        # Rename known vertical dim candidates to 'level'
+        for cand in ['isobaricInhPa', 'isobaricInPa', 'plev']:
+            if cand in mean_val.dims and 'level' not in mean_val.dims:
+                mean_val = mean_val.rename({cand: 'level'})
+                break
         
         # Restore time dimension (as length 1)
         mean_val = mean_val.expand_dims('time')
@@ -420,6 +420,124 @@ def execute_aggregation(args):
         # Clean up attributes
         mean_val.name = var_code
         out_ds = mean_val.to_dataset()
+
+        # ------------------ Metadata inference & recording ------------------
+        # Infer source time step (hours)
+        try:
+            time_index = ds['time'].to_index()
+            diffs = time_index.to_series().diff().dropna()
+            if len(diffs) > 0:
+                mode_delta = diffs.mode().iloc[0]
+                source_time_step_hours = float(pd.to_timedelta(mode_delta).total_seconds() / 3600.0)
+            else:
+                source_time_step_hours = np.nan
+        except Exception:
+            source_time_step_hours = np.nan
+
+        # Source grid stats
+        src_lat_dim = 'latitude' if 'latitude' in ds.dims else ('lat' if 'lat' in ds.dims else None)
+        src_lon_dim = 'longitude' if 'longitude' in ds.dims else ('lon' if 'lon' in ds.dims else None)
+        def _grid_stats(arr):
+            vals = np.asarray(arr)
+            n = int(vals.size)
+            vmin = float(np.nanmin(vals)) if n > 0 else np.nan
+            vmax = float(np.nanmax(vals)) if n > 0 else np.nan
+            res = float(np.nanmean(np.diff(np.sort(vals)))) if n > 1 else np.nan
+            return n, vmin, vmax, res
+        src_nlat = src_lat_min = src_lat_max = src_lat_res = np.nan
+        src_nlon = src_lon_min = src_lon_max = src_lon_res = np.nan
+        if src_lat_dim is not None:
+            src_nlat, src_lat_min, src_lat_max, src_lat_res = _grid_stats(ds[src_lat_dim].values)
+        if src_lon_dim is not None:
+            src_nlon, src_lon_min, src_lon_max, src_lon_res = _grid_stats(ds[src_lon_dim].values)
+
+        # Destination grid stats (after regridding/convention conversion)
+        dst_lat_dim = 'latitude' if 'latitude' in mean_val.dims else ('lat' if 'lat' in mean_val.dims else None)
+        dst_lon_dim = 'longitude' if 'longitude' in mean_val.dims else ('lon' if 'lon' in mean_val.dims else None)
+        dst_nlat = dst_lat_min = dst_lat_max = dst_lat_res = np.nan
+        dst_nlon = dst_lon_min = dst_lon_max = dst_lon_res = np.nan
+        if dst_lat_dim is not None:
+            dst_nlat, dst_lat_min, dst_lat_max, dst_lat_res = _grid_stats(mean_val[dst_lat_dim].values)
+            # Coordinate attrs (CF)
+            out_ds[dst_lat_dim].attrs.setdefault('standard_name', 'latitude')
+            out_ds[dst_lat_dim].attrs.setdefault('units', 'degrees_north')
+            out_ds[dst_lat_dim].attrs.setdefault('axis', 'Y')
+        if dst_lon_dim is not None:
+            dst_nlon, dst_lon_min, dst_lon_max, dst_lon_res = _grid_stats(mean_val[dst_lon_dim].values)
+            out_ds[dst_lon_dim].attrs.setdefault('standard_name', 'longitude')
+            out_ds[dst_lon_dim].attrs.setdefault('units', 'degrees_east')
+            out_ds[dst_lon_dim].attrs.setdefault('axis', 'X')
+        if 'time' in out_ds.coords:
+            out_ds['time'].attrs.setdefault('standard_name', 'time')
+            out_ds['time'].attrs.setdefault('axis', 'T')
+
+        # Level metadata
+        level_dim = None
+        for cand in ['level', 'isobaricInhPa', 'isobaricInPa', 'plev']:
+            if cand in mean_val.dims:
+                level_dim = cand
+                break
+        level_count = 0
+        level_units = ''
+        level_values = ''
+        if level_dim is not None:
+            lev_vals = np.asarray(mean_val[level_dim].values)
+            level_count = int(lev_vals.size)
+            level_units = str(mean_val[level_dim].attrs.get('units', ''))
+            # Avoid overly long attributes
+            level_values = ','.join(map(lambda x: str(x), lev_vals[:50]))
+
+        # Regridding method flags
+        regrid_method_lat = 'interp-linear' if did_lat_interp else 'unchanged'
+
+        # Global attrs
+        out_ds.attrs.update({
+            'Conventions': 'CF-1.8',
+            'aggregation': 'mean',
+            'alignment': str(alignment),
+            'window_hours': int(window_hours),
+            'window_start': pd.Timestamp(t_start).isoformat(),
+            'window_end': pd.Timestamp(t_end).isoformat(),
+            'time_coverage_start': pd.Timestamp(t_start).isoformat(),
+            'time_coverage_end': pd.Timestamp(t_end).isoformat(),
+            'target_time': pd.Timestamp(timestamp).isoformat(),
+            'target_resolution': str(resolution),
+            'lon_convention': str(lon_convention),
+            'source_time_step_hours': float(source_time_step_hours),
+            'src_grid_nlat': int(src_nlat) if not np.isnan(src_nlat) else 0,
+            'src_grid_lat_min': float(src_lat_min) if not np.isnan(src_lat_min) else np.nan,
+            'src_grid_lat_max': float(src_lat_max) if not np.isnan(src_lat_max) else np.nan,
+            'src_grid_lat_resolution': float(src_lat_res) if not np.isnan(src_lat_res) else np.nan,
+            'src_grid_nlon': int(src_nlon) if not np.isnan(src_nlon) else 0,
+            'src_grid_lon_min': float(src_lon_min) if not np.isnan(src_lon_min) else np.nan,
+            'src_grid_lon_max': float(src_lon_max) if not np.isnan(src_lon_max) else np.nan,
+            'src_grid_lon_resolution': float(src_lon_res) if not np.isnan(src_lon_res) else np.nan,
+            'dst_grid_nlat': int(dst_nlat) if not np.isnan(dst_nlat) else 0,
+            'dst_grid_lat_min': float(dst_lat_min) if not np.isnan(dst_lat_min) else np.nan,
+            'dst_grid_lat_max': float(dst_lat_max) if not np.isnan(dst_lat_max) else np.nan,
+            'dst_grid_lat_resolution': float(dst_lat_res) if not np.isnan(dst_lat_res) else np.nan,
+            'dst_grid_nlon': int(dst_nlon) if not np.isnan(dst_nlon) else 0,
+            'dst_grid_lon_min': float(dst_lon_min) if not np.isnan(dst_lon_min) else np.nan,
+            'dst_grid_lon_max': float(dst_lon_max) if not np.isnan(dst_lon_max) else np.nan,
+            'dst_grid_lon_resolution': float(dst_lon_res) if not np.isnan(dst_lon_res) else np.nan,
+            'regrid_method_lat': regrid_method_lat,
+            'regrid_method_lon': regrid_method_lon,
+            'variable_code': var_code,
+            'is_3d': bool(level_dim is not None),
+            'level_dim': level_dim if level_dim else '',
+            'level_count': int(level_count),
+            'level_units': level_units,
+            'levels': level_values,
+            'source_files': ';'.join(valid_files),
+        })
+        # provenance history
+        try:
+            now_utc = pd.Timestamp.utcnow().isoformat() + 'Z'
+            hist = out_ds.attrs.get('history', '')
+            new_hist = f"{now_utc} Aggregated with wxb data-agg (mean) window={window_hours}h alignment={alignment}."
+            out_ds.attrs['history'] = (hist + '\n' + new_hist).strip() if hist else new_hist
+        except Exception:
+            pass
         
         # Output Path
         fields = DataPathManager._compute_fields(timestamp, var, resolution)

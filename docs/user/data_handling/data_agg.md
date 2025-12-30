@@ -72,6 +72,35 @@ If you use a standard training configuration `SettingClimate` (which defaults to
 
 By defining a lightweight `SettingDailyAgg`, you explicitly tell the tool: "I want output for every single day, organized in this specific directory structure."
 
+## Metadata recorded in output NetCDF
+
+When writing each aggregated file, the command infers and saves key metadata into the NetCDF:
+
+- Aggregation and window
+  - aggregation: mean
+  - alignment: backward/forward/center
+  - window_hours: integer hours
+  - window_start, window_end: ISO timestamps of the aggregated window
+  - time_coverage_start, time_coverage_end: same as window range
+  - target_time: the timestamp of this output file
+- Time-step inference
+  - source_time_step_hours: inferred from source ds.time differences (mode in hours)
+- Grid and regridding
+  - src_grid_* and dst_grid_*: nlat/nlon, min/max, and approximate resolution for lat/lon
+  - lon_convention: 0-360 or -180-180 applied to output
+  - regrid_method_lat: interp-linear if 33->32 latitude interpolation was applied, otherwise unchanged
+  - regrid_method_lon: convention-convert-only (no longitudinal resampling in v1)
+- Variable and vertical levels
+  - variable_code: canonical code (e.g., t2m)
+  - is_3d: true/false
+  - level_dim, level_count, level_units, levels (for 3D variables; empty for 2D)
+- Provenance and conventions
+  - Conventions: CF-1.8
+  - source_files: semicolon-separated list of hourly source files
+  - history: processing history line with window and alignment
+
+Note: In v1, longitude is not resampled—only the convention is normalized. Latitude interpolation is applied only for the common 33->32 case at the target resolution.
+
 ## Workflow Example: Preparing S2S Data
 
 To prepare data for a generic S2S model (e.g., input = past 7 days, target = future 7 days):
