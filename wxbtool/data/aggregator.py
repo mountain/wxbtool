@@ -534,7 +534,7 @@ def execute_aggregation(args):
             'regrid_method_lat': regrid_method_lat,
             'regrid_method_lon': regrid_method_lon,
             'variable_code': var_code,
-            'is_3d': bool(level_dim is not None),
+            'is_3d': int(level_dim is not None),
             'level_dim': level_dim if level_dim else '',
             'level_count': int(level_count),
             'level_units': level_units,
