@@ -417,9 +417,9 @@ def execute_aggregation(args):
         mean_val = mean_val.expand_dims('time')
         mean_val.coords['time'] = [timestamp]
         
-        # Clean up attributes
+        # Clean up attributes and construct dataset explicitly to ensure data variable exists
         mean_val.name = var_code
-        out_ds = mean_val.to_dataset()
+        out_ds = xr.Dataset({var_code: mean_val})
 
         # ------------------ Metadata inference & recording ------------------
         # Infer source time step (hours)
